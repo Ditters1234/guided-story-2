@@ -286,10 +286,8 @@
 
 <div class="app-shell" inert={showCreate || showType || showRelationshipType || !!structuralEdit}>
   <header class="app-header">
-    <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story<span class="brand-edition">WORKSPACE</span></span></div>
-    <div class="header-divider"></div>
-    <div class="project-identity"><strong>{project?.title ?? 'Brasswater House'}</strong><span>{project ? 'Story foundation' : 'A fictional example world'}</span></div>
-    <div class="header-actions"><span class="build-tag">FOUNDATION PREVIEW</span><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button></div>
+    <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
+    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button></div>
   </header>
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
   {#if error}<div class="error-banner" role="alert"><span>{error}</span><div>{#if recoveryPath}<button onclick={recoverProject} disabled={busy}>Recover previous valid save</button>{:else if project}<button onclick={() => { void flush().catch(() => {}); }}>Retry save</button>{/if}<button class="icon-button" aria-label="Dismiss message" onclick={() => { error = ''; }}>×</button></div></div>{/if}
@@ -297,10 +295,8 @@
     <PaneGroup direction="horizontal">
       <Pane defaultSize={20} minSize={15} maxSize={30}>
         <Sidebar label="World structure">
-          <div class="panel-heading"><span>YOUR STORY</span><span class="tiny-mark">✧</span></div>
-          <div class="workspace-tabs"><button class="active">World</button><button disabled title="Passage writing comes in the next milestone">Contents <small>0</small></button></div>
-          <div class="search-box"><span aria-hidden="true">⌕</span><input aria-label="Search world records" placeholder="Find in your world…" bind:value={search} /><kbd>⌕</kbd></div>
-          <div class="structure-label"><span>PLACES & CONNECTIONS</span><span>{records.length}</span></div>
+          <div class="world-heading"><h1>World</h1><span aria-label={`${records.length} nodes`}>{records.length}</span></div>
+          <div class="search-box"><span aria-hidden="true">⌕</span><input aria-label="Search world records" placeholder="Find in your world…" bind:value={search} /></div>
           <nav class="world-tree" aria-label="World records">
             {#each treeRows as record (record.id)}
               {@const count = records.filter((r) => r.parentId === record.id).length}
@@ -310,23 +306,19 @@
               </div>
             {:else}<p class="empty-tree">{search ? 'No matching records.' : 'Your world is ready for its first place.'}</p>{/each}
           </nav>
-          <div class="sidebar-bottom"><span class="eyebrow">A WORLD THAT CAN GROW</span><p>Places hold people.<br />People carry stories.</p><span class="field-help">Select a connection to explore it.</span></div>
         </Sidebar>
       </Pane>
       <PaneResizer class="pane-resizer" />
       <Pane minSize={35}>
         <section class="map-panel" aria-label="World authoring workspace">
-          <div class="map-toolbar"><div><span class="eyebrow">STORY FOUNDATION</span><h1>Your world, connected.</h1></div><div class="map-tools">
-            {#if project}<details class="add-menu"><summary>＋ Add manually</summary><div>
+          <div class="map-toolbar"><div class="map-tools">
+            {#if project}<details class="add-menu"><summary>＋ Add node</summary><div>
               {#each world.nodeTypes as type}<button disabled={busy} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
               <button disabled={busy} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
           </div></div>
-          <div class="map-caption"><span class="live-dot"></span><span>{project ? 'Current world' : 'Explore the example'}</span><span class="caption-divider">/</span><span>Expand a node to discover its connections</span></div>
           <SvelteFlowProvider><WorldMap {world} {workspace} {search} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
-          <div class="map-legend"><span><i class="tree-dot place"></i>Places</span><span><i class="tree-dot character"></i>Characters</span><span><i class="tree-dot item"></i>Items</span><span><i class="tree-dot thread"></i>Threads</span></div>
-          <div class="writing-intro"><span class="writing-icon">✎</span><div><h3>First, give the story somewhere to happen.</h3><p>Build and edit your world here. Scene planning and passage generation are the next milestone.</p></div></div>
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />

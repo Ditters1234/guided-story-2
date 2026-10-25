@@ -20,6 +20,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - Scope model context by task, viewpoint and selected resources. Map expansion does not authorize sending the entire world.
 - Preserve full retained prose on extraction/check failure. Never add unbounded automatic repairs, retries or provider switching.
 - Reading navigation, layout and portrait selection must not accidentally advance or rewrite the story.
+- Keep the workspace compact and functional. Avoid slogans, repeated headings, development-status copy, placeholder tabs and redundant legends; prioritize room for the map and editing controls.
 
 ## Source, data and verification
 

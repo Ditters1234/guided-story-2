@@ -8,7 +8,7 @@ Pinning means a saved relationship between world nodes. Dragging a node changes 
 - Use **Edit / move** on an incoming or outgoing connection, or click its canvas line. Change its source, relationship, target or notes. The saved connection keeps its ID.
 - Use **Detach**, **Remove this node…**, or a capability's **Remove** control for removal.
 - Choose **Review changes**, inspect the native-validated consequences, then **Apply changes**. Cancel leaves the world unchanged. An edited form invalidates its previous preview; applying also checks that the source world still matches.
-- Add project-local relationship definitions through **Add manually → Define a relationship…**. Choose source/target capability requirements, physical placement and one-target behavior.
+- Add project-local relationship definitions through **Add node → Define a relationship…**. Choose source/target capability requirements, physical placement and one-target behavior.
 
 The inspector lists incoming and outgoing connections even when endpoints are hidden by map collapse/search. Following a connection reveals its ancestor path. Canvas links retain canonical IDs and direction; physical, wear and other links sharing endpoints remain distinct.
 
