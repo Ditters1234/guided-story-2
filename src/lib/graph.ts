@@ -123,7 +123,7 @@ export function buildGraph(world: World, workspace: Workspace, search: string, o
     const definition = world.relationTypes.find((r) => r.id === edge.typeId);
     edges.push({ id: edge.id, source: edge.sourceId, target: edge.targetId, label: definition?.label ?? edge.typeId,
       type: definition?.physicalPlacement ? 'smoothstep' : 'default',
-      style: definition?.physicalPlacement ? 'stroke: #8ca692;' : 'stroke: #a88662; stroke-dasharray: 5 5;',
+      style: definition?.physicalPlacement ? 'stroke: var(--connection);' : 'stroke: var(--secondary-connection); stroke-dasharray: 5 5;',
       ariaLabel: `${records.find((r) => r.id === edge.sourceId)?.name} ${definition?.label} ${records.find((r) => r.id === edge.targetId)?.name}`,
       interactionWidth: 24, markerEnd: { type: 'arrowclosed' as MarkerType } });
   }

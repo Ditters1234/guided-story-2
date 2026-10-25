@@ -15,6 +15,8 @@ export const commands = {
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
+	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
+	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
 };
 
 /* Types */
@@ -77,6 +79,15 @@ export type Position = {
 	y: number | null,
 };
 
+export type Preferences = {
+	schemaVersion: number,
+	version: number,
+	themeId: string,
+	textScale: number,
+	reducedMotion: boolean,
+	customThemes: ThemeDefinition[],
+};
+
 export type ProjectView = ProjectView_Serialize | ProjectView_Deserialize;
 
 export type ProjectView_Deserialize = {
@@ -127,6 +138,31 @@ export type RelationDefinition_Serialize = {
 	physicalPlacement: boolean,
 	singleTarget: boolean,
 };
+
+export type ThemeColors = {
+	background: string,
+	surface: string,
+	surfaceAlt: string,
+	text: string,
+	muted: string,
+	border: string,
+	accent: string,
+	accentText: string,
+	selection: string,
+	canvas: string,
+	canvasDots: string,
+	connection: string,
+};
+
+export type ThemeDefinition = {
+	schemaVersion: number,
+	id: string,
+	name: string,
+	mode: ThemeMode,
+	colors: ThemeColors,
+};
+
+export type ThemeMode = "light" | "dark";
 
 export type Workspace = Workspace_Serialize | Workspace_Deserialize;
 

@@ -15,6 +15,8 @@ npm run desktop
 
 The opening world is a fictional example. Create a project to save/edit it, or start with an empty world. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. Existing project folders can also be opened with `npm run desktop -- -- --project "C:\path\to\project"`.
 
+The header's settings gear opens themes, text size and reduced-motion controls. Custom themes can be edited and shared as JSON. Appearance preferences stay separate from story folders; see [appearance settings](APPEARANCE.md).
+
 Checks: `npm run check`, `npm test`, `npm run build`, `npm run native:test`, and `npm run native:check`. `npm run bindings` regenerates checked-in frontend contracts from Rust.
 
 ## The intended experience

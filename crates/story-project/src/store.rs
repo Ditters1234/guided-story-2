@@ -124,7 +124,7 @@ fn replace_file(source: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let temp = write_temp(path, bytes)?;
     let result = replace_file(&temp, path);
     if result.is_err() {

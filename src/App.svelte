@@ -9,6 +9,9 @@
   import Inspector from './lib/Inspector.svelte';
   import WorldEditDialog from './lib/WorldEditDialog.svelte';
   import RelationshipTypeDialog from './lib/RelationshipTypeDialog.svelte';
+  import SettingsDialog from './lib/SettingsDialog.svelte';
+  import { AppearanceSettings } from './lib/appearance.svelte';
+  import { applyAppearance, resolveTheme } from './lib/appearance';
   import { exampleWorld, emptyWorld, makeNode, type ProjectView, type Workspace, type World } from './lib/model';
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
@@ -25,6 +28,11 @@
   let layoutError = $state('');
   let status = $state('Example world');
   let busy = $state(false);
+  const appearance = new AppearanceSettings();
+  let showSettings = $state(false);
+  let systemDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const colorMode = $derived(resolveTheme(appearance.value, systemDark).mode);
+  $effect(() => { applyAppearance(appearance.value, systemDark); });
   let structuralEdit = $state<WorldEdit | null>(null);
   let showRelationshipType = $state(false);
   let showCreate = $state(false);
@@ -43,6 +51,9 @@
   const treeRows = $derived(orderedRecords(visibleRecords(records, workspace.expandedIds, search)));
 
   function describe(caught: unknown) { return caught instanceof Error ? caught.message : String(caught); }
+  async function closeSettings() {
+    try { await appearance.flush(); showSettings=false; } catch { /* Keep the settings error and edits visible. */ }
+  }
   function scheduleSave() {
     if (!project) return;
     editVersion++;
@@ -266,8 +277,13 @@
 
   onMount(() => {
     let unlisten: (() => void) | undefined;
+    const media=window.matchMedia('(prefers-color-scheme: dark)');
+    const changeMode=()=>{systemDark=media.matches;};
+    media.addEventListener('change', changeMode);
+    void appearance.load();
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
+      try { await appearance.flush(); } catch { event.preventDefault(); showSettings=true; return; }
       if (!project) return;
       busy = true;
       try { await flush(); } catch { /* A persisted invalid form remains recoverable. */ }
@@ -278,18 +294,19 @@
         error = 'The latest draft could not be saved. Keep this window open and retry.';
       }
     }).then((off) => { unlisten = off; });
-    return () => { clearTimeout(timer); clearTimeout(layoutTimer); unlisten?.(); };
+    return () => { clearTimeout(timer); clearTimeout(layoutTimer); media.removeEventListener('change',changeMode); unlisten?.(); };
   });
 </script>
 
 <svelte:head><title>{project?.title ?? 'World workspace'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType || showRelationshipType || !!structuralEdit}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || !!structuralEdit}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
-    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button></div>
+    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button><button class="settings-button quiet-button" onclick={()=>{showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
   </header>
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
+  {#if appearance.error && !showSettings}<div class="error-banner" role="alert"><span>Settings: {appearance.error}</span><button onclick={()=>{showSettings=true;}}>Open settings</button></div>{/if}
   {#if error}<div class="error-banner" role="alert"><span>{error}</span><div>{#if recoveryPath}<button onclick={recoverProject} disabled={busy}>Recover previous valid save</button>{:else if project}<button onclick={() => { void flush().catch(() => {}); }}>Retry save</button>{/if}<button class="icon-button" aria-label="Dismiss message" onclick={() => { error = ''; }}>×</button></div></div>{/if}
   <main class="main-workspace">
     <PaneGroup direction="horizontal">
@@ -318,7 +335,7 @@
               <button disabled={busy} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
           </div></div>
-          <SvelteFlowProvider><WorldMap {world} {workspace} {search} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
+          <SvelteFlowProvider><WorldMap {world} {workspace} {search} {colorMode} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
@@ -332,6 +349,7 @@
   <footer class="status-bar"><span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
 
+{#if showSettings}<SettingsDialog settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
 {#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 

@@ -21,6 +21,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - Preserve full retained prose on extraction/check failure. Never add unbounded automatic repairs, retries or provider switching.
 - Reading navigation, layout and portrait selection must not accidentally advance or rewrite the story.
 - Keep the workspace compact and functional. Avoid slogans, repeated headings, development-status copy, placeholder tabs and redundant legends; prioritize room for the map and editing controls.
+- Use the shared appearance tokens for UI colors and scalable text. Appearance preferences belong in the app config directory, not story snapshots. Portable themes are validated JSON data, not executable CSS.
 
 ## Source, data and verification
 

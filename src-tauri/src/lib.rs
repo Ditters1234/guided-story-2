@@ -1,8 +1,9 @@
 use std::{path::Path, sync::Mutex};
 use story_project::{
-    CommitResult, EditorDraft, Project, ProjectView, Workspace, World, WorldEdit, WorldEditPreview,
+    CommitResult, EditorDraft, Preferences, Project, ProjectView, Workspace, World, WorldEdit,
+    WorldEditPreview,
 };
-use tauri::State;
+use tauri::{Manager, State};
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -153,6 +154,30 @@ fn preview_world_edit(world: World, edit: WorldEdit) -> Result<WorldEditPreview,
     story_project::preview_world_edit(&world, edit)
 }
 
+fn preferences_root(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os("GUIDED_STORY_PREFERENCES_DIR") {
+        return Ok(path.into());
+    }
+    app.path().app_config_dir().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn load_preferences(app: tauri::AppHandle) -> Result<Preferences, String> {
+    story_project::load_preferences(&preferences_root(&app)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_preferences(
+    expected_version: u32,
+    preferences: Preferences,
+    app: tauri::AppHandle,
+) -> Result<Preferences, String> {
+    story_project::save_preferences(&preferences_root(&app)?, expected_version, preferences)
+}
+
 fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new().commands(tauri_specta::collect_commands![
         create_project,
@@ -165,7 +190,9 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
         load_draft,
         save_draft,
         clear_matching_draft,
-        preview_world_edit
+        preview_world_edit,
+        load_preferences,
+        save_preferences
     ])
 }
 
