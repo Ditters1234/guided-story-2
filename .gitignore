@@ -1,0 +1,30 @@
+# Read-only upstream checkouts; provenance is tracked in review documents.
+/reference-guided-story/
+/references/tauri-svelte-template/
+/references/ai-novel-writer-json/
+
+# Dependencies and generated application output.
+node_modules/
+dist/
+build/
+.svelte-kit/
+target/
+coverage/
+test-results/
+*.log
+
+# Local stories, model settings, credentials and editor state.
+/data/
+/projects/
+/private/
+/local/
+.env
+.env.*
+!.env.example
+*.local.json
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
