@@ -1,0 +1,169 @@
+{
+  "nodes": [],
+  "edges": [],
+  "nodeTypes": [
+    {
+      "id": "core.place",
+      "name": "Place",
+      "description": "Place preset",
+      "components": [
+        "core.place",
+        "core.holder"
+      ]
+    },
+    {
+      "id": "core.character",
+      "name": "Character",
+      "description": "Character preset",
+      "components": [
+        "core.character",
+        "core.holder"
+      ]
+    },
+    {
+      "id": "core.item",
+      "name": "Item",
+      "description": "Item preset",
+      "components": [
+        "core.item"
+      ]
+    },
+    {
+      "id": "core.thread",
+      "name": "Story thread",
+      "description": "Story thread preset",
+      "components": [
+        "core.thread"
+      ]
+    }
+  ],
+  "componentTypes": [
+    {
+      "id": "core.place",
+      "name": "Place",
+      "description": "Can be a scene location.",
+      "fields": []
+    },
+    {
+      "id": "core.character",
+      "name": "Character",
+      "description": "Can participate in a scene.",
+      "fields": []
+    },
+    {
+      "id": "core.holder",
+      "name": "Holds possessions",
+      "description": "Can hold items directly.",
+      "fields": []
+    },
+    {
+      "id": "core.item",
+      "name": "Inventory item",
+      "description": "Tracks explicit units.",
+      "fields": [
+        {
+          "key": "quantity",
+          "label": "Quantity",
+          "kind": "number",
+          "required": true,
+          "defaultValue": 1
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "kind": "text",
+          "required": true,
+          "defaultValue": "item"
+        }
+      ]
+    },
+    {
+      "id": "core.container",
+      "name": "Container",
+      "description": "Can store items; add to an item or a custom node.",
+      "fields": []
+    },
+    {
+      "id": "core.wearable",
+      "name": "Wearable",
+      "description": "Describes clothing coverage and layer.",
+      "fields": [
+        {
+          "key": "regions",
+          "label": "Coverage",
+          "kind": "text",
+          "required": true,
+          "defaultValue": "torso"
+        },
+        {
+          "key": "layer",
+          "label": "Layer",
+          "kind": "number",
+          "required": true,
+          "defaultValue": 1
+        }
+      ]
+    },
+    {
+      "id": "core.thread",
+      "name": "Story thread",
+      "description": "Tracks a development.",
+      "fields": [
+        {
+          "key": "resolved",
+          "label": "Resolved",
+          "kind": "boolean",
+          "required": true,
+          "defaultValue": false
+        }
+      ]
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "core.inside",
+      "name": "Inside",
+      "label": "inside",
+      "sourceCapability": "core.place",
+      "targetCapability": "core.place",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.present-at",
+      "name": "Present at",
+      "label": "present at",
+      "sourceCapability": "core.character",
+      "targetCapability": "core.place",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.stored-in",
+      "name": "Stored in / carried by",
+      "label": "stored in",
+      "sourceCapability": "core.item",
+      "targetCapability": "core.holder",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.worn-by",
+      "name": "Worn by",
+      "label": "worn by",
+      "sourceCapability": "core.wearable",
+      "targetCapability": "core.character",
+      "physicalPlacement": false,
+      "singleTarget": true
+    },
+    {
+      "id": "core.related",
+      "name": "Related to",
+      "label": "related to",
+      "sourceCapability": null,
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    }
+  ]
+}

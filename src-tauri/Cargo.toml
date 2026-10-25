@@ -1,0 +1,23 @@
+[package]
+name = "guided-story-2"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+description = "Map-centered story crafting desktop workspace"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2"
+story-project = { path = "../crates/story-project" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "=2.0.0-rc.26", features = ["derive", "function"] }
+specta-typescript = "=0.0.13"
+tauri-specta = { version = "=2.0.0-rc.26", features = ["derive", "typescript"] }
+
+[lib]
+name = "guided_story_2_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]

@@ -15,6 +15,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - Accepted passage versions and world snapshots are immutable. Current author edits must not change historical snapshots.
 - Use one Fork after this passage action. Copies must stand alone and exclude future story knowledge and pending operations.
 - Clothing is inventory with wear assignments; do not introduce separately editable wardrobe strings.
+- Use generic world nodes with reusable capabilities, project-local type/field definitions and typed links. Place/character/item/thread are presets, not hardcoded persistence collections. Container is an addable capability; custom nodes must roundtrip without engine changes. Keep built-in inventory/placement validation intact.
 - Characters are accessed through the world map/shared inspector. Portrait generation does not redesign canonical facts.
 - Scope model context by task, viewpoint and selected resources. Map expansion does not authorize sending the entire world.
 - Preserve full retained prose on extraction/check failure. Never add unbounded automatic repairs, retries or provider switching.

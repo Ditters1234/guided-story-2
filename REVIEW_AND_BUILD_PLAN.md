@@ -4,6 +4,8 @@ October 25, 2026. Companion to [DESIGN_REVIEW.md](DESIGN_REVIEW.md). This is a d
 
 Recent dependencies and design references are assessed separately in [EXISTING_WORK_REVIEW.md](EXISTING_WORK_REVIEW.md), including exact inspected commits and reuse boundaries. Evaluate the desktop shell and typed bridge at Gate 0; retain independent story storage and acceptance semantics.
 
+Implementation has begun; see [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md) for completed checks and remaining Gate 0 work. The user's toolkit refinement is authoritative: named entity categories are presets over generic nodes/capabilities/typed links, not fixed persistence collections.
+
 ## Verdict
 
 The product direction is ready for a bounded first build. The major risks are save integrity, state/version consistency, small-model context quality and an authoring interface becoming too crowded. No further major product choice is required before a technical skeleton and one complete workflow. Do not try to implement every convenience feature before proving that workflow.

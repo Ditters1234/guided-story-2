@@ -1,0 +1,4 @@
+[workspace]
+members = ["crates/story-project", "src-tauri"]
+default-members = ["crates/story-project"]
+resolver = "2"

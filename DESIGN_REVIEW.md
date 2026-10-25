@@ -1,6 +1,6 @@
 # Guided Story 2 — review and proposed design
 
-Design pass: October 25, 2026. This document proposes a fresh application, using Guided Story as a behavioral reference. No application has been implemented or runtime-tested in this workspace.
+Design pass: October 25, 2026. This document records the target design for a fresh application, using Guided Story as a behavioral reference. Current implementation and verification are tracked separately in [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md); planned behavior below is not a claim that every feature exists.
 
 ## Confirmed direction
 
@@ -26,6 +26,7 @@ Design pass: October 25, 2026. This document proposes a fresh application, using
 - Use a single **Fork after this passage** action for recovery from accepted world edits/rerolls/group additions, rather than operation-level undo or separate chapter/before/after fork variants. Ordinary text-edit undo remains available.
 - Let AI suggest chapter endings, allow the user to keep a chapter open or close it, and offer an editable next-chapter plan before writing its first passage.
 - Support character portraits and story illustrations. Characters live in the world map and shared entity inspector, without a separate cast-panel system or alternate character-management screen.
+- Model the world as an extensible node toolkit: places, characters, items and threads are presets over shared nodes, with reusable capabilities and typed relationships. Support custom types and fields; container behavior is an addable item/node capability, not a separate fixed entity class.
 
 All choices below are recommendations unless explicitly included above.
 
@@ -271,6 +272,8 @@ Preserve accepted image files and provenance when selecting newer portraits or r
 Tauri + Svelte is confirmed. Use a desktop window with a Svelte interface and native backend access to local JSON saves and configured model services. Proposed implementation choices are TypeScript/Vite for the interface, Svelte Flow for the map and Rust for backend persistence and generation jobs; these supporting choices remain recommendations. No browser-hosted server or SvelteKit server rendering is required for the desktop product.
 
 Recommended domain objects:
+
+Implementation refinement: `World` stores generic nodes, typed edges and project-local definitions for node presets, capabilities and relationship types. The named records below describe roles rather than separate hardcoded collections. Every node shares ID, name, story/visual descriptions and attached capability properties. Node presets suggest capabilities; instances can combine them. Built-in capabilities provide scene location, character participation, counted inventory, storage, clothing and thread behavior. Custom capabilities define typed fields without executing code. Saved schema definitions travel with snapshots/forks. Inventory and physical-placement validators remain mandatory for built-in semantics; custom display types do not bypass them.
 
 - `Story`: stable ID, premise, preferences, revision, current world, chapters and accepted passages; zero passages are valid.
 - `ChapterPlan`: title, dramatic intention, active threads, optional ending aim and draft/open/closed status.
