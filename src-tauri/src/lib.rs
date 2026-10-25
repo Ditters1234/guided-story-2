@@ -1,5 +1,7 @@
 use std::{path::Path, sync::Mutex};
-use story_project::{CommitResult, EditorDraft, Project, ProjectView, Workspace, World};
+use story_project::{
+    CommitResult, EditorDraft, Project, ProjectView, Workspace, World, WorldEdit, WorldEditPreview,
+};
 use tauri::State;
 
 #[derive(Default)]
@@ -145,6 +147,12 @@ fn save_workspace(
     })
 }
 
+#[tauri::command]
+#[specta::specta]
+fn preview_world_edit(world: World, edit: WorldEdit) -> Result<WorldEditPreview, String> {
+    story_project::preview_world_edit(&world, edit)
+}
+
 fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::new().commands(tauri_specta::collect_commands![
         create_project,
@@ -156,7 +164,8 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
         save_workspace,
         load_draft,
         save_draft,
-        clear_matching_draft
+        clear_matching_draft,
+        preview_world_edit
     ])
 }
 

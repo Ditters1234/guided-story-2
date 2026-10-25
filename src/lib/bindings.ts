@@ -14,6 +14,7 @@ export const commands = {
 	loadDraft: () => typedError<EditorDraft_Serialize | null, string>(__TAURI_INVOKE("load_draft")),
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
+	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
 };
 
 /* Types */
@@ -151,6 +152,20 @@ export type WorldEdge = {
 	sourceId: string,
 	targetId: string,
 	description: string,
+};
+
+export type WorldEdit = { kind: "putLink"; link: WorldEdge } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string };
+
+export type WorldEditPreview = WorldEditPreview_Serialize | WorldEditPreview_Deserialize;
+
+export type WorldEditPreview_Deserialize = {
+	world: World_Deserialize,
+	changes: string[],
+};
+
+export type WorldEditPreview_Serialize = {
+	world: World_Serialize,
+	changes: string[],
 };
 
 /**  All entities share one identity; capabilities and typed links supply behavior. */

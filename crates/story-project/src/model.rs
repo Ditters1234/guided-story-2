@@ -262,6 +262,16 @@ impl World {
             }
         }
         let nodes: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+        for definition in &self.component_types {
+            for field in &definition.fields {
+                if !field_matches(&field.default_value, &field.kind, &ids) {
+                    return Err(format!(
+                        "Invalid default for {} / {}.",
+                        definition.name, field.label
+                    ));
+                }
+            }
+        }
         for node in &self.nodes {
             for (id, values) in &node.components {
                 let definition = components
@@ -307,6 +317,9 @@ impl World {
         let mut pairs = BTreeSet::new();
         for edge in &self.edges {
             validate_id(&edge.id)?;
+            if edge.description.chars().count() > 16000 {
+                return Err("A connection description is too long.".into());
+            }
             if ids.contains(&edge.id) || !edge_ids.insert(&edge.id) {
                 return Err("Duplicate world edge ID.".into());
             }
@@ -408,6 +421,31 @@ pub struct Workspace {
     pub expanded_ids: Vec<String>,
     pub selected_id: Option<String>,
     pub positions: BTreeMap<String, Position>,
+}
+
+impl Workspace {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.positions.len() > 5000 || self.expanded_ids.len() > 5000 {
+            return Err("Workspace layout is too large.".into());
+        }
+        for (id, position) in &self.positions {
+            validate_id(id)?;
+            if !position.x.is_finite()
+                || !position.y.is_finite()
+                || position.x.abs() > 1e7
+                || position.y.abs() > 1e7
+            {
+                return Err("Invalid map position.".into());
+            }
+        }
+        for id in &self.expanded_ids {
+            validate_id(id)?;
+        }
+        if let Some(id) = &self.selected_id {
+            validate_id(id)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

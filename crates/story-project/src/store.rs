@@ -435,7 +435,9 @@ impl Project {
         if !path.exists() {
             return Ok(Workspace::default());
         }
-        decode(&read_bytes(&path)?)
+        let workspace: Workspace = decode(&read_bytes(&path)?)?;
+        workspace.validate()?;
+        Ok(workspace)
     }
 
     pub fn load_draft(&self) -> Result<Option<EditorDraft>, String> {
@@ -492,25 +494,7 @@ impl Project {
         if self.load_workspace()?.version != expected_version {
             return Err("Workspace layout changed; reload it before saving.".into());
         }
-        if workspace.positions.len() > 5000 || workspace.expanded_ids.len() > 5000 {
-            return Err("Workspace layout is too large.".into());
-        }
-        for (id, position) in &workspace.positions {
-            validate_id(id)?;
-            if !position.x.is_finite()
-                || !position.y.is_finite()
-                || position.x.abs() > 1e7
-                || position.y.abs() > 1e7
-            {
-                return Err("Invalid map position.".into());
-            }
-        }
-        for id in &workspace.expanded_ids {
-            validate_id(id)?;
-        }
-        if let Some(id) = &workspace.selected_id {
-            validate_id(id)?;
-        }
+        workspace.validate()?;
         workspace.version = expected_version
             .checked_add(1)
             .ok_or("Workspace version limit reached.")?;

@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: early desktop foundation.** The Tauri/Svelte prototype has an expandable world map, shared inspector, manual node creation, custom node presets/text fields, addable capabilities and JSON project storage. AI writing, saved portraits, passage history and forks are planned; they are not implemented yet. See [foundation status](FOUNDATION_STATUS.md) for verification and limits.
+**Status: early desktop foundation.** The Tauri/Svelte prototype has an expandable world map, shared inspector, manual node creation/removal, editable typed connections, custom presets/relationships, reusable capabilities and JSON project storage. AI writing, saved portraits, passage history and forks are planned; they are not implemented yet. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, and [world editing](WORLD_EDITING.md) for attachment and removal rules.
 
 ## Run the prototype
 

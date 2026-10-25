@@ -6,7 +6,7 @@
 </script>
 
 <div class:selected class="world-node {data.kind}">
-  <Handle type="target" position={Position.Left} />
+  <Handle type="source" position={Position.Left} />
   <div class="node-main">
     <span class="node-symbol" aria-hidden="true">{data.kind === 'character' ? data.name.split(' ').map((s) => s[0]).slice(0, 2).join('') : symbols[data.kind]}</span>
     <div><span class="node-kind">{data.detail}</span><strong>{data.name || 'Unnamed record'}</strong></div>
@@ -16,5 +16,5 @@
       <span>{data.count} connected</span><span>{data.expanded ? '−' : '+'}</span>
     </button>
   {/if}
-  <Handle type="source" position={Position.Right} />
+  <Handle type="target" position={Position.Right} />
 </div>

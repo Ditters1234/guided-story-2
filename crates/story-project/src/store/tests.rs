@@ -68,6 +68,27 @@ fn os_lock_blocks_competing_open_and_releases_on_drop() {
 }
 
 #[test]
+fn invalid_saved_layout_is_reported_and_cannot_be_overwritten_silently() {
+    let (_dir, project) = create();
+    let id = request();
+    let mut workspace = Workspace::default();
+    workspace
+        .positions
+        .insert(id.clone(), Position { x: 1e8, y: 0.0 });
+    assert!(project.save_workspace(0, workspace.clone()).is_err());
+    let path = project.root.join("workspace.json");
+    fs::write(&path, serde_json::to_vec(&workspace).unwrap()).unwrap();
+    let before = fs::read(&path).unwrap();
+    assert!(project
+        .load_workspace()
+        .unwrap_err()
+        .contains("Invalid map position"));
+    assert!(project.save_workspace(0, Workspace::default()).is_err());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(project.view().unwrap().revision, 0);
+}
+
+#[test]
 fn moved_folder_opens_without_old_absolute_paths() {
     let (dir, project) = create();
     let story_id = project.view().unwrap().story_id;

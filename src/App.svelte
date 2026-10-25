@@ -7,11 +7,13 @@
   import Sidebar from './lib/Sidebar.svelte';
   import WorldMap from './lib/WorldMap.svelte';
   import Inspector from './lib/Inspector.svelte';
+  import WorldEditDialog from './lib/WorldEditDialog.svelte';
+  import RelationshipTypeDialog from './lib/RelationshipTypeDialog.svelte';
   import { exampleWorld, emptyWorld, makeNode, type ProjectView, type Workspace, type World } from './lib/model';
-  import { worldRecords, visibleRecords, recordDepth, editRecord, type WorldNode, type RecordKind } from './lib/graph';
+  import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
   import icon from './assets/app-icon.svg';
-  import type { CommitResult_Serialize } from './lib/bindings';
+  import type { CommitResult_Serialize, WorldEdit } from './lib/bindings';
 
   const initialWorld = exampleWorld();
   const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [...initialWorld.nodes.filter((n) => n.components["core.place"] || n.components["core.character"]).map((n) => n.id)], selectedId: initialWorld.nodes.find((n) => n.components["core.character"])!.id, positions: {} });
@@ -23,6 +25,8 @@
   let layoutError = $state('');
   let status = $state('Example world');
   let busy = $state(false);
+  let structuralEdit = $state<WorldEdit | null>(null);
+  let showRelationshipType = $state(false);
   let showCreate = $state(false);
   let newTitle = $state('Untitled story');
   let useExample = $state(true);
@@ -36,14 +40,7 @@
   let pending: SaveOperation | null = null;
   const records = $derived(worldRecords(world));
   const selected = $derived(records.find((r) => r.id === workspace.selectedId));
-  const treeRows = $derived.by(() => {
-    const visible = visibleRecords(records, workspace.expandedIds, search);
-    const ids = new Set(visible.map((r) => r.id));
-    const rows: typeof visible = [];
-    function visit(id: string) { const record = visible.find((r) => r.id === id); if (!record || rows.includes(record)) return; rows.push(record); visible.filter((r) => r.parentId === id).forEach((r) => visit(r.id)); }
-    visible.filter((r) => !r.parentId || !ids.has(r.parentId)).forEach((r) => visit(r.id));
-    return rows;
-  });
+  const treeRows = $derived(orderedRecords(visibleRecords(records, workspace.expandedIds, search)));
 
   function describe(caught: unknown) { return caught instanceof Error ? caught.message : String(caught); }
   function scheduleSave() {
@@ -115,7 +112,10 @@
       });
     await layoutFlight;
   }
-  function select(id: string) { workspace = { ...workspace, selectedId: id }; persistLayout(); }
+  function select(id: string) {
+    if (!visibleRecords(records, workspace.expandedIds, search).some((r) => r.id === id)) search = '';
+    workspace = { ...workspace, selectedId: id, expandedIds: revealRecord(records, workspace.expandedIds, id) }; persistLayout();
+  }
   function toggle(id: string) {
     workspace = { ...workspace, expandedIds: workspace.expandedIds.includes(id) ? workspace.expandedIds.filter((x) => x !== id) : [...workspace.expandedIds, id] };
     persistLayout();
@@ -150,36 +150,44 @@
         }
       }
     } catch (caught) { error = `Editor draft could not be loaded: ${describe(caught)}`; }
+    const ids = new Set(world.nodes.map((n) => n.id));
+    workspace = {...workspace,selectedId:workspace.selectedId && ids.has(workspace.selectedId) ? workspace.selectedId : world.nodes[0]?.id ?? null,
+      expandedIds:workspace.expandedIds.filter((id) => ids.has(id)),positions:Object.fromEntries(Object.entries(workspace.positions).filter(([id]) => ids.has(id)))};
   }
 
   async function prepareSwitch() {
     try { await flush(); await flushLayout(); return true; } catch { error = 'Resolve the unsaved world edits before changing projects. ' + error; return false; }
   }
   async function openProject() {
-    if (!desktop || busy || !await prepareSwitch()) return;
-    const path = await open({ directory: true, multiple: false, title: 'Open a Guided Story project folder' });
-    if (typeof path !== 'string') return;
+    if (!desktop || busy) return;
     busy = true;
-    try { await adopt(unwrap(await commands.openProject(path))); }
+    let path: string | null = null;
+    try {
+      if (!await prepareSwitch()) return;
+      const picked = await open({ directory: true, multiple: false, title: 'Open a Guided Story project folder' });
+      if (typeof picked !== 'string') return;
+      path = picked; await adopt(unwrap(await commands.openProject(path)));
+    }
     catch (caught) { error = describe(caught); recoveryPath = path; }
     finally { busy = false; }
   }
   async function createProject(event: SubmitEvent) {
     event.preventDefault();
-    if (!desktop || busy || !newTitle.trim() || !await prepareSwitch()) return;
-    const parent = await open({ directory: true, multiple: false, title: 'Choose where to create the new story folder' });
-    if (typeof parent !== 'string') return;
+    if (!desktop || busy || !newTitle.trim()) return;
     busy = true;
     try {
+      if (!await prepareSwitch()) return;
+      const parent = await open({ directory: true, multiple: false, title: 'Choose where to create the new story folder' });
+      if (typeof parent !== 'string') return;
       await adopt(unwrap(await commands.createProject(parent, newTitle.trim(), useExample ? exampleWorld() : emptyWorld(), crypto.randomUUID())));
       showCreate = false;
     } catch (caught) { error = describe(caught); }
     finally { busy = false; }
   }
   async function recoverProject() {
-    if (!recoveryPath || busy || !await prepareSwitch()) return;
+    if (!recoveryPath || busy) return;
     busy = true;
-    try { await adopt(unwrap(await commands.recoverProject(recoveryPath))); }
+    try { if (await prepareSwitch()) await adopt(unwrap(await commands.recoverProject(recoveryPath))); }
     catch (caught) { error = describe(caught); }
     finally { busy = false; }
   }
@@ -213,6 +221,34 @@
     world = {...world,nodes:world.nodes.map((node)=>node.id===selected!.id?{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map((f)=>[f.key,structuredClone(f.defaultValue)]))}}:node)};
     scheduleSave();
   }
+  function editLink(id: string) {
+    if (!project || busy) return;
+    const link = world.edges.find((e) => e.id === id);
+    if (link) structuralEdit = {kind:'putLink', link:structuredClone($state.snapshot(link))};
+  }
+  function connect(source: string, target = '') {
+    if (!project || busy) return;
+    const node = world.nodes.find((n) => n.id === source);
+    const destination = world.nodes.find((n) => n.id === target);
+    const typeId = node?.components['core.item'] && (destination?.components['core.holder'] || destination?.components['core.container']) ? 'core.stored-in'
+      : node?.components['core.character'] && destination?.components['core.place'] ? 'core.present-at'
+      : node?.components['core.place'] && destination?.components['core.place'] ? 'core.inside' : 'core.related';
+    structuralEdit = {kind:'putLink',link:{id:crypto.randomUUID(),typeId,sourceId:source,targetId:target,description:''}};
+  }
+  function reviewEdit(edit: WorldEdit) { if (project && !busy) structuralEdit = edit; }
+  function applyStructure(next: World, source: string) {
+    if (!project || JSON.stringify(world) !== source) { error = 'The world changed while reviewing. Review this operation again.'; structuralEdit = null; return; }
+    const changed = next.edges.filter((edge) => !world.edges.some((old) => old.id === edge.id && old.sourceId === edge.sourceId && old.targetId === edge.targetId));
+    world = next;
+    const ids = new Set(next.nodes.map((n) => n.id));
+    // Layout cleanup is separate from canonical world publication.
+    workspace = {...workspace,selectedId:workspace.selectedId && ids.has(workspace.selectedId) ? workspace.selectedId : next.nodes[0]?.id ?? null,
+      expandedIds:[...new Set([...workspace.expandedIds.filter((id) => ids.has(id)), ...changed.map((e) => e.targetId)])],
+      positions:Object.fromEntries(Object.entries(workspace.positions).filter(([id]) => ids.has(id)))};
+    workspace = {...workspace,expandedIds:revealRecord(worldRecords(next), workspace.expandedIds, workspace.selectedId)};
+    for (const edge of changed) workspace = {...workspace,expandedIds:revealRecord(worldRecords(next), workspace.expandedIds, edge.sourceId)};
+    structuralEdit = null; scheduleSave(); persistLayout();
+  }
   let showType = $state(false);
   let typeName = $state('');
   let typeBase = $state('');
@@ -233,10 +269,12 @@
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
       if (!project) return;
+      busy = true;
       try { await flush(); } catch { /* A persisted invalid form remains recoverable. */ }
       await flushLayout();
       if (savedVersion < editVersion && persistedDraftVersion < editVersion) {
         event.preventDefault();
+        busy = false;
         error = 'The latest draft could not be saved. Keep this window open and retry.';
       }
     }).then((off) => { unlisten = off; });
@@ -246,7 +284,7 @@
 
 <svelte:head><title>{project?.title ?? 'World workspace'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || !!structuralEdit}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story<span class="brand-edition">WORKSPACE</span></span></div>
     <div class="header-divider"></div>
@@ -278,21 +316,32 @@
       <PaneResizer class="pane-resizer" />
       <Pane minSize={35}>
         <section class="map-panel" aria-label="World authoring workspace">
-          <div class="map-toolbar"><div><span class="eyebrow">STORY FOUNDATION</span><h1>Your world, connected.</h1></div><div class="map-tools">{#if project}<details class="add-menu"><summary>＋ Add manually</summary><div>{#each world.nodeTypes as type}<button onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}<button class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button></div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}</div></div>
+          <div class="map-toolbar"><div><span class="eyebrow">STORY FOUNDATION</span><h1>Your world, connected.</h1></div><div class="map-tools">
+            {#if project}<details class="add-menu"><summary>＋ Add manually</summary><div>
+              {#each world.nodeTypes as type}<button disabled={busy} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
+              <button disabled={busy} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
+              <button disabled={busy} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
+            </div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
+          </div></div>
           <div class="map-caption"><span class="live-dot"></span><span>{project ? 'Current world' : 'Explore the example'}</span><span class="caption-divider">/</span><span>Expand a node to discover its connections</span></div>
-          <SvelteFlowProvider><WorldMap {world} {workspace} {search} onSelect={select} onToggle={toggle} onPositions={moved} /></SvelteFlowProvider>
+          <SvelteFlowProvider><WorldMap {world} {workspace} {search} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
           <div class="map-legend"><span><i class="tree-dot place"></i>Places</span><span><i class="tree-dot character"></i>Characters</span><span><i class="tree-dot item"></i>Items</span><span><i class="tree-dot thread"></i>Threads</span></div>
           <div class="writing-intro"><span class="writing-icon">✎</span><div><h3>First, give the story somewhere to happen.</h3><p>Build and edit your world here. Scene planning and passage generation are the next milestone.</p></div></div>
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
       <Pane defaultSize={25} minSize={20} maxSize={36}>
-        <Inspector record={selected} {records} {world} editable={!!project && !busy} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability} />
+        <Inspector record={selected} {records} {world} editable={!!project && !busy} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
+          onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
+          onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
       </Pane>
     </PaneGroup>
   </main>
   <footer class="status-bar"><span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
+
+{#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
+{#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 
 {#if showCreate}
   <div class="dialog-scrim"></div>

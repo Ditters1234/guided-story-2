@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { WorldRecord } from './graph';
   import type { World } from './model';
-  let { record, records, world, editable, onEdit, onSelect, onProperty, onAddCapability }: {
+  let { record, records, world, editable, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
     onSelect: (id: string) => void;
     onProperty: (componentId: string, key: string, value: string | number | boolean | string[] | null) => void;
     onAddCapability: (componentId: string) => void;
+    onRemoveNode: (id: string) => void; onRemoveCapability: (id: string, capability: string) => void;
+    onLink: (id: string) => void; onNewLink: (id: string) => void; onRemoveLink: (id: string) => void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
   let portrait = $state<string | null>(null);
@@ -51,10 +53,21 @@
       </div>
     {/if}
     {#if node}
+      <div class="linked-section"><div class="section-actions"><h3>Connections</h3>{#if editable}<button class="text-action" onclick={() => onNewLink(node!.id)}>＋ Attach / link</button>{/if}</div>
+        <p class="field-help">All incoming and outgoing links, including connections outside the visible map.</p>
+        {#each world.edges.filter((e) => e.sourceId === node!.id || e.targetId === node!.id) as edge (edge.id)}
+          {@const outgoing = edge.sourceId === node.id}
+          {@const other = world.nodes.find((n) => n.id === (outgoing ? edge.targetId : edge.sourceId))}
+          {@const relation = world.relationTypes.find((d) => d.id === edge.typeId)}
+          <div class="connection-row"><button class="linked-record" onclick={() => onSelect(other!.id)}><span>{outgoing ? '→' : '←'} {other?.name}</span><small>{outgoing ? '' : 'incoming · '}{relation?.label}</small></button>
+            {#if editable}<div class="connection-actions"><button class="text-action" onclick={() => onLink(edge.id)} aria-label={`Edit ${relation?.label} connection with ${other?.name}`}>Edit / move</button><button class="text-action danger-text" onclick={() => onRemoveLink(edge.id)} aria-label={`Remove ${relation?.label} connection with ${other?.name}`}>Detach</button></div>{/if}
+          </div>
+        {:else}<p class="field-help">No connections. Attach this node to another node, or leave it unplaced.</p>{/each}
+      </div>
       <div class="linked-section"><h3>Capabilities</h3><p class="field-help">Combine reusable behaviors on any world node.</p>
         {#each Object.entries(node.components) as [componentId, properties]}
           {@const definition = world.componentTypes.find((d) => d.id === componentId)}
-          <section class="capability"><strong>{definition?.name ?? componentId}</strong>
+          <section class="capability"><div class="section-actions"><strong>{definition?.name ?? componentId}</strong>{#if editable}<button class="text-action danger-text" onclick={() => onRemoveCapability(node!.id, componentId)} aria-label={`Remove ${definition?.name ?? componentId} capability`}>Remove</button>{/if}</div>
             {#if !definition?.fields.length}<span class="field-help">{definition?.description}</span>{/if}
             {#each definition?.fields ?? [] as field}
               <label class="field compact">{field.label}
@@ -69,6 +82,7 @@
         {/each}
         {#if editable}<select aria-label="Add a capability" value="" onchange={(e) => { if (e.currentTarget.value) { onAddCapability(e.currentTarget.value); e.currentTarget.value = ''; } }}><option value="">＋ Add capability</option>{#each world.componentTypes.filter((d) => !node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
       </div>
+      {#if editable}<button class="remove-node-button" onclick={() => onRemoveNode(node!.id)}>Remove this node…</button>{/if}
     {/if}
     <div class="scope-note">{editable ? 'Valid edits save automatically. Historical snapshots are preserved.' : 'This is a fictional example. Create a project to save and edit it.'}</div>
   {:else}
