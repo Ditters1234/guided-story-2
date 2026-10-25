@@ -4,9 +4,13 @@
   import type { ThemeDefinition } from './bindings';
   import { builtInThemes, colorKeys, copyTheme, downloadTheme, parseThemeJson, resolveTheme } from './appearance';
   import { desktop } from './native';
+  import LlmSettings from './LlmSettings.svelte';
   let {settings,systemDark,onClose}:{settings:AppearanceSettings;systemDark:boolean;onClose:()=>void}=$props();
-  const sections=[{id:'appearance',label:'Appearance'},{id:'themes',label:'Custom themes'}] as const;
-  let section=$state<'appearance'|'themes'>('appearance');
+  const sections=[{id:'appearance',label:'Appearance'},{id:'themes',label:'Custom themes'},{id:'llm',label:'LLM'}] as const;
+  let section=$state<'appearance'|'themes'|'llm'>('appearance');
+  let llmPanel=$state<{flushConnection:()=>Promise<void>}>();
+  export async function flushSettings(){try{await llmPanel?.flushConnection();}catch(error){section='llm';throw error;}}
+  async function close(){try{await flushSettings();onClose();}catch{section='llm';}}
   let dialog: HTMLDialogElement;
   let draft=$state<ThemeDefinition>(untrack(()=>copyTheme(resolveTheme($state.snapshot(settings.value),systemDark))));
   let themeError=$state('');
@@ -49,8 +53,8 @@
   }
 </script>
 
-<dialog bind:this={dialog} class="project-dialog settings-dialog" aria-labelledby="settings-title" oncancel={(event)=>{event.preventDefault();onClose();}}>
-  <header class="settings-heading"><h2 id="settings-title">Settings</h2><button class="icon-button" aria-label="Close settings" onclick={onClose}>×</button></header>
+<dialog bind:this={dialog} class="project-dialog settings-dialog" aria-labelledby="settings-title" oncancel={(event)=>{event.preventDefault();void close();}}>
+  <header class="settings-heading"><h2 id="settings-title">Settings</h2><button class="icon-button" aria-label="Close settings" onclick={()=>{void close();}}>×</button></header>
   <div class="settings-tabs" role="tablist" aria-label="Settings categories">
     {#each sections as tab,index}<button id={'settings-tab-'+tab.id} role="tab" aria-selected={section===tab.id} aria-controls={'settings-panel-'+tab.id} tabindex={section===tab.id?0:-1} onclick={()=>{section=tab.id;}} onkeydown={(event)=>tabKey(event,index)}>{tab.label}</button>{/each}
   </div>
@@ -75,6 +79,7 @@
       {#if showJson}<label class="field">Theme JSON<textarea class="theme-json" bind:value={json} rows={9} maxlength={65536} spellcheck={false}></textarea></label><button class="secondary-button" onclick={loadJson}>Load JSON into editor</button>{/if}
       {#if themeError}<p class="inline-error" role="alert">{themeError}</p>{/if}{#if themeNotice}<p class="field-help" role="status">{themeNotice}</p>{/if}
     </div>
+    <div id="settings-panel-llm" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-llm" hidden={section!=='llm'}><LlmSettings bind:this={llmPanel} /></div>
   </fieldset>
-  <footer class="settings-footer"><span aria-live="polite">{settings.error?'Settings not saved':!settings.ready?'Loading…':settings.saving?'Saving…':settings.dirty?'Unsaved settings':desktop?'Saved on this device':'Preview settings · this tab only'}</span><button class="primary-button" onclick={onClose}>Done</button></footer>
+  <footer class="settings-footer"><span aria-live="polite">{settings.error?'Settings not saved':!settings.ready?'Loading…':settings.saving?'Saving…':settings.dirty?'Unsaved settings':desktop?'Appearance saved on this device':'Preview settings · this tab only'}</span><button class="primary-button" onclick={()=>{void close();}}>Done</button></footer>
 </dialog>

@@ -18,6 +18,6 @@ All colors use `#RRGGBB`. Themes are data, with no executable CSS, fonts, URLs o
 
 Desktop preferences autosave to `preferences.json` in Tauri's per-user application config directory. They stay outside story folders and snapshots. Writes use the existing atomic publication primitive, a settings lock, an independent version and replay-safe retry. Invalid/unsupported files are reported and retained; they are not silently overwritten with defaults. Closing settings or the app flushes pending appearance changes.
 
-The settings dialog has working category tabs. Future LLM and image API pages can be added alongside Appearance and Custom themes; no API requests or placeholder connection pages are introduced here. API credentials do not belong in portable themes or story files.
+The settings dialog has Appearance, Custom themes and a working [LLM connection page](AI_AUTHORING.md). Image API settings remain future work. API credentials do not belong in portable themes or story files.
 
 The browser-only preview applies settings for the current tab without desktop persistence. Debug desktop runs can set `GUIDED_STORY_PREFERENCES_DIR` to an isolated test directory; release builds always use the per-user app config location. Custom-theme editor fields remain temporary until **Save theme**.

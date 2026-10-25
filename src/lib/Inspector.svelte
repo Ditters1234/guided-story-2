@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { WorldRecord } from './graph';
   import type { World } from './model';
-  let { record, records, world, editable, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink }: {
+  import PropertyInput from './PropertyInput.svelte';
+  let { record, records, world, editable, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
     onSelect: (id: string) => void;
@@ -9,6 +10,7 @@
     onAddCapability: (componentId: string) => void;
     onRemoveNode: (id: string) => void; onRemoveCapability: (id: string, capability: string) => void;
     onLink: (id: string) => void; onNewLink: (id: string) => void; onRemoveLink: (id: string) => void;
+    onAi: (id:string)=>void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
   let portrait = $state<string | null>(null);
@@ -32,6 +34,7 @@
     <div class="record-heading"><span class="eyebrow">{record.detail}</span><h2>{record.name || 'Unnamed record'}</h2>
       {#if record.parentId}<button class="parent-link" onclick={() => onSelect(record!.parentId!)}>{record.relation} {records.find((r) => r.id === record!.parentId)?.name ?? 'Unknown record'} ↗</button>{/if}
     </div>
+    {#if editable}<button class="secondary-button record-ai-action" onclick={()=>onAi(record!.id)}>Revise / reroll with AI…</button>{/if}
     {#if record.kind === 'character'}
       <div class="portrait-preview">
         {#if portrait}<img src={portrait} alt={`Preview for ${record.name}`} />{:else}<div class="portrait-placeholder"><span>{record.name.split(' ').map((s) => s[0]).slice(0, 2).join('')}</span><small>No portrait yet</small></div>{/if}
@@ -70,13 +73,7 @@
           <section class="capability"><div class="section-actions"><strong>{definition?.name ?? componentId}</strong>{#if editable}<button class="text-action danger-text" onclick={() => onRemoveCapability(node!.id, componentId)} aria-label={`Remove ${definition?.name ?? componentId} capability`}>Remove</button>{/if}</div>
             {#if !definition?.fields.length}<span class="field-help">{definition?.description}</span>{/if}
             {#each definition?.fields ?? [] as field}
-              <label class="field compact">{field.label}
-                {#if field.kind === 'boolean'}<input type="checkbox" checked={Boolean(properties[field.key])} disabled={!editable} onchange={(e) => onProperty(componentId, field.key, e.currentTarget.checked)} />
-                {:else if field.kind === 'number'}<input type="number" value={Number(properties[field.key])} disabled={!editable} oninput={(e) => onProperty(componentId, field.key, e.currentTarget.value === '' ? null : Number(e.currentTarget.value))} />
-                {:else if field.kind === 'nodeRef'}<select value={String(properties[field.key] ?? '')} disabled={!editable} onchange={(e) => onProperty(componentId, field.key, e.currentTarget.value || null)}><option value="">Unspecified</option>{#each world.nodes as target}<option value={target.id}>{target.name}</option>{/each}</select>
-                {:else if field.kind === 'nodeRefs'}<select multiple value={Array.isArray(properties[field.key]) ? properties[field.key] as string[] : []} disabled={!editable} onchange={(e) => onProperty(componentId, field.key, Array.from(e.currentTarget.selectedOptions).map((o) => o.value))}>{#each world.nodes as target}<option value={target.id}>{target.name}</option>{/each}</select>
-                {:else}<input value={String(properties[field.key] ?? '')} disabled={!editable} oninput={(e) => onProperty(componentId, field.key, e.currentTarget.value)} />{/if}
-              </label>
+              <PropertyInput {field} value={properties[field.key]??null} nodes={world.nodes} disabled={!editable} onChange={(value)=>onProperty(componentId,field.key,value)} />
             {/each}
           </section>
         {/each}

@@ -17,9 +17,107 @@ export const commands = {
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
+	loadLlmConnection: () => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("load_llm_connection")),
+	saveLlmConnection: (expectedVersion: number, settings: LlmConnection_Deserialize, key: ApiKeyUpdate) => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("save_llm_connection", { expectedVersion, settings, key })),
+	testLlmConnection: () => typedError<string, string>(__TAURI_INVOKE("test_llm_connection")),
+	listAuthoring: (storyId: string) => typedError<AuthoringSummary[], string>(__TAURI_INVOKE("list_authoring", { storyId })),
+	getAuthoring: (storyId: string, id: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("get_authoring", { storyId, id })),
+	saveAuthoringDraft: (storyId: string, id: string, expectedVersion: number, request: AuthoringRequest_Deserialize) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("save_authoring_draft", { storyId, id, expectedVersion, request })),
+	saveAuthoringCandidate: (storyId: string, id: string, expectedVersion: number, text: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("save_authoring_candidate", { storyId, id, expectedVersion, text })),
+	startAuthoring: (storyId: string, id: string, expectedVersion: number, expectedRevision: number) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("start_authoring", { storyId, id, expectedVersion, expectedRevision })),
+	cancelAuthoring: (id: string) => typedError<null, string>(__TAURI_INVOKE("cancel_authoring", { id })),
+	applyAuthoring: (storyId: string, id: string, expectedVersion: number) => typedError<ApplyAuthoringResult_Serialize, string>(__TAURI_INVOKE("apply_authoring", { storyId, id, expectedVersion })),
+	closeAuthoring: () => typedError<null, string>(__TAURI_INVOKE("close_authoring")),
 };
 
 /* Types */
+export type ApiKeyUpdate = { kind: "keep" } | { kind: "replace"; value: string } | { kind: "clear" };
+
+export type ApplyAuthoringResult = ApplyAuthoringResult_Serialize | ApplyAuthoringResult_Deserialize;
+
+export type ApplyAuthoringResult_Deserialize = {
+	commit: CommitResult_Deserialize,
+	proposal: AuthoringView_Deserialize,
+};
+
+export type ApplyAuthoringResult_Serialize = {
+	commit: CommitResult_Serialize,
+	proposal: AuthoringView_Serialize,
+};
+
+export type AuthoringMode = "create" | "revise";
+
+export type AuthoringRequest = AuthoringRequest_Serialize | AuthoringRequest_Deserialize;
+
+export type AuthoringRequest_Deserialize = {
+	mode: AuthoringMode,
+	direction: string,
+	typeId?: string | null,
+	bundle: boolean,
+	targetIds: string[],
+	contextIds: string[],
+	fields: EditableField_Deserialize[],
+};
+
+export type AuthoringRequest_Serialize = {
+	mode: AuthoringMode,
+	direction: string,
+	typeId: string | null,
+	bundle: boolean,
+	targetIds: string[],
+	contextIds: string[],
+	fields: EditableField_Serialize[],
+};
+
+export type AuthoringStatus = "draft" | "running" | "review" | "failed" | "cancelled" | "interrupted" | "applied" | "discarded";
+
+export type AuthoringSummary = {
+	createdAt: string,
+	id: string,
+	version: number,
+	status: AuthoringStatus,
+	direction: string,
+	providerLabel: string,
+};
+
+export type AuthoringView = AuthoringView_Serialize | AuthoringView_Deserialize;
+
+export type AuthoringView_Deserialize = {
+	id: string,
+	storyId: string,
+	version: number,
+	status: AuthoringStatus,
+	request: AuthoringRequest_Deserialize,
+	providerLabel: string,
+	rawResponse: string,
+	candidateText: string,
+	error: string,
+	stale: boolean,
+	changes: string[],
+	context: World_Deserialize,
+	estimatedInputTokens: number,
+	createdNodeIds: string[],
+	appliedRevision?: number | null,
+};
+
+export type AuthoringView_Serialize = {
+	id: string,
+	storyId: string,
+	version: number,
+	status: AuthoringStatus,
+	request: AuthoringRequest_Serialize,
+	providerLabel: string,
+	rawResponse: string,
+	candidateText: string,
+	error: string,
+	stale: boolean,
+	changes: string[],
+	context: World_Serialize,
+	estimatedInputTokens: number,
+	createdNodeIds: string[],
+	appliedRevision: number | null,
+};
+
 export type CommitResult = CommitResult_Serialize | CommitResult_Deserialize;
 
 export type CommitResult_Deserialize = {
@@ -39,6 +137,32 @@ export type ComponentDefinition = {
 	name: string,
 	description: string,
 	fields: FieldDefinition[],
+};
+
+export type ConnectionView = ConnectionView_Serialize | ConnectionView_Deserialize;
+
+export type ConnectionView_Deserialize = {
+	settings: LlmConnection_Deserialize,
+	hasApiKey: boolean,
+};
+
+export type ConnectionView_Serialize = {
+	settings: LlmConnection_Serialize,
+	hasApiKey: boolean,
+};
+
+export type EditableField = EditableField_Serialize | EditableField_Deserialize;
+
+export type EditableField_Deserialize = {
+	nodeId: string,
+	componentId?: string | null,
+	key: string,
+};
+
+export type EditableField_Serialize = {
+	nodeId: string,
+	componentId: string | null,
+	key: string,
 };
 
 export type EditorDraft = EditorDraft_Serialize | EditorDraft_Deserialize;
@@ -67,6 +191,43 @@ export type FieldDefinition = {
 
 export type FieldKind = "text" | "number" | "boolean" | "nodeRef" | "nodeRefs";
 
+export type LlmConnection = LlmConnection_Serialize | LlmConnection_Deserialize;
+
+export type LlmConnection_Deserialize = {
+	schemaVersion: number,
+	version: number,
+	provider: TextProvider,
+	baseUrl: string,
+	model: string,
+	temperature: number | null,
+	maxTokens: number,
+	contextTokens: number,
+	timeoutSeconds: number,
+	structuredOutput: StructuredOutput,
+	tokenParameter: TokenParameter,
+	credentialRef?: string | null,
+};
+
+export type LlmConnection_Serialize = {
+	schemaVersion: number,
+	version: number,
+	provider: TextProvider,
+	baseUrl: string,
+	model: string,
+	temperature: number | null,
+	maxTokens: number,
+	contextTokens: number,
+	timeoutSeconds: number,
+	structuredOutput: StructuredOutput,
+	tokenParameter: TokenParameter,
+	credentialRef: string | null,
+};
+
+export type NodeCandidate = {
+	nodes: WorldNode[],
+	edges: WorldEdge[],
+};
+
 export type NodeTypeDefinition = {
 	id: string,
 	name: string,
@@ -91,6 +252,7 @@ export type Preferences = {
 export type ProjectView = ProjectView_Serialize | ProjectView_Deserialize;
 
 export type ProjectView_Deserialize = {
+	warnings: string[],
 	schemaVersion: number,
 	storyId: string,
 	title: string,
@@ -101,6 +263,7 @@ export type ProjectView_Deserialize = {
 };
 
 export type ProjectView_Serialize = {
+	warnings: string[],
 	schemaVersion: number,
 	storyId: string,
 	title: string,
@@ -139,6 +302,10 @@ export type RelationDefinition_Serialize = {
 	singleTarget: boolean,
 };
 
+export type StructuredOutput = "json" | "schema" | "prompt";
+
+export type TextProvider = "compatible" | "demo";
+
 export type ThemeColors = {
 	background: string,
 	surface: string,
@@ -163,6 +330,8 @@ export type ThemeDefinition = {
 };
 
 export type ThemeMode = "light" | "dark";
+
+export type TokenParameter = "maxTokens" | "maxCompletionTokens";
 
 export type Workspace = Workspace_Serialize | Workspace_Deserialize;
 

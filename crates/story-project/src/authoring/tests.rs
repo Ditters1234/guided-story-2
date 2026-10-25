@@ -1,0 +1,411 @@
+use super::*;
+fn id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+fn settings() -> LlmConnection {
+    LlmConnection {
+        provider: TextProvider::Demo,
+        ..LlmConnection::default()
+    }
+}
+fn create() -> (tempfile::TempDir, Project) {
+    let dir = tempfile::tempdir().unwrap();
+    let p = Project::create(
+        &dir.path().join("story"),
+        "Fictional world".into(),
+        World::default(),
+        id(),
+    )
+    .unwrap();
+    (dir, p)
+}
+fn request() -> AuthoringRequest {
+    AuthoringRequest {
+        mode: AuthoringMode::Create,
+        direction: "An old glasshouse".into(),
+        type_id: Some("core.place".into()),
+        bundle: false,
+        target_ids: vec![],
+        context_ids: vec![],
+        fields: vec![],
+    }
+}
+fn generated(p: &Project, request: AuthoringRequest) -> String {
+    let rid = id();
+    p.save_authoring_draft(&rid, 0, request.clone()).unwrap();
+    p.start_authoring(&rid, 1, p.view().unwrap().revision, &settings())
+        .unwrap();
+    let text = demo_authoring(&p.view().unwrap().world, &request).unwrap();
+    p.finish_authoring(&rid, Ok(text), false, false).unwrap();
+    rid
+}
+#[test]
+fn drafts_and_candidates_survive_reopen_without_changing_canon() {
+    let (dir, p) = create();
+    let rid = generated(&p, request());
+    assert_eq!(p.view().unwrap().revision, 0);
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert_eq!(view.status, AuthoringStatus::Review);
+    assert!(view.error.is_empty());
+    let ids = view.created_node_ids;
+    drop(p);
+    let p = Project::open(&dir.path().join("story")).unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert_eq!(view.created_node_ids, ids);
+    assert_eq!(p.view().unwrap().world.nodes.len(), 0);
+}
+#[test]
+fn apply_commits_once_and_recovers_after_receipt_before_status_update() {
+    let (_dir, p) = create();
+    let rid = generated(&p, request());
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    let result = p.apply_authoring(&rid, view.version, &settings()).unwrap();
+    assert_eq!(result.commit.project.revision, 1);
+    assert_eq!(
+        p.apply_authoring(&rid, view.version, &settings())
+            .unwrap()
+            .commit
+            .replayed,
+        true
+    );
+    assert_eq!(p.view().unwrap().world.nodes.len(), 1);
+    let mut record = p.read_authoring(&rid).unwrap();
+    record.status = AuthoringStatus::Review;
+    record.applied_revision = None;
+    p.write_authoring(&record).unwrap();
+    assert_eq!(
+        p.authoring_view(&rid, &settings()).unwrap().status,
+        AuthoringStatus::Applied
+    );
+    assert_eq!(p.view().unwrap().revision, 1);
+}
+#[test]
+fn custom_capability_fields_use_the_same_generation_and_protection_rules() {
+    let (_dir, p) = create();
+    let mut world = p.view().unwrap().world;
+    world.component_types.push(ComponentDefinition {
+        id: "custom.weather".into(),
+        name: "Weather".into(),
+        description: "A forecast".into(),
+        fields: vec![FieldDefinition {
+            key: "forecast".into(),
+            label: "Forecast".into(),
+            kind: FieldKind::Text,
+            required: true,
+            default_value: PropertyValue::Text(String::new()),
+        }],
+    });
+    world.node_types.push(NodeTypeDefinition {
+        id: "custom.storm".into(),
+        name: "Storm".into(),
+        description: String::new(),
+        components: vec!["custom.weather".into()],
+    });
+    p.commit(0, id(), "Fictional".into(), world).unwrap();
+    let mut req = request();
+    req.type_id = Some("custom.storm".into());
+    let rid = generated(&p, req);
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    p.apply_authoring(&rid, view.version, &settings()).unwrap();
+    let node = p.view().unwrap().world.nodes[0].clone();
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        direction: "Rain before evening".into(),
+        type_id: None,
+        bundle: false,
+        target_ids: vec![node.id.clone()],
+        context_ids: vec![],
+        fields: vec![EditableField {
+            node_id: node.id.clone(),
+            component_id: Some("custom.weather".into()),
+            key: "forecast".into(),
+        }],
+    };
+    let rid = generated(&p, req);
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(!view.stale);
+    p.apply_authoring(&rid, view.version, &settings()).unwrap();
+    let after = p.view().unwrap().world.nodes[0].clone();
+    assert_eq!(node.name, after.name);
+    assert_ne!(node.components, after.components);
+}
+#[test]
+fn protected_fields_and_unexposed_references_cannot_be_smuggled_into_a_candidate() {
+    let (_dir, p) = create();
+    let rid = generated(&p, request());
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    p.apply_authoring(&rid, view.version, &settings()).unwrap();
+    let node = p.view().unwrap().world.nodes[0].clone();
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        direction: "More lush".into(),
+        type_id: None,
+        bundle: false,
+        target_ids: vec![node.id.clone()],
+        context_ids: vec![],
+        fields: vec![EditableField {
+            node_id: node.id.clone(),
+            component_id: None,
+            key: "description".into(),
+        }],
+    };
+    let rid = generated(&p, req);
+    let mut candidate: NodeCandidate =
+        serde_json::from_str(&p.authoring_view(&rid, &settings()).unwrap().candidate_text).unwrap();
+    candidate.nodes[0].name = "Unrequested rename".into();
+    let version = p.authoring_view(&rid, &settings()).unwrap().version;
+    p.save_authoring_candidate(&rid, version, serde_json::to_string(&candidate).unwrap())
+        .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(view.error.contains("protected"));
+    assert!(p.apply_authoring(&rid, view.version, &settings()).is_err());
+}
+#[test]
+fn source_edits_stale_a_proposal_while_unrelated_world_edits_are_preserved() {
+    let (_dir, p) = create();
+    let first = generated(&p, request());
+    let v = p.authoring_view(&first, &settings()).unwrap();
+    p.apply_authoring(&first, v.version, &settings()).unwrap();
+    let node = p.view().unwrap().world.nodes[0].clone();
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        direction: "More lush".into(),
+        type_id: None,
+        bundle: false,
+        target_ids: vec![node.id.clone()],
+        context_ids: vec![],
+        fields: vec![EditableField {
+            node_id: node.id,
+            component_id: None,
+            key: "description".into(),
+        }],
+    };
+    let rid = generated(&p, req);
+    let mut current = p.view().unwrap();
+    let mut unrelated = current.world.nodes[0].clone();
+    unrelated.id = id();
+    unrelated.name = "Unrelated room".into();
+    current.world.nodes.push(unrelated.clone());
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(!view.stale);
+    p.apply_authoring(&rid, view.version, &settings()).unwrap();
+    assert!(p.view().unwrap().world.nodes.contains(&unrelated));
+    let rid = generated(&p, p.authoring_view(&rid, &settings()).unwrap().request);
+    let mut current = p.view().unwrap();
+    current.world.nodes[0].description = "Manual change during generation".into();
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(view.stale);
+    assert!(p.apply_authoring(&rid, view.version, &settings()).is_err());
+}
+#[test]
+fn interrupted_and_cancelled_work_is_not_resent_and_bad_candidates_remain_editable() {
+    let (_dir, p) = create();
+    let rid = id();
+    let req = request();
+    p.save_authoring_draft(&rid, 0, req).unwrap();
+    p.start_authoring(&rid, 1, 0, &settings()).unwrap();
+    p.interrupt_authoring().unwrap();
+    assert_eq!(
+        p.authoring_view(&rid, &settings()).unwrap().status,
+        AuthoringStatus::Interrupted
+    );
+    assert!(p.start_authoring(&rid, 2, 0, &settings()).is_err());
+    let rid = generated(&p, request());
+    let version = p.authoring_view(&rid, &settings()).unwrap().version;
+    p.save_authoring_candidate(&rid, version, "{unfinished".into())
+        .unwrap();
+    assert!(p
+        .authoring_view(&rid, &settings())
+        .unwrap()
+        .error
+        .contains("JSON"));
+    assert_eq!(p.view().unwrap().revision, 0);
+}
+#[test]
+fn context_budget_is_enforced_before_any_provider_call() {
+    let mut settings = settings();
+    settings.context_tokens = 2048;
+    settings.max_tokens = 1024;
+    assert!(prepare_authoring(&World::default(), &request(), &settings).is_err());
+}
+
+fn proposed_node(world: &World, type_id: &str, node_id: &str, name: &str) -> WorldNode {
+    let preset = world.node_types.iter().find(|d| d.id == type_id).unwrap();
+    let components = preset
+        .components
+        .iter()
+        .map(|id| {
+            let definition = world.component_types.iter().find(|d| &d.id == id).unwrap();
+            (
+                id.clone(),
+                definition
+                    .fields
+                    .iter()
+                    .map(|f| (f.key.clone(), f.default_value.clone()))
+                    .collect(),
+            )
+        })
+        .collect();
+    WorldNode {
+        id: node_id.into(),
+        type_id: type_id.into(),
+        name: name.into(),
+        description: String::new(),
+        visual_description: String::new(),
+        components,
+    }
+}
+#[test]
+fn connected_character_outfit_container_and_custom_references_remap_atomically() {
+    let (_dir, p) = create();
+    let mut world = p.view().unwrap().world;
+    world.component_types.push(ComponentDefinition {
+        id: "custom.reference".into(),
+        name: "Reference".into(),
+        description: String::new(),
+        fields: vec![FieldDefinition {
+            key: "container".into(),
+            label: "Container".into(),
+            kind: FieldKind::NodeRef,
+            required: false,
+            default_value: PropertyValue::Null,
+        }],
+    });
+    p.commit(0, id(), "Fictional".into(), world.clone())
+        .unwrap();
+    let person = proposed_node(&world, "core.character", "new:root", "Adult herbalist");
+    let mut coat = proposed_node(&world, "core.item", "new:coat", "Field coat");
+    let wearable = world
+        .component_types
+        .iter()
+        .find(|d| d.id == "core.wearable")
+        .unwrap();
+    coat.components.insert(
+        wearable.id.clone(),
+        wearable
+            .fields
+            .iter()
+            .map(|f| (f.key.clone(), f.default_value.clone()))
+            .collect(),
+    );
+    let mut bag = proposed_node(&world, "core.item", "new:bag", "Satchel");
+    bag.components
+        .insert("core.container".into(), BTreeMap::new());
+    let mut seeds = proposed_node(&world, "core.item", "new:seeds", "Seeds");
+    seeds.components.insert(
+        "custom.reference".into(),
+        BTreeMap::from([("container".into(), PropertyValue::Text("new:bag".into()))]),
+    );
+    seeds.description = "Literal text new:bag stays text.".into();
+    let edges = [
+        ("stored-in", "new:coat", "new:root"),
+        ("worn-by", "new:coat", "new:root"),
+        ("stored-in", "new:bag", "new:root"),
+        ("stored-in", "new:seeds", "new:bag"),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(i, (kind, source, target))| WorldEdge {
+        id: format!("new:edge{i}"),
+        type_id: format!("core.{kind}"),
+        source_id: source.into(),
+        target_id: target.into(),
+        description: String::new(),
+    })
+    .collect();
+    let mut req = request();
+    req.type_id = Some("core.character".into());
+    req.bundle = true;
+    let rid = id();
+    p.save_authoring_draft(&rid, 0, req).unwrap();
+    p.start_authoring(&rid, 1, 1, &settings()).unwrap();
+    p.finish_authoring(
+        &rid,
+        Ok(serde_json::to_string(&NodeCandidate {
+            nodes: vec![person, coat, bag, seeds],
+            edges,
+        })
+        .unwrap()),
+        false,
+        false,
+    )
+    .unwrap();
+    let v = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(v.error.is_empty(), "{}", v.error);
+    let after = p
+        .apply_authoring(&rid, v.version, &settings())
+        .unwrap()
+        .commit
+        .project
+        .world;
+    assert_eq!(after.nodes.len(), 4);
+    assert_eq!(after.edges.len(), 4);
+    after.validate().unwrap();
+    let bag = &after.nodes.iter().find(|n| n.name == "Satchel").unwrap().id;
+    let seeds = after.nodes.iter().find(|n| n.name == "Seeds").unwrap();
+    assert_eq!(
+        seeds.components["custom.reference"]["container"],
+        PropertyValue::Text(bag.clone())
+    );
+    assert!(seeds.description.contains("new:bag"));
+}
+#[test]
+fn unselected_world_records_are_not_sent_and_new_links_cannot_move_existing_nodes() {
+    let (_dir, p) = create();
+    let mut world = p.view().unwrap().world;
+    let private = proposed_node(&world, "core.place", &id(), "PRIVATE_NODE_MARKER");
+    world.nodes.push(private.clone());
+    p.commit(0, id(), "Fictional".into(), world.clone())
+        .unwrap();
+    let prepared = prepare_authoring(&world, &request(), &settings()).unwrap();
+    assert!(!prepared.user.contains("PRIVATE_NODE_MARKER"));
+    let mut req = request();
+    req.context_ids = vec![private.id.clone()];
+    let rid = generated(&p, req);
+    let mut view = p.authoring_view(&rid, &settings()).unwrap();
+    assert_eq!(view.context.nodes.len(), 1);
+    let mut candidate: NodeCandidate = serde_json::from_str(&view.candidate_text).unwrap();
+    candidate.edges.push(WorldEdge {
+        id: "new:bad".into(),
+        type_id: "core.related".into(),
+        source_id: private.id,
+        target_id: "new:root".into(),
+        description: String::new(),
+    });
+    p.save_authoring_candidate(
+        &rid,
+        view.version,
+        serde_json::to_string(&candidate).unwrap(),
+    )
+    .unwrap();
+    view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(!view.error.is_empty());
+    assert!(p.apply_authoring(&rid, view.version, &settings()).is_err());
+    assert_eq!(p.view().unwrap().revision, 1);
+}
+#[test]
+fn truncated_responses_and_connection_changes_block_apply_without_losing_output() {
+    let (_dir, p) = create();
+    let req = request();
+    let rid = id();
+    p.save_authoring_draft(&rid, 0, req.clone()).unwrap();
+    p.start_authoring(&rid, 1, 0, &settings()).unwrap();
+    let text = demo_authoring(&World::default(), &req).unwrap();
+    p.finish_authoring(&rid, Ok(text.clone()), false, true)
+        .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(view.error.contains("cut off"));
+    assert_eq!(view.raw_response, text);
+    assert!(p.apply_authoring(&rid, view.version, &settings()).is_err());
+    p.save_authoring_candidate(&rid, view.version, format!("{text}\n"))
+        .unwrap();
+    let mut different = settings();
+    different.temperature = 0.5;
+    let view = p.authoring_view(&rid, &different).unwrap();
+    assert!(view.stale);
+    assert!(p.apply_authoring(&rid, view.version, &different).is_err());
+}

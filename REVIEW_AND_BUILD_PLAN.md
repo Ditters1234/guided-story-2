@@ -8,6 +8,8 @@ Implementation has begun; see [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md) for c
 
 The foundation pass resolves relationship pinning as canonical attachment, with editable endpoints and native-validated removal/transfer previews. [WORLD_EDITING.md](WORLD_EDITING.md) records the implemented current-world semantics and limits. Node removal keeps dependent contents unplaced and preserves old saved snapshots; future passage forks remain the recovery/navigation design.
 
+The next slice implements shared [AI world authoring](AI_AUTHORING.md), including idea-to-foundation proposals, custom fields, grouped additions and protected-field revisions, with app-level LLM settings. This is part of Gate 2's input/review foundation and the continuing node toolkit. Gate 2 remains incomplete until prose, checked acceptance, contents/navigation and an independent passage fork work together. Prioritize that end-to-end path over more world-tool convenience features.
+
 ## Verdict
 
 The product direction is ready for a bounded first build. The major risks are save integrity, state/version consistency, small-model context quality and an authoring interface becoming too crowded. No further major product choice is required before a technical skeleton and one complete workflow. Do not try to implement every convenience feature before proving that workflow.

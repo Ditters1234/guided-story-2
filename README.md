@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: early desktop foundation.** The Tauri/Svelte prototype has an expandable world map, shared inspector, manual node creation/removal, editable typed connections, custom presets/relationships, reusable capabilities and JSON project storage. AI writing, saved portraits, passage history and forks are planned; they are not implemented yet. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, and [world editing](WORLD_EDITING.md) for attachment and removal rules.
+**Status: world authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, manual node creation/removal, editable typed connections, custom presets/relationships, reusable capabilities and JSON project storage. Shared AI tools create and revise nodes or propose groups from an idea, with saved review drafts and explicit Apply. Prose writing, saved portraits, passage history and forks are planned; they are not implemented yet. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, [world editing](WORLD_EDITING.md) for attachment/removal rules, and [AI authoring](AI_AUTHORING.md) for generation and review.
 
 ## Run the prototype
 
@@ -15,7 +15,7 @@ npm run desktop
 
 The opening world is a fictional example. Create a project to save/edit it, or start with an empty world. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. Existing project folders can also be opened with `npm run desktop -- -- --project "C:\path\to\project"`.
 
-The header's settings gear opens themes, text size and reduced-motion controls. Custom themes can be edited and shared as JSON. Appearance preferences stay separate from story folders; see [appearance settings](APPEARANCE.md).
+The header's settings gear opens appearance controls and the LLM connection page. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 
 Checks: `npm run check`, `npm test`, `npm run build`, `npm run native:test`, and `npm run native:check`. `npm run bindings` regenerates checked-in frontend contracts from Rust.
 

@@ -10,13 +10,15 @@
   import WorldEditDialog from './lib/WorldEditDialog.svelte';
   import RelationshipTypeDialog from './lib/RelationshipTypeDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
+  import AiAuthoringDialog from './lib/AiAuthoringDialog.svelte';
+  import { newAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
   import { exampleWorld, emptyWorld, makeNode, type ProjectView, type Workspace, type World } from './lib/model';
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
   import icon from './assets/app-icon.svg';
-  import type { CommitResult_Serialize, WorldEdit } from './lib/bindings';
+  import type { ApplyAuthoringResult_Serialize, AuthoringRequest, CommitResult_Serialize, WorldEdit } from './lib/bindings';
 
   const initialWorld = exampleWorld();
   const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [...initialWorld.nodes.filter((n) => n.components["core.place"] || n.components["core.character"]).map((n) => n.id)], selectedId: initialWorld.nodes.find((n) => n.components["core.character"])!.id, positions: {} });
@@ -30,6 +32,9 @@
   let busy = $state(false);
   const appearance = new AppearanceSettings();
   let showSettings = $state(false);
+  let settingsDialog=$state<{flushSettings:()=>Promise<void>}>();
+  let showAi=$state(false),aiRunning=$state(false),aiRunId=$state<string|null>(null),aiRequest=$state<AuthoringRequest|null>(null);
+  let aiDialog=$state<{flushDraft:()=>Promise<void>}>();
   let systemDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
   const colorMode = $derived(resolveTheme(appearance.value, systemDark).mode);
   $effect(() => { applyAppearance(appearance.value, systemDark); });
@@ -52,8 +57,16 @@
 
   function describe(caught: unknown) { return caught instanceof Error ? caught.message : String(caught); }
   async function closeSettings() {
-    try { await appearance.flush(); showSettings=false; } catch { /* Keep the settings error and edits visible. */ }
+    try { await settingsDialog?.flushSettings();await appearance.flush(); showSettings=false; } catch { /* Keep the settings error and edits visible. */ }
   }
+  function openAi(targetId?:string){
+    if(!project||busy)return;
+    if(aiRunning){showAi=true;return;}
+    if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId);aiRunId=null;}
+    showAi=true;
+  }
+  async function beforeAiAction(){await flush();if(!project)throw Error('Open a project first.');return structuredClone($state.snapshot(project));}
+  async function applyAi(result:ApplyAuthoringResult_Serialize){await adopt(result.commit.project);showAi=false;aiRunId=result.proposal.id;aiRequest=result.proposal.request;const id=result.proposal.createdNodeIds[0]??result.proposal.request.targetIds[0];if(id)select(id);}
   function scheduleSave() {
     if (!project) return;
     editVersion++;
@@ -143,10 +156,12 @@
 
   async function adopt(view: ProjectView) {
     clearTimeout(timer); clearTimeout(layoutTimer);
+    const sameStory=project?.storyId===view.storyId;
     project = view; world = view.world;
+    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;}
     editVersion = savedVersion = persistedDraftVersion = 0; pending = null;
     workspace = { version: 0, expandedIds: view.world.nodes.filter((n) => n.components["core.place"]).map((n) => n.id), selectedId: view.world.nodes[0]?.id ?? null, positions: {} };
-    search = ''; error = ''; layoutError = ''; recoveryPath = null;
+    search = ''; error = view.warnings.join(' '); layoutError = ''; recoveryPath = null;
     status = 'All changes saved';
     try { const savedWorkspace = unwrap(await commands.loadWorkspace()); if (savedWorkspace.version) workspace = savedWorkspace; } catch (caught) { layoutError = `Map layout could not be loaded: ${describe(caught)}`; }
     try {
@@ -164,10 +179,15 @@
     const ids = new Set(world.nodes.map((n) => n.id));
     workspace = {...workspace,selectedId:workspace.selectedId && ids.has(workspace.selectedId) ? workspace.selectedId : world.nodes[0]?.id ?? null,
       expandedIds:workspace.expandedIds.filter((id) => ids.has(id)),positions:Object.fromEntries(Object.entries(workspace.positions).filter(([id]) => ids.has(id)))};
+    if(!sameStory)try{
+      const proposals=unwrap(await commands.listAuthoring(view.storyId));
+      const unfinished=proposals.find((proposal)=>['draft','review','interrupted','failed'].includes(proposal.status));
+      if(unfinished){const proposal=unwrap(await commands.getAuthoring(view.storyId,unfinished.id));aiRunId=proposal.id;aiRequest=proposal.request;}
+    }catch(caught){error=[error,`AI proposals need attention: ${describe(caught)}`].filter(Boolean).join(' ');}
   }
 
   async function prepareSwitch() {
-    try { await flush(); await flushLayout(); return true; } catch { error = 'Resolve the unsaved world edits before changing projects. ' + error; return false; }
+    try { await aiDialog?.flushDraft();if(aiRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
   }
   async function openProject() {
     if (!desktop || busy) return;
@@ -281,8 +301,10 @@
     const changeMode=()=>{systemDark=media.matches;};
     media.addEventListener('change', changeMode);
     void appearance.load();
+    const aiPoll=setInterval(()=>{if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
+      try { await aiDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
       try { await appearance.flush(); } catch { event.preventDefault(); showSettings=true; return; }
       if (!project) return;
       busy = true;
@@ -294,13 +316,13 @@
         error = 'The latest draft could not be saved. Keep this window open and retry.';
       }
     }).then((off) => { unlisten = off; });
-    return () => { clearTimeout(timer); clearTimeout(layoutTimer); media.removeEventListener('change',changeMode); unlisten?.(); };
+    return () => { clearTimeout(timer); clearTimeout(layoutTimer);clearInterval(aiPoll); media.removeEventListener('change',changeMode); unlisten?.(); };
   });
 </script>
 
 <svelte:head><title>{project?.title ?? 'World workspace'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || !!structuralEdit}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
     <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button><button class="settings-button quiet-button" onclick={()=>{showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
@@ -334,6 +356,7 @@
               <button disabled={busy} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
+            {#if project}<button class="secondary-button" disabled={busy} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
           <SvelteFlowProvider><WorldMap {world} {workspace} {search} {colorMode} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
         </section>
@@ -341,6 +364,7 @@
       <PaneResizer class="pane-resizer" />
       <Pane defaultSize={25} minSize={20} maxSize={36}>
         <Inspector record={selected} {records} {world} editable={!!project && !busy} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
+          onAi={openAi}
           onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
       </Pane>
@@ -349,7 +373,8 @@
   <footer class="status-bar"><span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
 
-{#if showSettings}<SettingsDialog settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
+{#if showSettings}<SettingsDialog bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
+{#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={()=>{showAi=false;showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
 {#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 

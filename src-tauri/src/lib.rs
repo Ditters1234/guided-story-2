@@ -4,6 +4,8 @@ use story_project::{
     WorldEditPreview,
 };
 use tauri::{Manager, State};
+mod ai;
+use ai::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -27,7 +29,9 @@ fn create_project(
     world: World,
     request_id: String,
     state: State<AppState>,
+    jobs: State<AuthoringJobs>,
 ) -> Result<ProjectView, String> {
+    ensure_idle(&jobs)?;
     let parent = Path::new(&parent_path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
@@ -48,7 +52,12 @@ fn create_project(
 
 #[tauri::command]
 #[specta::specta]
-fn open_project(folder_path: String, state: State<AppState>) -> Result<ProjectView, String> {
+fn open_project(
+    folder_path: String,
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+) -> Result<ProjectView, String> {
+    ensure_idle(&jobs)?;
     let path = Path::new(&folder_path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
@@ -62,24 +71,38 @@ fn open_project(folder_path: String, state: State<AppState>) -> Result<ProjectVi
         }
     }
     let project = Project::open(&path)?;
-    let view = project.view()?;
+    let recovery = project.interrupt_authoring();
+    let mut view = project.view()?;
+    if let Err(error) = recovery {
+        view.warnings.push(format!(
+            "The world opened, but AI proposal recovery needs attention: {error}"
+        ));
+    }
     *guard = Some(project);
     Ok(view)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn startup_project(state: State<AppState>) -> Result<Option<ProjectView>, String> {
+fn startup_project(
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+) -> Result<Option<ProjectView>, String> {
     let arguments: Vec<String> = std::env::args().collect();
     if let Some(pair) = arguments.windows(2).find(|pair| pair[0] == "--project") {
-        return open_project(pair[1].clone(), state).map(Some);
+        return open_project(pair[1].clone(), state, jobs).map(Some);
     }
     Ok(None)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn recover_project(folder_path: String, state: State<AppState>) -> Result<ProjectView, String> {
+fn recover_project(
+    folder_path: String,
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+) -> Result<ProjectView, String> {
+    ensure_idle(&jobs)?;
     let mut guard = state
         .0
         .lock()
@@ -91,7 +114,13 @@ fn recover_project(folder_path: String, state: State<AppState>) -> Result<Projec
         return Err("Reopen the app before recovering the project currently in use.".into());
     }
     let project = Project::recover(Path::new(&folder_path))?;
-    let view = project.view()?;
+    let recovery = project.interrupt_authoring();
+    let mut view = project.view()?;
+    if let Err(error) = recovery {
+        view.warnings.push(format!(
+            "The world recovered, but AI proposals need attention: {error}"
+        ));
+    }
     *guard = Some(project);
     Ok(view)
 }
@@ -179,27 +208,41 @@ fn save_preferences(
 }
 
 fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::new().commands(tauri_specta::collect_commands![
-        create_project,
-        open_project,
-        startup_project,
-        recover_project,
-        save_project,
-        load_workspace,
-        save_workspace,
-        load_draft,
-        save_draft,
-        clear_matching_draft,
-        preview_world_edit,
-        load_preferences,
-        save_preferences
-    ])
+    tauri_specta::Builder::new()
+        .typ::<story_project::NodeCandidate>()
+        .commands(tauri_specta::collect_commands![
+            create_project,
+            open_project,
+            startup_project,
+            recover_project,
+            save_project,
+            load_workspace,
+            save_workspace,
+            load_draft,
+            save_draft,
+            clear_matching_draft,
+            preview_world_edit,
+            load_preferences,
+            save_preferences,
+            load_llm_connection,
+            save_llm_connection,
+            test_llm_connection,
+            list_authoring,
+            get_authoring,
+            save_authoring_draft,
+            save_authoring_candidate,
+            start_authoring,
+            cancel_authoring,
+            apply_authoring,
+            close_authoring
+        ])
 }
 
 pub fn run() {
     let builder = command_builder();
     tauri::Builder::default()
         .manage(AppState::default())
+        .manage(AuthoringJobs::default())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())

@@ -12,6 +12,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 
 - The native backend owns canonical validation and project writes. Autosaved form drafts and AI proposals are distinct from accepted story facts.
 - AI world proposals require Apply; prose requires Accept passage. Edited prose invalidates extracted effects and checks.
+- AI node authoring derives fields, capabilities and output contracts from the project schema. Keep provider clients/job state separate from node data; custom presets must use the same creation/revision/protection pipeline.
 - Accepted passage versions and world snapshots are immutable. Current author edits must not change historical snapshots.
 - Use one Fork after this passage action. Copies must stand alone and exclude future story knowledge and pending operations.
 - Clothing is inventory with wear assignments; do not introduce separately editable wardrobe strings.

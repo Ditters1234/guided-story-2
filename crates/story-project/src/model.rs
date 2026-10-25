@@ -397,6 +397,7 @@ pub struct RecordRef {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectView {
+    pub warnings: Vec<String>,
     pub schema_version: u32,
     pub story_id: String,
     pub title: String,

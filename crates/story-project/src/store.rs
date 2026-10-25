@@ -50,7 +50,7 @@ fn digest(bytes: &[u8]) -> String {
 fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, String> {
     serde_json::to_vec_pretty(value).map_err(|e| format!("Could not encode project data: {e}"))
 }
-fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let file = File::open(path).map_err(|e| format!("Could not read {}: {e}", path.display()))?;
     let mut bytes = Vec::new();
     file.take(MAX_FILE_BYTES + 1)
@@ -134,6 +134,24 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 impl Project {
+    pub(crate) fn root_path(&self) -> &Path {
+        &self.root
+    }
+    pub(crate) fn committed_revision_for(
+        &self,
+        id: &str,
+        title: &str,
+        world: &World,
+    ) -> Result<Option<u32>, String> {
+        let (manifest, _) = self.load(&self.read_head()?)?;
+        if let Some(receipt) = manifest.receipts.get(id) {
+            if receipt.fingerprint != Self::fingerprint(title, world)? {
+                return Err("This request ID was already used for different content.".into());
+            }
+            return Ok(Some(receipt.revision));
+        }
+        Ok(None)
+    }
     fn lock(root: &Path) -> Result<Self, String> {
         let root = root
             .canonicalize()
@@ -208,7 +226,7 @@ impl Project {
             .join(format!("{}.json", reference.id)))
     }
 
-    fn read_record<T: DeserializeOwned>(
+    pub(crate) fn read_record<T: DeserializeOwned>(
         &self,
         folder: &str,
         reference: &RecordRef,
@@ -241,6 +259,7 @@ impl Project {
 
     fn to_view(&self, manifest: Manifest, world: World) -> ProjectView {
         ProjectView {
+            warnings: vec![],
             schema_version: SCHEMA,
             story_id: manifest.story_id,
             title: manifest.title,
@@ -328,7 +347,11 @@ impl Project {
         })
     }
 
-    fn write_record<T: Serialize>(&self, folder: &str, value: &T) -> Result<RecordRef, String> {
+    pub(crate) fn write_record<T: Serialize>(
+        &self,
+        folder: &str,
+        value: &T,
+    ) -> Result<RecordRef, String> {
         let bytes = encode(value)?;
         if bytes.len() as u64 > MAX_FILE_BYTES {
             return Err("Project record exceeds its size limit.".into());
