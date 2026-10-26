@@ -248,6 +248,17 @@ fn decode_image(bytes: &[u8]) -> Result<(image::DynamicImage, &'static str), Str
         ext,
     ))
 }
+pub(crate) fn verify_backup_image(bytes: &[u8], file: &ImageFile) -> Result<(), String> {
+    validate_file(file)?;
+    if hash(bytes) != file.sha256 {
+        return Err("Backup image checksum mismatch.".into());
+    }
+    let (image, extension) = decode_image(bytes)?;
+    if image.width() != file.width || image.height() != file.height || extension != file.extension {
+        return Err("Backup image dimensions or format do not match its metadata.".into());
+    }
+    Ok(())
+}
 impl Project {
     fn media_path(&self, id: &str) -> Result<std::path::PathBuf, String> {
         validate_id(id)?;

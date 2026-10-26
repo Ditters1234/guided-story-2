@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackupDialog from './lib/BackupDialog.svelte';
   import { onMount, type Snippet } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -41,6 +42,7 @@
   let layoutError = $state('');
   let status = $state('Example world');
   let busy = $state(false);
+  let backupMode=$state<'export'|'restore'|null>(null),backupWorking=$state(false);
   const appearance = new AppearanceSettings();
   let showSettings = $state(false);
   let settingsSection=$state<'appearance'|'llm'|'images'>('appearance');
@@ -194,7 +196,7 @@
 
   async function adopt(view: ProjectView) {
     clearTimeout(timer); clearTimeout(layoutTimer);
-    const sameStory=project?.storyId===view.storyId;
+    const sameStory=project?.storyId===view.storyId&&project?.folderPath===view.folderPath;
     project = view; world = view.world;
     historyWorld=null;historyLabel='';
     if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;imagePromptRunId=null;imagePromptMediaId=null;imagePromptRunning=false;imagePromptRetained=false;imagePromptTarget=null;imagePromptWorlds=null;passageRunning=false;storyOpened=false;surface='world';}
@@ -228,6 +230,14 @@
   async function prepareSwitch() {
     try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();if(aiRunning||passageRunning||imagePromptRunning||imagePromptRetained)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
   }
+  async function prepareBackup(){
+    await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();
+    if(aiRunning||passageRunning||imagePromptRunning||imagePromptRetained)throw Error('Finish or cancel generation before making a backup or restoring.');
+    try{await flush();}catch(caught){if(persistedDraftVersion<editVersion)throw caught;}
+    await flushLayout();if(layoutError)throw Error(layoutError);
+    return project?structuredClone($state.snapshot(project)):null;
+  }
+  async function openRestored(path:string){if(!await prepareSwitch())throw Error(error);await adopt(unwrap(await commands.openProject(path)));backupMode=null;}
   async function openProject() {
     if (!desktop || busy) return;
     busy = true;
@@ -343,6 +353,7 @@
     const aiPoll=setInterval(()=>{if(imagePromptRunId&&project&&(imagePromptRunning||imagePromptRetained)){const id=imagePromptRunId;void commands.getImagePrompt(project.storyId,id).then(unwrap).then(view=>{if(imagePromptRunId===id){imagePromptRunning=view.stage==='running';imagePromptRetained=view.retained;}}).catch(caught=>{error=describe(caught);});}if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
+      if(backupWorking){event.preventDefault();return;}
       try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
       try { await appearance.flush(); } catch { event.preventDefault(); showSettings=true; return; }
       if (!project) return;
@@ -361,10 +372,10 @@
 
 <svelte:head><title>{project?.title ?? 'World workspace'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit || !!backupMode}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
-    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
+    <div class="header-actions"><details class="add-menu project-menu"><summary>Project</summary><div><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;void openProject();}}>Open project…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;showCreate=true;}}>New project…</button><button disabled={!desktop||busy||!project} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='export';}}>Export backup…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='restore';}}>Restore backup…</button></div></details><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
   </header>
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
   {#if appearance.error && !showSettings}<div class="error-banner" role="alert"><span>Settings: {appearance.error}</span><button onclick={()=>{showSettings=true;}}>Open settings</button></div>{/if}
@@ -417,6 +428,8 @@
   </main>
   <footer class="status-bar">{#if !imageTarget&&(imagePromptRunning||imagePromptRetained)}<button class="prompt-activity secondary-button" onclick={reopenPrompt}>{imagePromptRetained?'Prompt reply · save pending':'Image prompt · preparing…'}</button>{/if}<span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
+
+{#if backupMode}<BackupDialog mode={backupMode} {project} onBeforeAction={prepareBackup} onOpen={openRestored} onClose={()=>{backupMode=null;}} onWorking={value=>{backupWorking=value;}}/>{/if}
 
 {#if showSettings}<SettingsDialog initialSection={settingsSection} bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
 {#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} preferredMediaId={preferredImageId} otherTextBusy={aiRunning||passageRunning||imagePromptRunning||imagePromptRetained} onPromptRun={promptRun} onLlmSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='llm';showSettings=true;}} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}

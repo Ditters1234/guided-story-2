@@ -15,7 +15,7 @@ npm run desktop
 
 The opening world is a fictional example. Create a project to save/edit it, or start with an empty world. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. Existing project folders can also be opened with `npm run desktop -- -- --project "C:\path\to\project"`.
 
-The header's settings gear opens appearance controls and the LLM connection page. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
+The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance and API controls. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 
 Checks: `npm run check`, `npm test`, `npm run build`, `npm run native:test`, and `npm run native:check`. `npm run bindings` regenerates checked-in frontend contracts from Rust.
 
@@ -50,7 +50,7 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 - **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates, preflight, explicit submission/result checks and accepted project-local images are implemented. Separate workflow profiles preserve model-specific graphs. Real-provider compatibility remains unverified.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows; optional LLM shot/prompt suggestions require review and Apply to an image draft. Knowledge controls, export/restore and release validation remain pending.
+The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows; optional LLM shot/prompt suggestions require review and Apply to an image draft. Validated folder backups preserve history, images and saved drafts in a separate restored copy. Knowledge controls, real-provider probes and release validation remain pending.
 
 ## References and reuse
 

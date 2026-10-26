@@ -20,6 +20,6 @@ pub use model::*;
 pub use operations::*;
 pub use preferences::*;
 pub use provider::*;
-pub use store::Project;
+pub use store::{inspect_backup, restore_backup, BackupReport, Project};
 pub use story::*;
 pub use story_effects::*;

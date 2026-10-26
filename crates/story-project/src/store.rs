@@ -12,6 +12,8 @@ use uuid::Uuid;
 
 const SCHEMA: u32 = 1;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
+mod backup;
+pub use backup::*;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

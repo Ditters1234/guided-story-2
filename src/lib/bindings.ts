@@ -8,6 +8,9 @@ export const commands = {
 	openProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("open_project", { folderPath })),
 	startupProject: () => typedError<ProjectView_Serialize | null, string>(__TAURI_INVOKE("startup_project")),
 	recoverProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("recover_project", { folderPath })),
+	exportProjectBackup: (storyId: string, expectedRevision: number, parentPath: string, operationId: string) => typedError<BackupReport, string>(__TAURI_INVOKE("export_project_backup", { storyId, expectedRevision, parentPath, operationId })),
+	inspectProjectBackup: (folderPath: string) => typedError<BackupReport, string>(__TAURI_INVOKE("inspect_project_backup", { folderPath })),
+	restoreProjectBackup: (folderPath: string, parentPath: string, operationId: string, fingerprint: string) => typedError<BackupReport, string>(__TAURI_INVOKE("restore_project_backup", { folderPath, parentPath, operationId, fingerprint })),
 	saveProject: (expectedRevision: number, requestId: string, title: string, world: World_Deserialize) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("save_project", { expectedRevision, requestId, title, world })),
 	loadWorkspace: () => typedError<Workspace_Serialize, string>(__TAURI_INVOKE("load_workspace")),
 	saveWorkspace: (expectedVersion: number, workspace: Workspace_Deserialize) => typedError<Workspace_Serialize, string>(__TAURI_INVOKE("save_workspace", { expectedVersion, workspace })),
@@ -207,6 +210,17 @@ export type AuthoringView_Serialize = {
 	estimatedInputTokens: number,
 	createdNodeIds: string[],
 	appliedRevision: number | null,
+};
+
+export type BackupReport = {
+	fingerprint: string,
+	folderPath: string,
+	title: string,
+	storyId: string,
+	revision: number,
+	files: number,
+	bytes: number,
+	omittedFiles: number,
 };
 
 export type Chapter = {

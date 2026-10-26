@@ -440,10 +440,10 @@ fn forks_copy_retained_media_without_future_outfits_or_source_folder_dependency(
     assert!(fork.media_preview(&illustration, true).is_ok());
     drop(p);
     let moved = dir.path().join("source-unavailable");
-    for attempt in 0..10 {
+    for attempt in 0..40 {
         match fs::rename(dir.path().join("story"), &moved) {
             Ok(()) => break,
-            Err(e) if attempt < 9 && matches!(e.raw_os_error(), Some(5 | 32 | 33)) => {
+            Err(e) if attempt < 39 && matches!(e.raw_os_error(), Some(5 | 32 | 33)) => {
                 std::thread::sleep(std::time::Duration::from_millis(50))
             }
             Err(e) => panic!("{e}"),

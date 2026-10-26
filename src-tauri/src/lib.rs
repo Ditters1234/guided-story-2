@@ -14,6 +14,8 @@ mod media;
 use media::*;
 mod image_prompts;
 use image_prompts::*;
+mod backups;
+use backups::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -233,6 +235,9 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             open_project,
             startup_project,
             recover_project,
+            export_project_backup,
+            inspect_project_backup,
+            restore_project_backup,
             save_project,
             load_workspace,
             save_workspace,
