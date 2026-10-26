@@ -16,6 +16,7 @@ pub(crate) enum TextJobKind {
     Narration,
     Effects,
     Memory,
+    ImagePrompt,
 }
 #[derive(Clone)]
 pub(crate) struct Outcome {
@@ -105,6 +106,12 @@ pub(crate) fn finish_outcome(p: &Project, id: &str, outcome: &Outcome) -> Result
             outcome.incomplete,
         ),
         TextJobKind::Memory => p.finish_memory(
+            id,
+            outcome.text.clone(),
+            outcome.cancelled,
+            outcome.incomplete,
+        ),
+        TextJobKind::ImagePrompt => p.finish_image_prompt(
             id,
             outcome.text.clone(),
             outcome.cancelled,

@@ -28,8 +28,12 @@
   let project = $state<ProjectView | null>(null);
   let imageTarget=$state<MediaTarget|null>(null),imageWorlds=$state<{before:World;after:World}|null>(null);
   let imageDialog=$state<{flushDraft:()=>Promise<void>}>();
-  function nodeImage(id:string){if(!project||historyWorld)return;imageWorlds={before:structuredClone($state.snapshot(world)),after:structuredClone($state.snapshot(world))};imageTarget={nodeId:id,passageId:null,moment:'after',subjectIds:[]};}
-  function passageImage(reading:PassageReading_Serialize,moment:'before'|'after'){imageWorlds={before:reading.before,after:reading.after};const source=moment==='before'?reading.before:reading.after;const plan=reading.passage.plan;const subjects=[...new Set([plan.viewpointId,...plan.participantIds,plan.locationId].filter((id):id is string=>!!id&&source.nodes.some(n=>n.id===id)))].slice(0,4);imageTarget={nodeId:null,passageId:reading.passage.id,moment,subjectIds:subjects};}
+  let imagePromptRunId=$state<string|null>(null),imagePromptMediaId=$state<string|null>(null),imagePromptRunning=$state(false),imagePromptRetained=$state(false);
+  let imagePromptTarget=$state<MediaTarget|null>(null),imagePromptWorlds=$state<{before:World;after:World}|null>(null),preferredImageId=$state<string|null>(null);
+  function promptRun(id:string,mediaId:string,running:boolean,retained:boolean){if(running||retained){imagePromptRunId=id;imagePromptMediaId=mediaId;imagePromptRunning=running;imagePromptRetained=retained;if(imageTarget&&imageWorlds){imagePromptTarget=structuredClone($state.snapshot(imageTarget));imagePromptWorlds=structuredClone($state.snapshot(imageWorlds));}}else if(imagePromptRunId===id){imagePromptRunning=false;imagePromptRetained=false;}}
+  function reopenPrompt(){if(!imagePromptTarget||!imagePromptWorlds)return;imageTarget=imagePromptTarget;imageWorlds=imagePromptWorlds;preferredImageId=imagePromptMediaId;}
+  function nodeImage(id:string){if(!project||historyWorld)return;preferredImageId=null;imageWorlds={before:structuredClone($state.snapshot(world)),after:structuredClone($state.snapshot(world))};imageTarget={nodeId:id,passageId:null,moment:'after',subjectIds:[]};}
+  function passageImage(reading:PassageReading_Serialize,moment:'before'|'after'){preferredImageId=null;imageWorlds={before:reading.before,after:reading.after};const source=moment==='before'?reading.before:reading.after;const plan=reading.passage.plan;const subjects=[...new Set([plan.viewpointId,...plan.participantIds,plan.locationId].filter((id):id is string=>!!id&&source.nodes.some(n=>n.id===id)))].slice(0,4);imageTarget={nodeId:null,passageId:reading.passage.id,moment,subjectIds:subjects};}
   let world = $state<World>(initialWorld);
   let workspace = $state<Workspace>(initialWorkspace());
   let search = $state('');
@@ -75,7 +79,7 @@
     try { await settingsDialog?.flushSettings();await appearance.flush(); showSettings=false; } catch { /* Keep the settings error and edits visible. */ }
   }
   function openAi(targetId?:string){
-    if(!project||busy||historyWorld||passageRunning)return;
+    if(!project||busy||historyWorld||passageRunning||imagePromptRunning||imagePromptRetained)return;
     if(aiRunning){showAi=true;return;}
     if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId);aiRunId=null;}
     showAi=true;
@@ -193,7 +197,7 @@
     const sameStory=project?.storyId===view.storyId;
     project = view; world = view.world;
     historyWorld=null;historyLabel='';
-    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;passageRunning=false;storyOpened=false;surface='world';}
+    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;imagePromptRunId=null;imagePromptMediaId=null;imagePromptRunning=false;imagePromptRetained=false;imagePromptTarget=null;imagePromptWorlds=null;passageRunning=false;storyOpened=false;surface='world';}
     editVersion = savedVersion = persistedDraftVersion = 0; pending = null;
     workspace = { version: 0, expandedIds: view.world.nodes.filter((n) => n.components["core.place"]).map((n) => n.id), selectedId: view.world.nodes[0]?.id ?? null, positions: {} };
     search = ''; error = view.warnings.join(' '); layoutError = ''; recoveryPath = null;
@@ -222,7 +226,7 @@
   }
 
   async function prepareSwitch() {
-    try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();if(aiRunning||passageRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
+    try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();if(aiRunning||passageRunning||imagePromptRunning||imagePromptRetained)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
   }
   async function openProject() {
     if (!desktop || busy) return;
@@ -336,7 +340,7 @@
     const changeMode=()=>{systemDark=media.matches;};
     media.addEventListener('change', changeMode);
     void appearance.load();
-    const aiPoll=setInterval(()=>{if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
+    const aiPoll=setInterval(()=>{if(imagePromptRunId&&project&&(imagePromptRunning||imagePromptRetained)){const id=imagePromptRunId;void commands.getImagePrompt(project.storyId,id).then(unwrap).then(view=>{if(imagePromptRunId===id){imagePromptRunning=view.stage==='running';imagePromptRetained=view.retained;}}).catch(caught=>{error=describe(caught);});}if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
       try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
@@ -394,10 +398,10 @@
               <button disabled={busy||!!historyWorld} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{:else if !project}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
-            {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
+            {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning||imagePromptRunning||imagePromptRetained} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
           <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
-          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{settingsSection='llm';showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{settingsSection='llm';showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
@@ -411,11 +415,11 @@
       </Pane>
     </PaneGroup>
   </main>
-  <footer class="status-bar"><span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
+  <footer class="status-bar">{#if !imageTarget&&(imagePromptRunning||imagePromptRetained)}<button class="prompt-activity secondary-button" onclick={reopenPrompt}>{imagePromptRetained?'Prompt reply · save pending':'Image prompt · preparing…'}</button>{/if}<span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
 
 {#if showSettings}<SettingsDialog initialSection={settingsSection} bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
-{#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}
+{#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} preferredMediaId={preferredImageId} otherTextBusy={aiRunning||passageRunning||imagePromptRunning||imagePromptRetained} onPromptRun={promptRun} onLlmSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='llm';showSettings=true;}} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}
 {#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={()=>{showAi=false;settingsSection='llm';showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
 {#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}

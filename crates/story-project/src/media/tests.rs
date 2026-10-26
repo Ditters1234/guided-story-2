@@ -26,7 +26,7 @@ fn node(world: &World, kind: &str, name: &str) -> WorldNode {
             .collect(),
     }
 }
-fn fixture() -> (tempfile::TempDir, Project) {
+pub(super) fn fixture() -> (tempfile::TempDir, Project) {
     let dir = tempfile::tempdir().unwrap();
     let mut world = World::default();
     for (kind, name) in [
@@ -73,7 +73,7 @@ fn target(p: &Project) -> MediaTarget {
         subject_ids: vec![],
     }
 }
-fn png() -> Vec<u8> {
+pub(super) fn png() -> Vec<u8> {
     let image = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
         16,
         24,
@@ -92,7 +92,7 @@ fn ready(p: &Project, target: MediaTarget) -> String {
     p.write_media(&d).unwrap();
     key
 }
-fn accept_passage(p: &Project, changes: Vec<PassageEffect>) -> String {
+pub(super) fn accept_passage(p: &Project, changes: Vec<PassageEffect>) -> String {
     let world = p.view().unwrap().world;
     let mut plan = p.next_passage_plan().unwrap();
     plan.direction = "A quiet fictional moment.".into();
@@ -645,6 +645,7 @@ fn media_crash_child() {
         submission: d.submission,
         image: d.image.unwrap(),
         imported: d.imported,
+        prompt_origin: d.prompt_origin,
     };
     index
         .media
@@ -702,6 +703,16 @@ fn media_ui_fixture() {
             text_scale: 120,
             ..Default::default()
         },
+    )
+    .unwrap();
+    save_connection(
+        &parent.join("preferences"),
+        0,
+        LlmConnection {
+            provider: TextProvider::Demo,
+            ..Default::default()
+        },
+        ApiKeyUpdate::Keep,
     )
     .unwrap();
 }

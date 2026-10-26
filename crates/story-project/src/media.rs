@@ -11,8 +11,10 @@ use std::{
     path::Path,
 };
 mod client;
+mod prompts;
 mod settings;
 pub use client::*;
+pub use prompts::*;
 pub use settings::*;
 const MAX_IMAGE: usize = 8 * 1024 * 1024;
 fn hash(bytes: &[u8]) -> String {
@@ -94,6 +96,10 @@ pub struct MediaDraft {
     pub image: Option<ImageFile>,
     pub error: String,
     pub imported: bool,
+    #[serde(default)]
+    pub prompt_origin: Option<ImagePromptOrigin>,
+    #[serde(default)]
+    pub prompt_receipts: BTreeMap<String, String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -106,6 +112,8 @@ pub struct MediaAsset {
     pub submission: Option<MediaSubmission>,
     pub image: ImageFile,
     pub imported: bool,
+    #[serde(default)]
+    pub prompt_origin: Option<ImagePromptOrigin>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -384,6 +392,8 @@ impl Project {
             image: None,
             error: prompt_error,
             imported: false,
+            prompt_origin: None,
+            prompt_receipts: BTreeMap::new(),
         };
         self.write_media(&d)?;
         self.media_view(id)
@@ -690,6 +700,7 @@ impl Project {
             submission: d.submission.clone(),
             image,
             imported: d.imported,
+            prompt_origin: d.prompt_origin.clone(),
         };
         index
             .media

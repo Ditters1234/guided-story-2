@@ -4,7 +4,7 @@ const api=vi.hoisted(()=>({get:vi.fn(),save:vi.fn()}));
 vi.mock('./native',()=>({commands:{getImageCandidate:api.get,saveImageCandidate:api.save},unwrap:(r:{status:string;data?:unknown;error?:string})=>{if(r.status!=='ok')throw Error(r.error);return r.data;}}));
 import {MediaSession} from './media-session.svelte';
 const request=():ImageWorkflowRequest=>({prompt:'Mara wears a blue coat.',negative:null,seed:null,width:null,height:null,steps:null,cfg:null});
-const view=(value=request(),version=1,stage:MediaView['draft']['stage']='draft'):MediaView=>({stale:false,draft:{schemaVersion:1,id:'image',storyId:'story',version,target:{nodeId:'node',passageId:null,moment:'after',subjectIds:[]},source:{world:{id:'world',sha256:'hash'},passage:null,facts:[]},request:value,stage,submission:null,image:null,error:'',imported:false}});
+const view=(value=request(),version=1,stage:MediaView['draft']['stage']='draft'):MediaView=>({stale:false,draft:{schemaVersion:1,id:'image',storyId:'story',version,target:{nodeId:'node',passageId:null,moment:'after',subjectIds:[]},source:{world:{id:'world',sha256:'hash'},passage:null,facts:[]},request:value,stage,submission:null,image:null,error:'',imported:false,promptOrigin:null,promptReceipts:{}}});
 const ok=(data:MediaView)=>({status:'ok',data});
 describe('image prompt autosave queue',()=>{
   beforeEach(()=>{vi.useFakeTimers();api.get.mockReset().mockResolvedValue(ok(view()));api.save.mockReset().mockImplementation(async(_story:string,_id:string,version:number,value:ImageWorkflowRequest)=>ok(view(value,version+1)));});

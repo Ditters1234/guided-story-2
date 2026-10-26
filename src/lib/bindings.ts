@@ -68,6 +68,13 @@ export const commands = {
 	savedImage: (storyId: string, id: string) => typedError<MediaAsset_Serialize, string>(__TAURI_INVOKE("saved_image", { storyId, id })),
 	mapImages: (storyId: string, world: World_Deserialize) => typedError<{ [key in string]: MediaEntry }, string>(__TAURI_INVOKE("map_images", { storyId, world })),
 	clearNodeImage: (storyId: string, nodeId: string, requestId: string) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("clear_node_image", { storyId, nodeId, requestId })),
+	listImagePromptDrafts: (storyId: string, mediaId: string) => typedError<ImagePromptSummary[], string>(__TAURI_INVOKE("list_image_prompt_drafts", { storyId, mediaId })),
+	createImagePromptDraft: (storyId: string, id: string, mediaId: string, expectedMediaVersion: number) => typedError<ImagePromptView_Serialize, string>(__TAURI_INVOKE("create_image_prompt_draft", { storyId, id, mediaId, expectedMediaVersion })),
+	getImagePrompt: (storyId: string, id: string) => typedError<ImagePromptView_Serialize, string>(__TAURI_INVOKE("get_image_prompt", { storyId, id })),
+	saveImagePromptDraft: (storyId: string, id: string, expectedVersion: number, edits: ImagePromptEdits_Deserialize) => typedError<ImagePromptView_Serialize, string>(__TAURI_INVOKE("save_image_prompt_draft", { storyId, id, expectedVersion, edits })),
+	parseImagePromptJson: (storyId: string, id: string, expectedVersion: number) => typedError<ImagePromptView_Serialize, string>(__TAURI_INVOKE("parse_image_prompt_json", { storyId, id, expectedVersion })),
+	startImagePrompt: (storyId: string, id: string, expectedVersion: number) => typedError<ImagePromptView_Serialize, string>(__TAURI_INVOKE("start_image_prompt", { storyId, id, expectedVersion })),
+	applyImagePrompt: (storyId: string, id: string, expectedVersion: number) => typedError<ImagePromptApplyResult_Serialize, string>(__TAURI_INVOKE("apply_image_prompt", { storyId, id, expectedVersion })),
 	readPassage: (storyId: string, id: string) => typedError<PassageReading_Serialize, string>(__TAURI_INVOKE("read_passage", { storyId, id })),
 	forkAfterPassage: (storyId: string, id: string, parentPath: string, title: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("fork_after_passage", { storyId, id, parentPath, title })),
 };
@@ -350,6 +357,104 @@ export type ImagePreflight = {
 	issues: string[],
 };
 
+export type ImagePromptApplyResult = ImagePromptApplyResult_Serialize | ImagePromptApplyResult_Deserialize;
+
+export type ImagePromptApplyResult_Deserialize = {
+	media: MediaView_Deserialize,
+	replayed: boolean,
+};
+
+export type ImagePromptApplyResult_Serialize = {
+	media: MediaView_Serialize,
+	replayed: boolean,
+};
+
+export type ImagePromptEdits = ImagePromptEdits_Serialize | ImagePromptEdits_Deserialize;
+
+export type ImagePromptEdits_Deserialize = {
+	direction: string,
+	output: ImagePromptOutput_Deserialize,
+	rawJson: string,
+};
+
+export type ImagePromptEdits_Serialize = {
+	direction: string,
+	output: ImagePromptOutput_Serialize,
+	rawJson: string,
+};
+
+export type ImagePromptOrigin = ImagePromptOrigin_Serialize | ImagePromptOrigin_Deserialize;
+
+export type ImagePromptOrigin_Deserialize = {
+	proposalId: string,
+	provider: string,
+	direction: string,
+	output: ImagePromptOutput_Deserialize,
+};
+
+export type ImagePromptOrigin_Serialize = {
+	proposalId: string,
+	provider: string,
+	direction: string,
+	output: ImagePromptOutput_Serialize,
+};
+
+export type ImagePromptOutput = ImagePromptOutput_Serialize | ImagePromptOutput_Deserialize;
+
+export type ImagePromptOutput_Deserialize = {
+	shot: string,
+	prompt: string,
+	negative?: string | null,
+};
+
+export type ImagePromptOutput_Serialize = {
+	shot: string,
+	prompt: string,
+	negative: string | null,
+};
+
+export type ImagePromptStage = "draft" | "running" | "review" | "failed" | "cancelled" | "interrupted" | "applied";
+
+export type ImagePromptSummary = {
+	id: string,
+	stage: ImagePromptStage,
+	label: string,
+};
+
+export type ImagePromptView = ImagePromptView_Serialize | ImagePromptView_Deserialize;
+
+export type ImagePromptView_Deserialize = {
+	id: string,
+	mediaId: string,
+	version: number,
+	stage: ImagePromptStage,
+	edits: ImagePromptEdits_Deserialize,
+	provider: string,
+	originalOutput: string,
+	requestJson: string,
+	error: string,
+	stale: boolean,
+	canApply: boolean,
+	negativeSupported: boolean,
+	retained: boolean,
+};
+
+export type ImagePromptView_Serialize = {
+	id: string,
+	mediaId: string,
+	version: number,
+	stage: ImagePromptStage,
+	edits: ImagePromptEdits_Serialize,
+	provider: string,
+	originalOutput: string,
+	requestJson: string,
+	error: string,
+	stale: boolean,
+	canApply: boolean,
+	negativeSupported: boolean,
+	retained: boolean,
+};
+
 export type ImageWorkflowProfile = ImageWorkflowProfile_Serialize | ImageWorkflowProfile_Deserialize;
 
 export type ImageWorkflowProfile_Deserialize = {
@@ -443,6 +548,7 @@ export type MediaAsset_Deserialize = {
 	submission?: MediaSubmission_Deserialize | null,
 	image: ImageFile,
 	imported: boolean,
+	promptOrigin?: ImagePromptOrigin_Deserialize | null,
 };
 
 export type MediaAsset_Serialize = {
@@ -454,6 +560,7 @@ export type MediaAsset_Serialize = {
 	submission: MediaSubmission_Serialize | null,
 	image: ImageFile,
 	imported: boolean,
+	promptOrigin: ImagePromptOrigin_Serialize | null,
 };
 
 export type MediaDraft = MediaDraft_Serialize | MediaDraft_Deserialize;
@@ -471,6 +578,8 @@ export type MediaDraft_Deserialize = {
 	image?: ImageFile | null,
 	error: string,
 	imported: boolean,
+	promptOrigin?: ImagePromptOrigin_Deserialize | null,
+	promptReceipts?: { [key in string]: string },
 };
 
 export type MediaDraft_Serialize = {
@@ -486,6 +595,8 @@ export type MediaDraft_Serialize = {
 	image: ImageFile | null,
 	error: string,
 	imported: boolean,
+	promptOrigin: ImagePromptOrigin_Serialize | null,
+	promptReceipts: { [key in string]: string },
 };
 
 export type MediaEntry = {

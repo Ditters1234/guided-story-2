@@ -12,6 +12,8 @@ mod memory;
 use memory::*;
 mod media;
 use media::*;
+mod image_prompts;
+use image_prompts::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -81,7 +83,8 @@ fn open_project(
         .interrupt_authoring()
         .and(project.interrupt_passages())
         .and(project.interrupt_memories())
-        .and(project.interrupt_media());
+        .and(project.interrupt_media())
+        .and(project.interrupt_image_prompts());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -128,7 +131,8 @@ fn recover_project(
         .interrupt_authoring()
         .and(project.interrupt_passages())
         .and(project.interrupt_memories())
-        .and(project.interrupt_media());
+        .and(project.interrupt_media())
+        .and(project.interrupt_image_prompts());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -289,6 +293,13 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             saved_image,
             map_images,
             clear_node_image,
+            list_image_prompt_drafts,
+            create_image_prompt_draft,
+            get_image_prompt,
+            save_image_prompt_draft,
+            parse_image_prompt_json,
+            start_image_prompt,
+            apply_image_prompt,
             read_passage,
             fork_after_passage
         ])

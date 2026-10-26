@@ -50,7 +50,7 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 - **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates, preflight, explicit submission/result checks and accepted project-local images are implemented. Separate workflow profiles preserve model-specific graphs. Real-provider compatibility remains unverified.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows. Further prompt assistance, knowledge controls, export/restore and release validation remain pending.
+The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows; optional LLM shot/prompt suggestions require review and Apply to an image draft. Knowledge controls, export/restore and release validation remain pending.
 
 ## References and reuse
 
