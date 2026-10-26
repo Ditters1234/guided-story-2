@@ -326,6 +326,24 @@ impl Project {
         )
     }
 
+    pub(crate) fn committed_story_request(
+        &self,
+        id: &str,
+        title: &str,
+        world: &World,
+        index: &crate::StoryIndex,
+    ) -> Result<Option<u32>, String> {
+        let (manifest, _) = self.load(&self.read_head()?)?;
+        let Some(receipt) = manifest.receipts.get(id) else {
+            return Ok(None);
+        };
+        let fingerprint = digest(&encode(&("story-commit-v1", title, world, index))?);
+        if receipt.fingerprint != fingerprint {
+            return Err("This story request ID was reused for different content.".into());
+        }
+        Ok(Some(receipt.revision))
+    }
+
     pub(crate) fn commit_bundle(
         &self,
         expected_revision: u32,

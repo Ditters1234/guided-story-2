@@ -2,8 +2,9 @@
   import {onMount,untrack,type Snippet} from 'svelte';
   import {commands,unwrap} from './native';
   import {PassageSession} from './passage-session.svelte';
+  import {diffProse} from './prose-diff';
   import type {ProjectView,World} from './model';
-  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan} from './bindings';
+  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions} from './bindings';
   let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onHistory,onRun,onFork,onSettings,onPanels}:{
     project:ProjectView;world:World;selectedId:string|null;otherBusy:boolean;
     onBeforeAction:()=>Promise<ProjectView>;onAccept:(result:PassageAcceptance_Serialize)=>Promise<void>;
@@ -14,10 +15,15 @@
   let index=$state<StoryIndex>({schemaVersion:1,chapters:[],passages:[]}),drafts=$state<PassageSummary[]>([]);
   let reading=$state<PassageReading_Serialize|null>(null),mode=$state<'draft'|'reader'>('draft'),moment=$state<'before'|'after'>('after');
   let loaded=$state(false),working=$state(false),error=$state(''),referenceSearch=$state('');
+  let versions=$state<PassageVersions|null>(null),versionsError=$state('');
   const selection=$derived(index.passages.findIndex((p)=>p.id===reading?.passage.id));
   const blocked=$derived(working||session.running);
-  const actors=$derived(world.nodes.filter((n)=>!!n.components['core.character']));
-  const places=$derived(world.nodes.filter((n)=>!!n.components['core.place']));
+  const sceneWorld=$derived(session.view?.revision?.world??world);
+  const wording=$derived(session.view?.revision?.kind==='wording');
+  const replacing=$derived(session.view?.revision?.kind==='events');
+  const actors=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.character']));
+  const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
+  const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
   $effect(()=>{onRun(session.running);});
@@ -29,15 +35,21 @@
     await session.flush();await onBeforeAction();const plan=usePlan?structuredClone(usePlan):unwrap(await commands.nextPassagePlan(project.storyId));
     if(!usePlan){const previous=session.value?.plan;const selected=world.nodes.find((n)=>n.id===selectedId);
       plan.viewpointId=previous?.viewpointId&&world.nodes.some((n)=>n.id===previous.viewpointId)?previous.viewpointId:selected?.components['core.character']?selected.id:null;
-      plan.locationId=previous?.locationId&&world.nodes.some((n)=>n.id===previous.locationId)?previous.locationId:selected?.components['core.place']?selected.id:world.edges.find((e)=>e.typeId==='core.present-at'&&e.sourceId===plan.viewpointId)?.targetId??places[0]?.id??null;
+      plan.locationId=previous?.locationId&&world.nodes.some((n)=>n.id===previous.locationId)?previous.locationId:selected?.components['core.place']?selected.id:world.edges.find((e)=>e.typeId==='core.present-at'&&e.sourceId===plan.viewpointId)?.targetId??world.nodes.find((n)=>n.components['core.place'])?.id??null;
       plan.participantIds=(previous?.participantIds??[]).filter((id)=>world.nodes.some((n)=>n.id===id));
     }
     await session.create(plan);reading=null;mode='draft';onHistory(null,'');await refreshIndex();error='';
   }catch(caught){error=describe(caught);}finally{working=false;}}
-  async function read(id:string){working=true;try{await session.flush();reading=unwrap(await commands.readPassage(project.storyId,id));mode='reader';moment='after';showMoment();error='';}catch(caught){error=describe(caught);}finally{working=false;}}
+  async function read(id:string){working=true;try{await session.flush();reading=unwrap(await commands.readPassage(project.storyId,id));versions=null;versionsError='';mode='reader';moment='after';showMoment();error='';}catch(caught){error=describe(caught);}finally{working=false;}}
+  async function revise(kind:PassageRevisionKind){if(!reading)return;working=true;error='';try{
+    await session.flush();await onBeforeAction();const target=$state.snapshot(reading);
+    session.adopt(unwrap(await commands.beginPassageRevision(project.storyId,crypto.randomUUID(),target.passage.id,target.record,kind)));
+    reading=null;mode='draft';onHistory(null,'');await refreshIndex();
+  }catch(caught){error=describe(caught);}finally{working=false;}}
+  async function earlierVersions(){if(!reading||versions)return;const target=reading;versionsError='';try{const result=unwrap(await commands.passageVersions(project.storyId,target.passage.id));if(reading?.record.id===target.record.id)versions=result;}catch(caught){versionsError=describe(caught);}}
   function showMoment(){if(reading)onHistory(reading[moment],`${moment==='before'?'Before':'After'} ${reading.passage.plan.title}`);}
   async function start(checking:boolean){working=true;error='';try{
-    await session.flush();if(!checking&&session.value?.prose.trim()){const plan=structuredClone($state.snapshot(session.value.plan));await session.create(plan);await refreshIndex();}
+    await session.flush();if(!checking&&session.value?.prose.trim()){await session.reroll();await refreshIndex();}
     const current=await onBeforeAction();if(!session.id||!session.view)throw Error('Create a passage draft first.');
     const result=unwrap(await commands.startPassageJob(project.storyId,session.id,session.view.version,current.revision,checking));session.adopt(result);
   }catch(caught){error=describe(caught);try{await session.refresh();}catch{}}finally{working=false;}}
@@ -62,7 +74,7 @@
         {#each chapter.passageIds as id}{@const entry=index.passages.find((p)=>p.id===id)}<button class:active={mode==='reader'&&reading?.passage.id===id} aria-current={mode==='reader'&&reading?.passage.id===id?'page':undefined} disabled={working} onclick={()=>{void read(id);}}>{entry?.title??'Passage'}</button>{/each}
       </details>{:else}<p class="field-help">No accepted passages yet.</p>{/each}
     </nav>
-    {#if drafts.length}<section class="story-drafts"><h2>Drafts</h2>{#each drafts as draft}{@const current=session.id===draft.id}<button class:active={mode==='draft'&&current} disabled={blocked} onclick={()=>{void openDraft(draft.id);}}><span>{(current?session.value?.plan.title:draft.title)||'Untitled passage'}</span><small>{current?session.view?.stage??draft.stage:draft.stage}</small></button>{/each}</section>{/if}
+    {#if drafts.length}<section class="story-drafts"><h2>Drafts</h2>{#each drafts as draft}{@const current=session.id===draft.id}<button class:active={mode==='draft'&&current} disabled={blocked} onclick={()=>{void openDraft(draft.id);}}><span>{(current?session.value?.plan.title:draft.title)||'Untitled passage'}</span><small>{draft.revisionKind==='wording'?'Wording · ':draft.revisionKind==='events'?'Replace events · ':''}{(current?session.view?.stage??draft.stage:draft.stage).replace('needsCheck','needs review')}</small></button>{/each}</section>{/if}
   </aside>
 {/snippet}
 
@@ -73,16 +85,28 @@
     <p class="field-help">{reading.passage.plan.chapterTitle} · {reading.passage.plan.title}</p>
     <dl class="passage-facts"><dt>Viewpoint</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.viewpointId)?.name??'Ensemble / unspecified'}</dd><dt>Location</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.locationId)?.name??'Unspecified'}</dd></dl>
     {#if reading.passage.plan.chapterPlan}<details><summary>Chapter direction</summary><p class="story-plan-text">{reading.passage.plan.chapterPlan}</p></details>{/if}
+    <div class="passage-revision-actions"><button class="secondary-button" disabled={blocked||otherBusy} onclick={()=>{void revise('wording');}}>Edit wording</button>
+      {#if selection===index.passages.length-1}<button class="secondary-button" disabled={blocked||otherBusy||!!reading.replacementError} title={reading.replacementError||'Rewrite from this passage’s saved before-state'} onclick={()=>{void revise('events');}}>Replace latest events</button>{#if reading.replacementError}<p class="field-help">{reading.replacementError}</p>{/if}{/if}
+    </div>
+    {#if reading.passage.previousVersion}<details class="earlier-versions" ontoggle={(event)=>{if(event.currentTarget.open)void earlierVersions();}}><summary>Earlier text versions</summary>{#if versionsError}<p role="alert">{versionsError}</p>{:else if versions}{#each versions.versions as version,i}<details><summary>{i+1} version{i?'s':''} earlier · {version.revisionKind==='wording'?'wording':version.revisionKind==='events'?'event revision':'original'}</summary><div class="prior-prose">{version.prose}</div></details>{/each}{#if versions.more}<p class="field-help">Showing the latest 20 earlier versions. Older records remain in this project.</p>{/if}{:else}<p class="field-help">Loading versions…</p>{/if}</details>{/if}
     <div class="passage-world-controls"><span>World snapshot</span><button class="secondary-button" aria-pressed={moment==='before'} onclick={()=>{moment='before';showMoment();}}>Before</button><button class="secondary-button" aria-pressed={moment==='after'} onclick={()=>{moment='after';showMoment();}}>After</button><p class="field-help">Switch to World to inspect this passage's saved state.</p><button class="text-action" disabled={otherBusy||session.running||working} onclick={()=>{void session.flush().then(()=>onFork(reading!.passage.id)).catch((caught)=>{error=describe(caught);});}}>Fork after this passage…</button></div>
-    {#if reading.passage.effects.notes.length}<section class="continuity-notes"><h3>Continuity notes</h3>{#each reading.passage.effects.notes as note}<p>{note.text}</p><blockquote>{note.evidence}</blockquote>{/each}</section>{/if}
+    {#if reading.evidenceProse}<details class="earlier-evidence"><summary>Evidence from earlier wording</summary><p class="field-help">The events are retained. Their quotes refer to this earlier text, not the current wording.</p><div class="prior-prose">{reading.evidenceProse}</div></details>{/if}
+    {#if reading.passage.effects.notes.length}<section class="continuity-notes"><h3>Continuity notes</h3>{#each reading.passage.effects.notes as note}<p>{note.text}</p>{#if reading.evidenceProse}<small>Quote from earlier wording</small>{/if}<blockquote>{note.evidence}</blockquote>{/each}</section>{/if}
   {:else if session.value}
-    <h2>Scene plan</h2>
+    <h2>{wording?'Wording review':replacing?'Replace latest events':'Scene plan'}</h2>
     <fieldset class="passage-fields" disabled={blocked||session.view?.stage==='accepted'}>
+      {#if wording}
+        <p class="field-help">Keeps accepted events and world snapshots. Review the diff; Accept wording only confirms that events are unchanged. AI polish can still change meaning.</p>
+        {#if session.view?.error}<p class="story-warning" role="alert">{session.view.error}</p>{/if}
+        {#if session.view?.stale}<p class="story-warning">The source or connection settings changed. Validate again if the accepted source is unchanged; otherwise start a revision from its current version.</p>{/if}
+        <button class="secondary-button" onclick={()=>{void validate();}}>Validate wording</button>
+      {:else}
+      {#if replacing}<p class="field-help">Uses this passage's saved before-world. Acceptance replaces its events and keeps the original version.</p>{/if}
       <details class="chapter-plan" open={!session.value.prose}><summary>Chapter plan</summary><label class="field">Chapter title<input bind:value={session.value.plan.chapterTitle} oninput={()=>session.touch()} maxlength={200} /></label><label class="field">Chapter direction<textarea bind:value={session.value.plan.chapterPlan} oninput={()=>session.touch()} rows={3} maxlength={4000}></textarea></label></details>
       <label class="field">Viewpoint<select bind:value={session.value.plan.viewpointId} onchange={()=>session.touch()}><option value={null}>Ensemble / unspecified</option>{#each actors as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
       <label class="field">Location<select bind:value={session.value.plan.locationId} onchange={()=>session.touch()}><option value={null}>Unspecified</option>{#each places as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
       <details class="scene-resources"><summary>Participants & references</summary><input aria-label="Find scene resources" placeholder="Find a world node…" bind:value={referenceSearch} />
-        <div class="scene-resource-list">{#each world.nodes.filter((n)=>n.name.toLowerCase().includes(referenceSearch.toLowerCase())).slice(0,100) as node}<div><span>{node.name}</span>{#if node.components['core.character']&&node.id!==session.value.plan.viewpointId}<label><input type="checkbox" checked={session.value.plan.participantIds.includes(node.id)} disabled={session.value.plan.participantIds.length>=12&&!session.value.plan.participantIds.includes(node.id)} onchange={()=>references(node.id,true)} />Participant</label>{/if}<label><input type="checkbox" checked={session.value.plan.referenceIds.includes(node.id)} disabled={session.value.plan.referenceIds.length>=12&&!session.value.plan.referenceIds.includes(node.id)} onchange={()=>references(node.id)} />Reference</label></div>{/each}</div>
+        <div class="scene-resource-list">{#each sceneWorld.nodes.filter((n)=>n.name.toLowerCase().includes(referenceSearch.toLowerCase())).slice(0,100) as node}<div><span>{node.name}</span>{#if node.components['core.character']&&node.id!==session.value.plan.viewpointId}<label><input type="checkbox" checked={session.value.plan.participantIds.includes(node.id)} disabled={session.value.plan.participantIds.length>=12&&!session.value.plan.participantIds.includes(node.id)} onchange={()=>references(node.id,true)} />Participant</label>{/if}<label><input type="checkbox" checked={session.value.plan.referenceIds.includes(node.id)} disabled={session.value.plan.referenceIds.length>=12&&!session.value.plan.referenceIds.includes(node.id)} onchange={()=>references(node.id)} />Reference</label></div>{/each}</div>
       </details>
       {#if session.value.prose.trim()}
         <section class="effects-review"><h3>World changes</h3>
@@ -95,6 +119,7 @@
           {#if session.view?.suggestedChapterEnd}<p class="field-help">The AI suggests ending this chapter.</p>{/if}
           <label class="check-field"><input type="checkbox" bind:checked={session.value.closeChapter} onchange={()=>session.touch()} /><span>Close chapter after this passage</span></label>
         </section>
+      {/if}
       {/if}
     </fieldset>
     {#if session.view}<details class="context-coverage"><summary>Generation context</summary><p>Prose: {session.view.narrationProvider||'Manual'} · Effects: {session.view.effectsProvider||'Manual'}</p><p>{session.view.contextNodes.join(', ')||'No existing world nodes selected.'}</p><p>Recent text: up to two accepted passages. Older chapters are not yet summarized automatically. Participants do not move until prose establishes a move.</p></details>{/if}
@@ -115,14 +140,15 @@
   {:else if session.value}
     <div class="passage-composer">
       <fieldset class="passage-fields" disabled={blocked||session.view?.stage==='accepted'}>
-        <label class="field">Passage title<input bind:value={session.value.plan.title} oninput={()=>session.touch()} maxlength={200} /></label>
-        <label class="field">Passage direction<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder="What happens in this passage, and where should it stop?"></textarea></label>
-        <div class="passage-generate"><label>Target words<input type="number" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label><button class="secondary-button" disabled={otherBusy||!session.value.plan.direction.trim()} onclick={()=>{void start(false);}}>{session.value.prose?'Generate new candidate':'Generate passage'}</button><button class="text-action" onclick={onSettings}>LLM settings</button></div>
+        <label class="field">Passage title<input bind:value={session.value.plan.title} disabled={wording} oninput={()=>session.touch()} maxlength={200} /></label>
+        <label class="field">{wording?'Wording direction (for AI polish)':'Passage direction'}<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder={wording?'How should the wording change while keeping events intact?':'What happens in this passage, and where should it stop?'}></textarea></label>
+        <div class="passage-generate">{#if !wording}<label>Target words<input type="number" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}<button class="secondary-button" disabled={otherBusy||!session.value.plan.direction.trim()} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button><button class="text-action" onclick={onSettings}>LLM settings</button></div>
         {#if session.view?.narrationProvider.startsWith('Offline demo')}<p class="field-help">{session.view.narrationProvider}</p>{/if}
         <label class="field prose-field">Passage<textarea bind:value={session.value.prose} oninput={()=>session.touch()} rows={16} maxlength={100000} placeholder="Generate a passage or write it here."></textarea><span class="field-help">{wordCount} words</span></label>
       </fieldset>
+      {#if session.view?.revision}<details class="prose-review" open={session.readyToAccept}><summary>Review text changes</summary><p class="field-help">Removed text is struck through; additions are underlined.</p><div class="prose-diff">{#each textChanges as change}{#if change.kind==='removed'}<del>{change.text}</del>{:else if change.kind==='added'}<ins>{change.text}</ins>{:else}{change.text}{/if}{/each}</div></details>{/if}
     </div>
   {:else}<p class="story-loading">Loading story…</p>{/if}
   </div>
-  {#if mode==='draft'}<footer class="composer-footer"><span aria-live="polite">{session.error?'Draft not saved':session.saving?'Saving draft…':session.dirty?'Unsaved draft':session.running?'Request running':session.readyToAccept?'Checked · ready for review':'Draft saved'}</span><button class="primary-button" disabled={blocked||!session.readyToAccept} onclick={()=>{void accept();}}>Accept passage</button></footer>{/if}
+  {#if mode==='draft'}<footer class="composer-footer"><span aria-live="polite">{session.error?'Draft not saved':session.saving?'Saving draft…':session.dirty?'Unsaved draft':session.running?'Request running':session.readyToAccept?'Checked · ready for review':'Draft saved'}</span><button class="primary-button" disabled={blocked||!session.readyToAccept} onclick={()=>{void accept();}}>{wording?'Accept wording only':replacing?'Accept replacement':'Accept passage'}</button></footer>{/if}
 </section>

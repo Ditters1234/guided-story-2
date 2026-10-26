@@ -15,6 +15,7 @@ export class PassageSession {
   get readyToAccept(){return !!this.view?.canAccept&&!this.dirty&&!this.saving;}
   async open(id:string){await this.flush();this.adopt(unwrap(await commands.getPassageDraft(this.storyId,id)));}
   async create(plan:PassagePlan){await this.flush();this.id=crypto.randomUUID();this.value={plan:structuredClone(plan),prose:'',effectsText:'{"changes":[],"notes":[],"suggestChapterEnd":false}',closeChapter:false};this.view=null;this.version=0;this.edits=this.saved=0;this.pending=null;this.touch();await this.flush();}
+  async reroll(){await this.flush();if(!this.id||!this.view)throw Error('Open a saved passage candidate first.');this.adopt(unwrap(await commands.clonePassageDraft(this.storyId,this.id,this.view.version,crypto.randomUUID())));}
   adopt(view:PassageView_Serialize){clearTimeout(this.timer);this.id=view.id;this.view=view;this.value=structuredClone($state.snapshot(view.edits));this.version=view.version;this.edits=this.saved=0;this.pending=null;this.dirty=false;this.error='';}
   touch(){if(!this.id||!this.value||this.running||this.view?.stage==='accepted')return;this.edits++;this.dirty=true;clearTimeout(this.timer);this.timer=setTimeout(()=>{void this.flush().catch(()=>{});},350);}
   async refresh(){if(!this.id)return;await this.flush();const id=this.id;const view=unwrap(await commands.getPassageDraft(this.storyId,id));if(this.id===id&&!this.dirty&&!this.saving)this.adopt(view);}

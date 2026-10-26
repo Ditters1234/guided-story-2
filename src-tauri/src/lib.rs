@@ -249,6 +249,9 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             start_passage_job,
             validate_passage,
             accept_passage,
+            begin_passage_revision,
+            clone_passage_draft,
+            passage_versions,
             read_passage,
             fork_after_passage
         ])

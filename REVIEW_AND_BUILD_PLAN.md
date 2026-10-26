@@ -8,7 +8,7 @@ Implementation has begun; see [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md) for c
 
 The foundation pass resolves relationship pinning as canonical attachment, with editable endpoints and native-validated removal/transfer previews. [WORLD_EDITING.md](WORLD_EDITING.md) records the implemented current-world semantics and limits. Node removal keeps dependent contents unplaced and preserves old saved snapshots; future passage forks remain the recovery/navigation design.
 
-Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fork slice](STORY_AUTHORING.md) now connect Gate 2's core path. First/later passages share one composer and acceptance transaction. Story mode dedicates its left pane to chapters/passages/drafts and its right pane to scene planning and effects review; World mode retains its own tree and inspector. Gate 3 still needs accepted wording edits and latest-event replacement, and Gate 4 needs older-story memory and media. See the foundation checkpoint for actual evidence and prototype limits.
+Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fork slice](STORY_AUTHORING.md) connect Gate 2's core path. Story mode dedicates its left pane to chapters/passages/drafts and its right pane to planning/review. Gate 3's initial wording revision and latest-event replacement paths now preserve immutable superseded versions, exact-source review and guarded before-state replacement. Semantic review remains advisory; broader editing controls and real-provider validation remain pending. Gate 4 needs older-story memory and media. See the foundation checkpoint for actual evidence and limits.
 
 [Model targets](MODEL_TARGETS.md) records the confirmed approximately 30B/Qwen text priority and Krea 2/Z-Image/MOSS image direction. The initial Guided Story Krea workflow is pinned as data with an offline preparation contract; this does not advance the image delivery gate or establish live server compatibility. Keep context/task contracts compact before adding reasoning, longer windows or additional stages.
 
@@ -127,4 +127,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Continue from the bounded authoring loop into accepted-text revision, memory and media. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.
+Continue from the bounded authoring/revision loop into memory and media. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.

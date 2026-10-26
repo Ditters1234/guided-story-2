@@ -54,3 +54,11 @@
 .continuity-notes { font-size: .85rem; line-height: 1.7; }
 .continuity-notes blockquote { margin: 8px 0 18px; border-left: 2px solid var(--border); padding-left: 12px; color: var(--muted); }
 .story-loading { color: var(--muted); padding: 20px; }
+.passage-revision-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0; }
+.earlier-versions,.earlier-evidence { margin: 16px 0; font-size: .85rem; }
+.prior-prose { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; padding: 12px 0; }
+.prose-review { margin-top: 22px; border-top: 1px solid var(--border); }
+.prose-diff { white-space: pre-wrap; overflow-wrap: anywhere; font: 1rem/1.85 Georgia,serif; padding: 12px 0; }
+.prose-diff del { color: var(--danger); background: var(--danger-bg); text-decoration-thickness: 1px; }
+.prose-diff ins { color: var(--ink); background: var(--selection); text-decoration: underline; text-underline-offset: 3px; }
+.prose-diff del,.prose-diff ins { padding: 0 .08em; }
