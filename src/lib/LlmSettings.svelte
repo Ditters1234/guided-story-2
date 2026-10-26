@@ -14,6 +14,11 @@
   onMount(()=>{void load();});
   function changed(){dirty=true;notice='';}
   function forgetModels(){models=[];}
+  function samplingPreset(qwen:boolean){
+    if(!draft)return;
+    Object.assign(draft,qwen?{temperature:0.7,topP:0.8,topK:20,minP:0,thinking:'chatTemplateOff'}:{temperature:0.8,topP:1,topK:null,minP:null,thinking:'provider'});
+    changed();
+  }
   export async function flushConnection(){
     if(!dirty||!draft)return;
     if(working)throw Error('Wait for the current connection operation.');
@@ -48,7 +53,16 @@
       <label class="field">API key<input type="password" bind:value={apiKey} autocomplete="off" spellcheck={false} placeholder={view?.hasApiKey?'Enter a replacement key':'Optional for local servers'} maxlength={8192} oninput={forgetModels} /><span class="field-help">{view?.hasApiKey?'A key is saved on this device. Leave blank to keep it.':'Stored with Windows user encryption, outside story folders.'}</span></label>
       {#if view?.hasApiKey}<label class="check-field"><input type="checkbox" bind:checked={clearKey} onchange={forgetModels} /><span>Remove the saved key</span></label>{/if}
       <div class="connection-grid"><label class="field">Temperature<input type="number" bind:value={draft.temperature} min={0} max={2} step={0.1} /></label><label class="field">Output tokens<input type="number" bind:value={draft.maxTokens} min={64} max={32768} /></label><label class="field">Context tokens<input type="number" bind:value={draft.contextTokens} min={2048} max={262144} /></label><label class="field">Timeout (seconds)<input type="number" bind:value={draft.timeoutSeconds} min={10} max={600} /></label></div>
-      <details class="connection-advanced"><summary>API compatibility</summary><label class="field">Structured output<select bind:value={draft.structuredOutput}><option value="json">JSON object</option><option value="schema">JSON Schema</option><option value="prompt">Prompt only</option></select></label><label class="field">Output token parameter<select bind:value={draft.tokenParameter}><option value="maxTokens">max_tokens · classic/local servers</option><option value="maxCompletionTokens">max_completion_tokens</option></select></label></details>
+      <details class="connection-advanced"><summary>Sampling & API compatibility</summary>
+        <div class="sampling-presets"><button type="button" class="secondary-button" onclick={()=>samplingPreset(true)}>Use Qwen 30B defaults</button><button type="button" class="secondary-button" onclick={()=>samplingPreset(false)}>Use generic API defaults</button></div>
+        <div class="connection-grid">
+          <label class="field">Top P<input type="number" bind:value={draft.topP} min={0.01} max={1} step={0.01} /></label>
+          <label class="field">Top K<input type="number" value={draft.topK??''} min={1} max={1000} placeholder="Server default" oninput={(event)=>{draft!.topK=event.currentTarget.value===''?null:Number(event.currentTarget.value);}} /></label>
+          <label class="field">Min P<input type="number" value={draft.minP??''} min={0} max={1} step={0.01} placeholder="Server default" oninput={(event)=>{draft!.minP=event.currentTarget.value===''?null:Number(event.currentTarget.value);}} /></label>
+        </div>
+        <label class="field">Thinking control<select bind:value={draft.thinking}><option value="provider">Server default</option><option value="chatTemplateOff">Off · chat_template_kwargs</option><option value="directOff">Off · enable_thinking (Guided Story style)</option></select><span class="field-help">Use the option supported by your server. Blank Top K/Min P omits those optional parameters.</span></label>
+        <label class="field">Structured output<select bind:value={draft.structuredOutput}><option value="json">JSON object</option><option value="schema">JSON Schema</option><option value="prompt">Prompt only</option></select></label><label class="field">Output token parameter<select bind:value={draft.tokenParameter}><option value="maxTokens">max_tokens · classic/local servers</option><option value="maxCompletionTokens">max_completion_tokens</option></select></label>
+      </details>
     </fieldset>
   </form>
 {:else if desktop}<button class="secondary-button" onclick={load}>Load connection settings</button>{/if}

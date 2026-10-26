@@ -27,6 +27,17 @@ pub enum TokenParameter {
     MaxTokens,
     MaxCompletionTokens,
 }
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThinkingControl {
+    #[default]
+    Provider,
+    ChatTemplateOff,
+    DirectOff,
+}
+fn default_top_p() -> f64 {
+    1.0
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -37,6 +48,14 @@ pub struct LlmConnection {
     pub base_url: String,
     pub model: String,
     pub temperature: f64,
+    #[serde(default = "default_top_p")]
+    pub top_p: f64,
+    #[serde(default)]
+    pub top_k: Option<u32>,
+    #[serde(default)]
+    pub min_p: Option<f64>,
+    #[serde(default)]
+    pub thinking: ThinkingControl,
     pub max_tokens: u32,
     pub context_tokens: u32,
     pub timeout_seconds: u32,
@@ -52,7 +71,11 @@ impl Default for LlmConnection {
             provider: TextProvider::Compatible,
             base_url: "http://127.0.0.1:8888/v1".into(),
             model: String::new(),
-            temperature: 0.8,
+            temperature: 0.7,
+            top_p: 0.8,
+            top_k: Some(20),
+            min_p: Some(0.0),
+            thinking: ThinkingControl::ChatTemplateOff,
             max_tokens: 4096,
             context_tokens: 32000,
             timeout_seconds: 300,
@@ -84,6 +107,12 @@ impl LlmConnection {
         if self.model.len() > 200
             || !self.temperature.is_finite()
             || !(0.0..=2.0).contains(&self.temperature)
+            || !self.top_p.is_finite()
+            || !(0.01..=1.0).contains(&self.top_p)
+            || self.top_k.is_some_and(|v| !(1..=1000).contains(&v))
+            || self
+                .min_p
+                .is_some_and(|v| !v.is_finite() || !(0.0..=1.0).contains(&v))
             || !(64..=32768).contains(&self.max_tokens)
             || !(2048..=262144).contains(&self.context_tokens)
             || self.max_tokens + 1024 >= self.context_tokens
@@ -314,6 +343,30 @@ fn protect(_bytes: &[u8], _decrypt: bool) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn qwen_defaults_and_legacy_sampling_are_explicit_and_preserve_saved_choices() {
+        let defaults = LlmConnection::default();
+        assert_eq!(defaults.top_k, Some(20));
+        assert_eq!(defaults.thinking, ThinkingControl::ChatTemplateOff);
+        let mut legacy = serde_json::to_value(&defaults).unwrap();
+        for field in ["topP", "topK", "minP", "thinking"] {
+            legacy.as_object_mut().unwrap().remove(field);
+        }
+        legacy["temperature"] = serde_json::json!(0.9);
+        let saved: LlmConnection = serde_json::from_value(legacy).unwrap();
+        assert_eq!(saved.temperature, 0.9);
+        assert_eq!(saved.top_p, 1.0);
+        assert_eq!(saved.top_k, None);
+        assert_eq!(saved.min_p, None);
+        assert_eq!(saved.thinking, ThinkingControl::Provider);
+        saved.validate().unwrap();
+        let mut invalid = defaults;
+        invalid.top_k = Some(0);
+        assert!(invalid.validate().is_err());
+        invalid.top_k = None;
+        invalid.min_p = Some(f64::NAN);
+        assert!(invalid.validate().is_err());
+    }
     #[test]
     fn connection_settings_stay_separate_and_reject_stale_or_unsafe_urls() {
         let dir = tempfile::tempdir().unwrap();

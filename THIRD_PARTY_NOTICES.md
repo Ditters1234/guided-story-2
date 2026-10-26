@@ -1,6 +1,6 @@
 # Third-party source notices
 
-The small sidebar wrapper in `src/lib/Sidebar.svelte` is adapted from `src/lib/components/layout/LeftSideBar.svelte` in [FrostyBee's Tauri Svelte Template](https://github.com/frostybee/tauri-svelte-template), revision `c6a8b5644d51b1b3a64d6510509926fefb0b2187`. Other application/domain code is a fresh implementation. Installed dependencies retain their own licenses in their packages and lockfiles; this notice does not select a project-wide license.
+The small sidebar wrapper in `src/lib/Sidebar.svelte` is adapted from `src/lib/components/layout/LeftSideBar.svelte` in [FrostyBee's Tauri Svelte Template](https://github.com/frostybee/tauri-svelte-template), revision `c6a8b5644d51b1b3a64d6510509926fefb0b2187`. Other application/domain code is a fresh implementation. At the user's explicit direction, two Guided Story ComfyUI JSON workflow data files are included under `workflows/guided-story/`; [their provenance](workflows/README.md) records exact source revision and normalized-file hashes. No Guided Story engine, model weights or custom node implementation is copied. Installed dependencies retain their own licenses in their packages and lockfiles; this notice does not select a project-wide license.
 
 ## FrostyBee — MIT License
 

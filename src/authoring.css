@@ -5,6 +5,7 @@
 .connection-note { margin-bottom: 20px; }
 .connection-advanced { font-size: 0.85rem; margin: 18px 0; }
 .connection-advanced summary { cursor: pointer; margin-bottom: 16px; }
+.sampling-presets { display: flex; flex-wrap: wrap; gap: 10px; }
 .ai-dialog { width: 62rem; max-width: 95vw; max-height: 90vh; padding: 0; overflow: hidden; }
 .ai-dialog[open] { display: flex; flex-direction: column; }
 .ai-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(4px); }

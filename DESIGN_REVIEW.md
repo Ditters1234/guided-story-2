@@ -8,6 +8,7 @@ Design pass: October 25, 2026. This document records the target design for a fre
 - Make expandable location nodes the main authoring surface, connecting places, characters, items and story threads.
 - Generate one scene/passage at a time, grouped into chapters.
 - Use the same text and image APIs as Guided Story.
+- Prioritize local LLMs around 30B parameters, including Qwen-class models. Target Krea 2, Z-Image and MOSS-Image families through ComfyUI, with Guided Story's existing workflow as the initial Krea 2 profile. Preserve model-specific workflows and sampling rather than assuming checkpoint interchangeability. See [model targets](MODEL_TARGETS.md).
 - Provide deeper character customization; clothing consists of inventory items.
 - Unify story creation, the first passage and later chapter creation.
 - Keep the world and story editable as writing progresses.

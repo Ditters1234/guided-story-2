@@ -1,5 +1,6 @@
 mod authoring;
 mod connections;
+mod image_workflow;
 mod model;
 mod operations;
 mod preferences;
@@ -8,6 +9,7 @@ mod store;
 
 pub use authoring::*;
 pub use connections::*;
+pub use image_workflow::*;
 pub use model::*;
 pub use operations::*;
 pub use preferences::*;

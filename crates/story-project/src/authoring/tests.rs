@@ -232,6 +232,57 @@ fn context_budget_is_enforced_before_any_provider_call() {
     settings.max_tokens = 1024;
     assert!(prepare_authoring(&World::default(), &request(), &settings).is_err());
 }
+#[test]
+fn revisions_keep_custom_target_schema_but_exclude_unrelated_catalogue_and_duplicate_schema() {
+    let (_dir, p) = create();
+    let rid = generated(&p, request());
+    let v = p.authoring_view(&rid, &settings()).unwrap();
+    p.apply_authoring(&rid, v.version, &settings()).unwrap();
+    let mut world = p.view().unwrap().world;
+    let node = &world.nodes[0];
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        direction: "Change only the room's description".into(),
+        type_id: None,
+        bundle: false,
+        target_ids: vec![node.id.clone()],
+        context_ids: vec![],
+        fields: vec![EditableField {
+            node_id: node.id.clone(),
+            component_id: None,
+            key: "description".into(),
+        }],
+    };
+    let prepared = prepare_authoring(&world, &req, &settings()).unwrap();
+    assert_eq!(prepared.context.node_types.len(), 1);
+    assert!(!prepared.user.contains("core.character"));
+    assert!(!prepared.user.contains("core.wearable"));
+    world.component_types.push(ComponentDefinition {
+        id: "custom.unused".into(),
+        name: "Unrelated subsystem".into(),
+        description: "No reference to the selected place".into(),
+        fields: vec![],
+    });
+    let after = prepare_authoring(&world, &req, &settings()).unwrap();
+    assert_eq!(prepared.fingerprint, after.fingerprint);
+    assert_eq!(
+        prepared.estimated_input_tokens,
+        after.estimated_input_tokens
+    );
+    let mut schema_settings = settings();
+    schema_settings.structured_output = StructuredOutput::Schema;
+    let schema = prepare_authoring(&world, &req, &schema_settings).unwrap();
+    assert!(serde_json::from_str::<Value>(&schema.user)
+        .unwrap()
+        .get("responseSchema")
+        .is_none());
+    assert!(serde_json::from_str::<Value>(&prepared.user)
+        .unwrap()
+        .get("responseSchema")
+        .is_some());
+    assert_eq!(prepared.response_schema, schema.response_schema);
+    assert!(schema.estimated_input_tokens <= prepared.estimated_input_tokens);
+}
 
 fn proposed_node(world: &World, type_id: &str, node_id: &str, name: &str) -> WorldNode {
     let preset = world.node_types.iter().find(|d| d.id == type_id).unwrap();

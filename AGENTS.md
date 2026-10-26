@@ -19,6 +19,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - Use generic world nodes with reusable capabilities, project-local type/field definitions and typed links. Place/character/item/thread are presets, not hardcoded persistence collections. Container is an addable capability; custom nodes must roundtrip without engine changes. Keep built-in inventory/placement validation intact.
 - Characters are accessed through the world map/shared inspector. Portrait generation does not redesign canonical facts.
 - Scope model context by task, viewpoint and selected resources. Map expansion does not authorize sending the entire world.
+- Prioritize approximately 30B/Qwen-class local models with compact scoped tasks and explicit server-compatible sampling/thinking controls. Preserve model-specific ComfyUI graphs; start from the pinned Guided Story Krea 2 templates and use separate graph profiles for Z-Image/MOSS. Do not silently swap loaders, conditioning, custom savers or sampler defaults between families. See MODEL_TARGETS.md.
 - Preserve full retained prose on extraction/check failure. Never add unbounded automatic repairs, retries or provider switching.
 - Reading navigation, layout and portrait selection must not accidentally advance or rewrite the story.
 - Keep the workspace compact and functional. Avoid slogans, repeated headings, development-status copy, placeholder tabs and redundant legends; prioritize room for the map and editing controls.

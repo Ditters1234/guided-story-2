@@ -37,6 +37,7 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 ## Design and build documents
 
 - [Product design](DESIGN_REVIEW.md): confirmed decisions, authoring flows, records, media and history.
+- [Model targets](MODEL_TARGETS.md): Qwen-class 30B defaults, scoped tasks and Guided Story ComfyUI workflow profiles.
 - [Review and build plan](REVIEW_AND_BUILD_PLAN.md): state contracts, risks, implementation gates and acceptance walkthroughs.
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
@@ -45,8 +46,8 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 
 - **Desktop:** Tauri + Svelte, Windows first.
 - **Supporting tools:** TypeScript/Vite, Svelte Flow, Paneforge and Rust, with Tauri Specta generating command/type bindings.
-- **Text:** configurable OpenAI-compatible Chat Completions service.
-- **Images:** configurable ComfyUI workflow API.
+- **Text:** configurable OpenAI-compatible Chat Completions service, prioritizing Qwen-class local models around 30B.
+- **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates and an offline preparation contract are bundled; submission/media remain planned.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
 The first implementation gate proves desktop/map feasibility and reliable JSON project create/open/save behavior. Then build one complete world → reviewed passage → historical state → independent fork workflow before expanding the feature set.

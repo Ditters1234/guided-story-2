@@ -1,4 +1,4 @@
-use crate::{LlmConnection, StructuredOutput, TokenParameter};
+use crate::{LlmConnection, StructuredOutput, ThinkingControl, TokenParameter};
 use serde_json::{json, Value};
 
 pub struct CompletionText {
@@ -66,7 +66,35 @@ pub async fn complete_text(
 ) -> Result<CompletionText, String> {
     settings.ready()?;
     let client = client(settings)?;
-    let mut payload = json!({"model":settings.model,"temperature":settings.temperature,"stream":false,"messages":[{"role":"system","content":system},{"role":"user","content":user}]});
+    let payload = completion_payload(settings, system, user, schema, output_tokens);
+    let mut request = client.post(settings.endpoint()).json(&payload);
+    if let Some(key) = key {
+        request = request.bearer_auth(key);
+    }
+    parse_completion(&send_bounded(request).await?)
+}
+
+fn completion_payload(
+    settings: &LlmConnection,
+    system: &str,
+    user: &str,
+    schema: Option<&Value>,
+    output_tokens: u32,
+) -> Value {
+    let mut payload = json!({"model":settings.model,"temperature":settings.temperature,"top_p":settings.top_p,"stream":false,"messages":[{"role":"system","content":system},{"role":"user","content":user}]});
+    if let Some(value) = settings.top_k {
+        payload["top_k"] = json!(value);
+    }
+    if let Some(value) = settings.min_p {
+        payload["min_p"] = json!(value);
+    }
+    match settings.thinking {
+        ThinkingControl::Provider => (),
+        ThinkingControl::ChatTemplateOff => {
+            payload["chat_template_kwargs"] = json!({"enable_thinking":false})
+        }
+        ThinkingControl::DirectOff => payload["enable_thinking"] = json!(false),
+    }
     payload[match settings.token_parameter {
         TokenParameter::MaxTokens => "max_tokens",
         TokenParameter::MaxCompletionTokens => "max_completion_tokens",
@@ -80,11 +108,7 @@ pub async fn complete_text(
             StructuredOutput::Prompt => (),
         }
     }
-    let mut request = client.post(settings.endpoint()).json(&payload);
-    if let Some(key) = key {
-        request = request.bearer_auth(key);
-    }
-    parse_completion(&send_bounded(request).await?)
+    payload
 }
 
 async fn send_bounded(request: reqwest::RequestBuilder) -> Result<Vec<u8>, String> {
@@ -169,6 +193,28 @@ pub fn parse_completion(bytes: &[u8]) -> Result<CompletionText, String> {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    #[test]
+    fn qwen_sampling_and_thinking_transports_are_optional_without_prompt_hacks() {
+        let mut settings = LlmConnection::default();
+        let body = completion_payload(&settings, "System", "Author direction", None, 256);
+        assert_eq!(body["temperature"], 0.7);
+        assert_eq!(body["top_p"], 0.8);
+        assert_eq!(body["top_k"], 20);
+        assert_eq!(body["min_p"], 0.0);
+        assert_eq!(body["chat_template_kwargs"]["enable_thinking"], false);
+        assert_eq!(body["messages"][1]["content"], "Author direction");
+        settings.thinking = ThinkingControl::DirectOff;
+        let body = completion_payload(&settings, "System", "Author direction", None, 256);
+        assert_eq!(body["enable_thinking"], false);
+        assert!(body.get("chat_template_kwargs").is_none());
+        settings.thinking = ThinkingControl::Provider;
+        settings.top_k = None;
+        settings.min_p = None;
+        let body = completion_payload(&settings, "System", "Author direction", None, 256);
+        for key in ["enable_thinking", "chat_template_kwargs", "top_k", "min_p"] {
+            assert!(body.get(key).is_none());
+        }
+    }
     #[test]
     fn model_catalogues_are_bounded_and_preserve_server_order_without_duplicates() {
         assert_eq!(

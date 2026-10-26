@@ -10,6 +10,8 @@ The foundation pass resolves relationship pinning as canonical attachment, with 
 
 The next slice implements shared [AI world authoring](AI_AUTHORING.md), including idea-to-foundation proposals, custom fields, grouped additions and protected-field revisions, with app-level LLM settings. This is part of Gate 2's input/review foundation and the continuing node toolkit. Gate 2 remains incomplete until prose, checked acceptance, contents/navigation and an independent passage fork work together. Prioritize that end-to-end path over more world-tool convenience features.
 
+[Model targets](MODEL_TARGETS.md) records the confirmed approximately 30B/Qwen text priority and Krea 2/Z-Image/MOSS image direction. The initial Guided Story Krea workflow is pinned as data with an offline preparation contract; this does not advance the image delivery gate or establish live server compatibility. Keep context/task contracts compact before adding reasoning, longer windows or additional stages.
+
 ## Verdict
 
 The product direction is ready for a bounded first build. The major risks are save integrity, state/version consistency, small-model context quality and an authoring interface becoming too crowded. No further major product choice is required before a technical skeleton and one complete workflow. Do not try to implement every convenience feature before proving that workflow.

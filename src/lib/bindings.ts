@@ -205,6 +205,10 @@ export type LlmConnection_Deserialize = {
 	baseUrl: string,
 	model: string,
 	temperature: number | null,
+	topP?: number | null,
+	topK?: number | null,
+	minP?: number | null,
+	thinking?: ThinkingControl,
 	maxTokens: number,
 	contextTokens: number,
 	timeoutSeconds: number,
@@ -220,6 +224,10 @@ export type LlmConnection_Serialize = {
 	baseUrl: string,
 	model: string,
 	temperature: number | null,
+	topP: number | null,
+	topK: number | null,
+	minP: number | null,
+	thinking: ThinkingControl,
 	maxTokens: number,
 	contextTokens: number,
 	timeoutSeconds: number,
@@ -335,6 +343,8 @@ export type ThemeDefinition = {
 };
 
 export type ThemeMode = "light" | "dark";
+
+export type ThinkingControl = "provider" | "chatTemplateOff" | "directOff";
 
 export type TokenParameter = "maxTokens" | "maxCompletionTokens";
 
