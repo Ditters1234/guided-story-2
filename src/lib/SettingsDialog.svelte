@@ -4,11 +4,12 @@
   import type { ThemeDefinition } from './bindings';
   import { builtInThemes, colorKeys, copyTheme, downloadTheme, parseThemeJson, resolveTheme } from './appearance';
   import { desktop } from './native';
-  import LlmSettings from './LlmSettings.svelte';
+  import LlmSettings, {type ConnectionStatus} from './LlmSettings.svelte';
   let {settings,systemDark,onClose}:{settings:AppearanceSettings;systemDark:boolean;onClose:()=>void}=$props();
   const sections=[{id:'appearance',label:'Appearance'},{id:'themes',label:'Custom themes'},{id:'llm',label:'LLM'}] as const;
   let section=$state<'appearance'|'themes'|'llm'>('appearance');
-  let llmPanel=$state<{flushConnection:()=>Promise<void>}>();
+  let llmPanel=$state<{flushConnection:()=>Promise<void>;testConnection:()=>Promise<void>}>();
+  let connectionStatus=$state<ConnectionStatus>({ready:false,dirty:false,working:false,error:'',notice:''});
   export async function flushSettings(){try{await llmPanel?.flushConnection();}catch(error){section='llm';throw error;}}
   async function close(){try{await flushSettings();onClose();}catch{section='llm';}}
   let dialog: HTMLDialogElement;
@@ -59,7 +60,8 @@
     {#each sections as tab,index}<button id={'settings-tab-'+tab.id} role="tab" aria-selected={section===tab.id} aria-controls={'settings-panel-'+tab.id} tabindex={section===tab.id?0:-1} onclick={()=>{section=tab.id;}} onkeydown={(event)=>tabKey(event,index)}>{tab.label}</button>{/each}
   </div>
   {#if settings.error}<div class="settings-error" role="alert"><span>{settings.error}</span><div><button class="quiet-button" onclick={()=>{if(settings.ready)void settings.flush().catch(()=>{});else void settings.load();}}>Retry</button>{#if settings.ready}<button class="quiet-button" onclick={()=>{void settings.load();}}>Reload settings</button>{/if}</div></div>{/if}
-  <fieldset disabled={!settings.ready} class="settings-body">
+  <div class="settings-body">
+    <fieldset disabled={!settings.ready} class="settings-fields">
     <div id="settings-panel-appearance" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-appearance" hidden={section!=='appearance'}>
       <h3>Theme</h3>
       <div class="theme-options">
@@ -79,7 +81,20 @@
       {#if showJson}<label class="field">Theme JSON<textarea class="theme-json" bind:value={json} rows={9} maxlength={65536} spellcheck={false}></textarea></label><button class="secondary-button" onclick={loadJson}>Load JSON into editor</button>{/if}
       {#if themeError}<p class="inline-error" role="alert">{themeError}</p>{/if}{#if themeNotice}<p class="field-help" role="status">{themeNotice}</p>{/if}
     </div>
-    <div id="settings-panel-llm" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-llm" hidden={section!=='llm'}><LlmSettings bind:this={llmPanel} /></div>
-  </fieldset>
-  <footer class="settings-footer"><span aria-live="polite">{settings.error?'Settings not saved':!settings.ready?'Loading…':settings.saving?'Saving…':settings.dirty?'Unsaved settings':desktop?'Appearance saved on this device':'Preview settings · this tab only'}</span><button class="primary-button" onclick={()=>{void close();}}>Done</button></footer>
+    <div id="settings-panel-llm" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-llm" hidden={section!=='llm'}><LlmSettings bind:this={llmPanel} onStatus={(next)=>{connectionStatus=next;}} /></div>
+    </fieldset>
+  </div>
+  <footer class="settings-footer">
+    <span aria-live="polite" class:danger-text={section==='llm'&&!!connectionStatus.error}>
+      {#if section==='llm'}{connectionStatus.working?'Working…':connectionStatus.error||(connectionStatus.dirty?'Unsaved connection changes':connectionStatus.notice||(desktop?'Connection settings':'Desktop connection settings unavailable'))}
+      {:else}{settings.error?'Settings not saved':!settings.ready?'Loading…':settings.saving?'Saving…':settings.dirty?'Unsaved settings':desktop?'Appearance saved on this device':'Preview settings · this tab only'}{/if}
+    </span>
+    <div class="settings-footer-actions">
+      {#if section==='llm'}
+        <button type="button" class="secondary-button" disabled={!connectionStatus.ready||connectionStatus.working||!settings.ready} onclick={()=>{void llmPanel?.testConnection();}}>Test connection</button>
+        <button class="primary-button" type="submit" form="llm-connection-form" disabled={!connectionStatus.ready||connectionStatus.working||!connectionStatus.dirty||!settings.ready}>Save connection</button>
+      {/if}
+      <button class="primary-button" disabled={connectionStatus.working} onclick={()=>{void close();}}>Done</button>
+    </div>
+  </footer>
 </dialog>

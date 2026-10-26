@@ -19,7 +19,7 @@ export const commands = {
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
 	loadLlmConnection: () => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("load_llm_connection")),
 	saveLlmConnection: (expectedVersion: number, settings: LlmConnection_Deserialize, key: ApiKeyUpdate) => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("save_llm_connection", { expectedVersion, settings, key })),
-	testLlmConnection: () => typedError<string, string>(__TAURI_INVOKE("test_llm_connection")),
+	testLlmConnection: () => typedError<ConnectionTest, string>(__TAURI_INVOKE("test_llm_connection")),
 	listAuthoring: (storyId: string) => typedError<AuthoringSummary[], string>(__TAURI_INVOKE("list_authoring", { storyId })),
 	getAuthoring: (storyId: string, id: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("get_authoring", { storyId, id })),
 	saveAuthoringDraft: (storyId: string, id: string, expectedVersion: number, request: AuthoringRequest_Deserialize) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("save_authoring_draft", { storyId, id, expectedVersion, request })),
@@ -137,6 +137,11 @@ export type ComponentDefinition = {
 	name: string,
 	description: string,
 	fields: FieldDefinition[],
+};
+
+export type ConnectionTest = {
+	models: string[],
+	message: string,
 };
 
 export type ConnectionView = ConnectionView_Serialize | ConnectionView_Deserialize;

@@ -5,6 +5,57 @@ pub struct CompletionText {
     pub text: String,
     pub incomplete: bool,
 }
+fn client(settings: &LlmConnection) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .timeout(std::time::Duration::from_secs(
+            settings.timeout_seconds as u64,
+        ))
+        .build()
+        .map_err(|_| "Could not initialize the text API client.".into())
+}
+
+/// Test credentials/connectivity with the model catalogue, without generating text.
+pub async fn discover_models(
+    settings: &LlmConnection,
+    key: Option<&str>,
+) -> Result<Vec<String>, String> {
+    settings.validate()?;
+    let mut request = client(settings)?.get(settings.models_endpoint());
+    if let Some(key) = key {
+        request = request.bearer_auth(key);
+    }
+    parse_models(&send_bounded(request).await?)
+}
+
+fn parse_models(bytes: &[u8]) -> Result<Vec<String>, String> {
+    let value: Value = serde_json::from_slice(bytes)
+        .map_err(|_| "The provider did not return a valid model list.")?;
+    let entries = value["data"]
+        .as_array()
+        .ok_or("The provider did not return a model list with data[].id entries.")?;
+    if entries.len() > 1000 {
+        return Err("The provider returned too many models (limit 1,000).".into());
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut models = vec![];
+    for entry in entries {
+        let id = entry["id"]
+            .as_str()
+            .ok_or("A returned model is missing its ID.")?;
+        if id.trim().is_empty() || id.len() > 200 || id.chars().any(char::is_control) {
+            return Err("The provider returned an invalid model ID.".into());
+        }
+        if seen.insert(id) {
+            models.push(id.to_string());
+        }
+    }
+    if models.is_empty() {
+        return Err("Connected, but the server returned no models. Load a model on the server and test again.".into());
+    }
+    Ok(models)
+}
 pub async fn complete_text(
     settings: &LlmConnection,
     key: Option<&str>,
@@ -14,14 +65,7 @@ pub async fn complete_text(
     output_tokens: u32,
 ) -> Result<CompletionText, String> {
     settings.ready()?;
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .retry(reqwest::retry::never())
-        .timeout(std::time::Duration::from_secs(
-            settings.timeout_seconds as u64,
-        ))
-        .build()
-        .map_err(|_| "Could not initialize the text API client.")?;
+    let client = client(settings)?;
     let mut payload = json!({"model":settings.model,"temperature":settings.temperature,"stream":false,"messages":[{"role":"system","content":system},{"role":"user","content":user}]});
     payload[match settings.token_parameter {
         TokenParameter::MaxTokens => "max_tokens",
@@ -40,6 +84,10 @@ pub async fn complete_text(
     if let Some(key) = key {
         request = request.bearer_auth(key);
     }
+    parse_completion(&send_bounded(request).await?)
+}
+
+async fn send_bounded(request: reqwest::RequestBuilder) -> Result<Vec<u8>, String> {
     let mut response = request.send().await.map_err(|e| {
         if e.is_timeout() {
             "The text request timed out. No automatic retry was made."
@@ -67,7 +115,7 @@ pub async fn complete_text(
         }
         bytes.extend_from_slice(&chunk);
     }
-    parse_completion(&bytes)
+    Ok(bytes)
 }
 pub fn parse_completion(bytes: &[u8]) -> Result<CompletionText, String> {
     let value: Value = serde_json::from_slice(bytes)
@@ -121,6 +169,62 @@ pub fn parse_completion(bytes: &[u8]) -> Result<CompletionText, String> {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    #[test]
+    fn model_catalogues_are_bounded_and_preserve_server_order_without_duplicates() {
+        assert_eq!(
+            parse_models(br#"{"data":[{"id":"local-b"},{"id":"local-a"},{"id":"local-b"}]}"#)
+                .unwrap(),
+            vec!["local-b", "local-a"]
+        );
+        for invalid in [
+            br#"{"data":[]}"#.as_slice(),
+            br#"{"models":[]}"#,
+            br#"{"data":[{}]}"#,
+            br#"{"data":[{"id":""}]}"#,
+        ] {
+            assert!(parse_models(invalid).is_err());
+        }
+        assert!(parse_models(
+            &serde_json::to_vec(&json!({"data":vec![json!({"id":"fixture"});1001]})).unwrap()
+        )
+        .is_err());
+    }
+    #[tokio::test]
+    async fn connection_test_discovers_models_with_saved_key_without_requiring_a_model_or_generating(
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = vec![];
+            let mut chunk = [0; 4096];
+            loop {
+                let n = stream.read(&mut chunk).await.unwrap();
+                assert_ne!(n, 0);
+                request.extend_from_slice(&chunk[..n]);
+                if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let body = r#"{"data":[{"id":"fictional-server-model"}]}"#;
+            stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+            String::from_utf8(request).unwrap()
+        });
+        let mut settings = LlmConnection::default();
+        settings.base_url = format!("http://127.0.0.1:{port}/v1/chat/completions/");
+        assert!(settings.model.is_empty());
+        let models = discover_models(&settings, Some("fictional-fixture-key"))
+            .await
+            .unwrap();
+        assert_eq!(models, vec!["fictional-server-model"]);
+        let request = server.await.unwrap();
+        assert!(request.starts_with("GET /v1/models HTTP/1.1\r\n"));
+        assert!(request
+            .to_ascii_lowercase()
+            .contains("authorization: bearer fictional-fixture-key"));
+        assert!(!request.contains("messages"));
+        assert!(!request.contains("chat/completions"));
+    }
     #[test]
     fn completion_envelopes_preserve_truncation_and_strip_only_complete_wrappers() {
         let parsed=parse_completion(br#"{"choices":[{"message":{"content":"<think>private provider analysis</think>```json\n{\"nodes\":[],\"edges\":[]}\n```"},"finish_reason":"length"}]}"#).unwrap();

@@ -72,7 +72,7 @@
 }
 
 .settings-button { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-.settings-dialog { width: 50rem; max-width: 94vw; max-height: 90vh; padding: 0; overflow: hidden; }
+.settings-dialog { width: 50rem; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); padding: 0; overflow: hidden; }
 .settings-dialog[open] { display: flex; flex-direction: column; }
 .settings-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(4px); }
 .settings-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px 12px; gap: 16px; flex-shrink: 0; }
@@ -81,7 +81,8 @@
 .settings-tabs { display: flex; gap: 20px; padding: 0 24px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .settings-tabs button { padding: 12px 0; color: var(--muted); background: transparent; font-size: 0.9rem; border-bottom: 2px solid transparent; }
 .settings-tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
-.settings-body { padding: 22px 24px; margin: 0; border: 0; min-height: 0; min-width: 0; flex: 1; overflow-y: auto; }
+.settings-body { padding: 22px 24px; min-height: 0; min-width: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.settings-fields { padding: 0; margin: 0; border: 0; min-width: 0; }
 .settings-body h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 14px; }
 .theme-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin-bottom: 28px; }
 .theme-option { padding: 8px; display: flex; flex-direction: column; align-items: stretch; gap: 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--ink); background: var(--surface); font-size: 0.85rem; min-width: 0; }
@@ -98,8 +99,10 @@
 .text-size-control>span:first-child { font-size: 0.8rem; }
 .text-size-control>span:nth-last-child(2) { font-size: 1.3rem; }
 .settings-dialog .check-field { color: var(--ink); font-size: 0.9rem; }
-.settings-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-shrink: 0; }
-.settings-footer>span { color: var(--muted); font-size: 0.8rem; }
+.settings-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; flex-shrink: 0; background: var(--surface); }
+.settings-footer>span { flex: 1; min-width: 12rem; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+.settings-footer>span.danger-text { color: var(--danger); }
+.settings-footer-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-left: auto; }
 .theme-file-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .theme-file-actions .secondary-button { font-weight: 400; }
 .file-button { display: inline-block; position: relative; cursor: pointer; }

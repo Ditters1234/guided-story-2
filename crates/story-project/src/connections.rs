@@ -113,6 +113,17 @@ impl LlmConnection {
             format!("{base}/chat/completions")
         }
     }
+    pub fn models_endpoint(&self) -> String {
+        let base = self.base_url.trim_end_matches('/');
+        let base = base.strip_suffix("/chat/completions").unwrap_or(base);
+        format!("{base}/models")
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionTest {
+    pub models: Vec<String>,
+    pub message: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

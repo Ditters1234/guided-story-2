@@ -20,4 +20,6 @@ Desktop preferences autosave to `preferences.json` in Tauri's per-user applicati
 
 The settings dialog has Appearance, Custom themes and a working [LLM connection page](AI_AUTHORING.md). Image API settings remain future work. API credentials do not belong in portable themes or story files.
 
+Settings fit within the current window and scroll in the body, including at 140% text size. The header, category tabs and footer actions remain outside the scrolling content. LLM save/test controls and their status stay in the footer so connection saving does not depend on scrolling to the bottom of a long form.
+
 The browser-only preview applies settings for the current tab without desktop persistence. Debug desktop runs can set `GUIDED_STORY_PREFERENCES_DIR` to an isolated test directory; release builds always use the per-user app config location. Custom-theme editor fields remain temporary until **Save theme**.

@@ -66,32 +66,24 @@ pub(crate) fn save_llm_connection(
 }
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn test_llm_connection(app: tauri::AppHandle) -> Result<String, String> {
+pub(crate) async fn test_llm_connection(app: tauri::AppHandle) -> Result<ConnectionTest, String> {
     ensure_idle(&app.state::<AuthoringJobs>())?;
     let settings = connection(&app)?;
-    settings.ready()?;
+    settings.validate()?;
     if settings.provider == TextProvider::Demo {
-        return Ok("Offline demo ready. No model request was sent.".into());
+        return Ok(ConnectionTest {
+            models: vec![],
+            message: "Offline demo ready. No API request was sent.".into(),
+        });
     }
     let key = connection_api_key(&preferences_root(&app)?, &settings)?;
-    let reply = complete_text(
-        &settings,
-        key.as_deref(),
-        "Reply with exactly OK. This is a connection test.",
-        "Connection test",
-        None,
-        64,
-    )
-    .await?;
-    if reply.incomplete {
-        return Err(
-            "The connection responded, but the test was cut off at its output allowance.".into(),
-        );
-    }
-    Ok(format!(
-        "Connection responded: {}",
-        reply.text.chars().take(120).collect::<String>()
-    ))
+    let models = discover_models(&settings, key.as_deref()).await?;
+    let message = format!(
+        "Connected. {} model{} available.",
+        models.len(),
+        if models.len() == 1 { "" } else { "s" }
+    );
+    Ok(ConnectionTest { models, message })
 }
 
 #[tauri::command]
