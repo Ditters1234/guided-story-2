@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: world authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, manual node creation/removal, editable typed connections, custom presets/relationships, reusable capabilities and JSON project storage. Shared AI tools create and revise nodes or propose groups from an idea, with saved review drafts and explicit Apply. Prose writing, saved portraits, passage history and forks are planned; they are not implemented yet. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, [world editing](WORLD_EDITING.md) for attachment/removal rules, and [AI authoring](AI_AUTHORING.md) for generation and review.
+**Status: world and passage authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. The Story workspace supports manual/AI prose, separate effects review, atomic acceptance, chapter contents, historical world snapshots and independent forks. Accepted-text revision, sustained-story memory and saved/generated media remain planned. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), and [passage authoring](STORY_AUTHORING.md).
 
 ## Run the prototype
 
@@ -50,7 +50,7 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 - **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates and an offline preparation contract are bundled; submission/media remain planned.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The first implementation gate proves desktop/map feasibility and reliable JSON project create/open/save behavior. Then build one complete world → reviewed passage → historical state → independent fork workflow before expanding the feature set.
+The prototype now connects world → reviewed passage → historical state → independent fork. Continuing work adds accepted-text revision, longer-story memory and media while retaining the same acceptance and storage rules.
 
 ## References and reuse
 

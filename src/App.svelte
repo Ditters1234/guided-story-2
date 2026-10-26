@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { PaneGroup, Pane, PaneResizer } from 'paneforge';
@@ -11,6 +11,7 @@
   import RelationshipTypeDialog from './lib/RelationshipTypeDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
   import AiAuthoringDialog from './lib/AiAuthoringDialog.svelte';
+  import StoryWorkspace from './lib/StoryWorkspace.svelte';
   import { newAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
@@ -18,7 +19,7 @@
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
   import icon from './assets/app-icon.svg';
-  import type { ApplyAuthoringResult_Serialize, AuthoringRequest, CommitResult_Serialize, WorldEdit } from './lib/bindings';
+  import type { ApplyAuthoringResult_Serialize, AuthoringRequest, CommitResult_Serialize, WorldEdit,PassageAcceptance_Serialize } from './lib/bindings';
 
   const initialWorld = exampleWorld();
   const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [...initialWorld.nodes.filter((n) => n.components["core.place"] || n.components["core.character"]).map((n) => n.id)], selectedId: initialWorld.nodes.find((n) => n.components["core.character"])!.id, positions: {} });
@@ -35,6 +36,12 @@
   let settingsDialog=$state<{flushSettings:()=>Promise<void>}>();
   let showAi=$state(false),aiRunning=$state(false),aiRunId=$state<string|null>(null),aiRequest=$state<AuthoringRequest|null>(null);
   let aiDialog=$state<{flushDraft:()=>Promise<void>}>();
+  let storyPanel=$state<{flushDraft:()=>Promise<void>}>();
+  let storyContents=$state<Snippet>(),storyDetails=$state<Snippet>();
+  function registerStoryPanels(contents?:Snippet,details?:Snippet){storyContents=contents;storyDetails=details;}
+  let surface=$state<'world'|'story'>('world'),storyOpened=$state(false),passageRunning=$state(false);
+  let historyWorld=$state<World|null>(null),historyLabel=$state('');
+  let historyWorkspace=$state<Workspace>({version:0,expandedIds:[],selectedId:null,positions:{}});
   let systemDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
   const colorMode = $derived(resolveTheme(appearance.value, systemDark).mode);
   $effect(() => { applyAppearance(appearance.value, systemDark); });
@@ -51,22 +58,38 @@
   let layoutFlight: Promise<void> = Promise.resolve();
   type SaveOperation = { requestId: string; expectedRevision: number; title: string; world: World; version: number };
   let pending: SaveOperation | null = null;
-  const records = $derived(worldRecords(world));
-  const selected = $derived(records.find((r) => r.id === workspace.selectedId));
-  const treeRows = $derived(orderedRecords(visibleRecords(records, workspace.expandedIds, search)));
+  const displayWorld=$derived(historyWorld??world),displayWorkspace=$derived(historyWorld?historyWorkspace:workspace);
+  const records = $derived(worldRecords(displayWorld));
+  const selected = $derived(records.find((r) => r.id === displayWorkspace.selectedId));
+  const treeRows = $derived(orderedRecords(visibleRecords(records, displayWorkspace.expandedIds, search)));
 
   function describe(caught: unknown) { return caught instanceof Error ? caught.message : String(caught); }
   async function closeSettings() {
     try { await settingsDialog?.flushSettings();await appearance.flush(); showSettings=false; } catch { /* Keep the settings error and edits visible. */ }
   }
   function openAi(targetId?:string){
-    if(!project||busy)return;
+    if(!project||busy||historyWorld||passageRunning)return;
     if(aiRunning){showAi=true;return;}
     if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId);aiRunId=null;}
     showAi=true;
   }
   async function beforeAiAction(){await flush();if(!project)throw Error('Open a project first.');return structuredClone($state.snapshot(project));}
   async function applyAi(result:ApplyAuthoringResult_Serialize){await adopt(result.commit.project);showAi=false;aiRunId=result.proposal.id;aiRequest=result.proposal.request;const id=result.proposal.createdNodeIds[0]??result.proposal.request.targetIds[0];if(id)select(id);}
+  async function switchSurface(next:'world'|'story'){
+    try{await storyPanel?.flushDraft();if(next==='story')await flush();surface=next;if(next==='story')storyOpened=true;}catch(caught){error=describe(caught);}
+  }
+  function showHistory(snapshot:World|null,label:string){
+    if(snapshot){const ids=new Set(snapshot.nodes.map((n)=>n.id));const selectedId=historyWorkspace.selectedId&&ids.has(historyWorkspace.selectedId)?historyWorkspace.selectedId:workspace.selectedId&&ids.has(workspace.selectedId)?workspace.selectedId:snapshot.nodes[0]?.id??null;
+      historyWorkspace={version:0,selectedId,expandedIds:snapshot.nodes.filter((n)=>n.components['core.place']).map((n)=>n.id),positions:{}};
+    }historyWorld=snapshot;historyLabel=label;search='';
+  }
+  async function acceptedPassage(result:PassageAcceptance_Serialize){await adopt(result.commit.project);surface='story';storyOpened=true;}
+  async function forkPassage(id:string){
+    if(!project||busy)return;busy=true;
+    try{if(!await prepareSwitch())return;const parent=await open({directory:true,multiple:false,title:'Choose where to save the independent story fork'});if(typeof parent!=='string')return;
+      const result=unwrap(await commands.forkAfterPassage(project.storyId,id,parent,project.title.slice(0,180)+' (fork)'));await adopt(result);surface='story';storyOpened=true;
+    }catch(caught){error=describe(caught);}finally{busy=false;}
+  }
   function scheduleSave() {
     if (!project) return;
     editVersion++;
@@ -137,19 +160,22 @@
     await layoutFlight;
   }
   function select(id: string) {
+    if(historyWorld){if(!visibleRecords(records,historyWorkspace.expandedIds,search).some((r)=>r.id===id))search='';historyWorkspace={...historyWorkspace,selectedId:id,expandedIds:revealRecord(records,historyWorkspace.expandedIds,id)};return;}
     if (!visibleRecords(records, workspace.expandedIds, search).some((r) => r.id === id)) search = '';
     workspace = { ...workspace, selectedId: id, expandedIds: revealRecord(records, workspace.expandedIds, id) }; persistLayout();
   }
   function toggle(id: string) {
+    if(historyWorld){historyWorkspace={...historyWorkspace,expandedIds:historyWorkspace.expandedIds.includes(id)?historyWorkspace.expandedIds.filter((n)=>n!==id):[...historyWorkspace.expandedIds,id]};return;}
     workspace = { ...workspace, expandedIds: workspace.expandedIds.includes(id) ? workspace.expandedIds.filter((x) => x !== id) : [...workspace.expandedIds, id] };
     persistLayout();
   }
   function moved(nodes: WorldNode[]) {
+    if(historyWorld){historyWorkspace={...historyWorkspace,positions:{...historyWorkspace.positions,...Object.fromEntries(nodes.map((n)=>[n.id,n.position]))}};return;}
     workspace = { ...workspace, positions: { ...workspace.positions, ...Object.fromEntries(nodes.map((n) => [n.id, n.position])) } };
     persistLayout();
   }
   function edit(field: 'name' | 'description' | 'visualDescription', value: string) {
-    if (!project || !selected) return;
+    if (!project || !selected || historyWorld) return;
     world = editRecord(world, selected.id, field, value);
     scheduleSave();
   }
@@ -158,7 +184,8 @@
     clearTimeout(timer); clearTimeout(layoutTimer);
     const sameStory=project?.storyId===view.storyId;
     project = view; world = view.world;
-    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;}
+    historyWorld=null;historyLabel='';
+    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;passageRunning=false;storyOpened=false;surface='world';}
     editVersion = savedVersion = persistedDraftVersion = 0; pending = null;
     workspace = { version: 0, expandedIds: view.world.nodes.filter((n) => n.components["core.place"]).map((n) => n.id), selectedId: view.world.nodes[0]?.id ?? null, positions: {} };
     search = ''; error = view.warnings.join(' '); layoutError = ''; recoveryPath = null;
@@ -187,7 +214,7 @@
   }
 
   async function prepareSwitch() {
-    try { await aiDialog?.flushDraft();if(aiRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
+    try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();if(aiRunning||passageRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
   }
   async function openProject() {
     if (!desktop || busy) return;
@@ -223,7 +250,7 @@
     finally { busy = false; }
   }
   function addRecord(typeId: string) {
-    if (!project || busy) return;
+    if (!project || busy || historyWorld) return;
     const preset = world.nodeTypes.find((d) => d.id === typeId);
     if (!preset) return;
     const node = makeNode(world, typeId, 'New ' + preset.name.toLowerCase());
@@ -242,23 +269,23 @@
     scheduleSave(); persistLayout();
   }
   function property(componentId: string, key: string, value: string | number | boolean | string[] | null) {
-    if (!project || !selected) return;
+    if (!project || !selected || historyWorld) return;
     world = {...world,nodes:world.nodes.map((node)=>node.id===selected!.id?{...node,components:{...node.components,[componentId]:{...node.components[componentId],[key]:value}}}:node)};
     scheduleSave();
   }
   function addCapability(componentId: string) {
     const definition = world.componentTypes.find((d)=>d.id===componentId);
-    if (!definition || !project || !selected) return;
+    if (!definition || !project || !selected || historyWorld) return;
     world = {...world,nodes:world.nodes.map((node)=>node.id===selected!.id?{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map((f)=>[f.key,structuredClone(f.defaultValue)]))}}:node)};
     scheduleSave();
   }
   function editLink(id: string) {
-    if (!project || busy) return;
+    if (!project || busy || historyWorld) return;
     const link = world.edges.find((e) => e.id === id);
     if (link) structuralEdit = {kind:'putLink', link:structuredClone($state.snapshot(link))};
   }
   function connect(source: string, target = '') {
-    if (!project || busy) return;
+    if (!project || busy || historyWorld) return;
     const node = world.nodes.find((n) => n.id === source);
     const destination = world.nodes.find((n) => n.id === target);
     const typeId = node?.components['core.item'] && (destination?.components['core.holder'] || destination?.components['core.container']) ? 'core.stored-in'
@@ -266,9 +293,9 @@
       : node?.components['core.place'] && destination?.components['core.place'] ? 'core.inside' : 'core.related';
     structuralEdit = {kind:'putLink',link:{id:crypto.randomUUID(),typeId,sourceId:source,targetId:target,description:''}};
   }
-  function reviewEdit(edit: WorldEdit) { if (project && !busy) structuralEdit = edit; }
+  function reviewEdit(edit: WorldEdit) { if (project && !busy && !historyWorld) structuralEdit = edit; }
   function applyStructure(next: World, source: string) {
-    if (!project || JSON.stringify(world) !== source) { error = 'The world changed while reviewing. Review this operation again.'; structuralEdit = null; return; }
+    if (!project || historyWorld || JSON.stringify(world) !== source) { error = 'The world changed while reviewing. Review this operation again.'; structuralEdit = null; return; }
     const changed = next.edges.filter((edge) => !world.edges.some((old) => old.id === edge.id && old.sourceId === edge.sourceId && old.targetId === edge.targetId));
     world = next;
     const ids = new Set(next.nodes.map((n) => n.id));
@@ -304,7 +331,7 @@
     const aiPoll=setInterval(()=>{if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
-      try { await aiDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
+      try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
       try { await appearance.flush(); } catch { event.preventDefault(); showSettings=true; return; }
       if (!project) return;
       busy = true;
@@ -330,43 +357,49 @@
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
   {#if appearance.error && !showSettings}<div class="error-banner" role="alert"><span>Settings: {appearance.error}</span><button onclick={()=>{showSettings=true;}}>Open settings</button></div>{/if}
   {#if error}<div class="error-banner" role="alert"><span>{error}</span><div>{#if recoveryPath}<button onclick={recoverProject} disabled={busy}>Recover previous valid save</button>{:else if project}<button onclick={() => { void flush().catch(() => {}); }}>Retry save</button>{/if}<button class="icon-button" aria-label="Dismiss message" onclick={() => { error = ''; }}>×</button></div></div>{/if}
+  {#if historyWorld&&surface==='world'}<div class="historical-world-banner"><span>{historyLabel} · world snapshot · read only</span><button class="secondary-button" onclick={()=>showHistory(null,'')}>Current world</button></div>{/if}
   <main class="main-workspace">
     <PaneGroup direction="horizontal">
       <Pane defaultSize={20} minSize={15} maxSize={30}>
+        {#if surface==='story'}{#if storyContents}{@render storyContents()}{/if}{:else}
         <Sidebar label="World structure">
           <div class="world-heading"><h1>World</h1><span aria-label={`${records.length} nodes`}>{records.length}</span></div>
           <div class="search-box"><span aria-hidden="true">⌕</span><input aria-label="Search world records" placeholder="Find in your world…" bind:value={search} /></div>
           <nav class="world-tree" aria-label="World records">
             {#each treeRows as record (record.id)}
               {@const count = records.filter((r) => r.parentId === record.id).length}
-              <div class="tree-row" class:active={workspace.selectedId === record.id} style={`--depth: ${recordDepth(record, records)}`}>
-                <button class="tree-expander" disabled={!count} aria-label={`${workspace.expandedIds.includes(record.id) ? 'Collapse' : 'Expand'} ${record.name}`} aria-expanded={count ? workspace.expandedIds.includes(record.id) : undefined} onclick={() => toggle(record.id)}>{count ? workspace.expandedIds.includes(record.id) ? '⌄' : '›' : '·'}</button>
-                <button class="tree-select" aria-current={workspace.selectedId === record.id ? 'true' : undefined} onclick={() => select(record.id)}><span class="tree-dot {record.kind}"></span><span>{record.name || 'Unnamed record'}</span></button>
+              <div class="tree-row" class:active={displayWorkspace.selectedId === record.id} style={`--depth: ${recordDepth(record, records)}`}>
+                <button class="tree-expander" disabled={!count} aria-label={`${displayWorkspace.expandedIds.includes(record.id) ? 'Collapse' : 'Expand'} ${record.name}`} aria-expanded={count ? displayWorkspace.expandedIds.includes(record.id) : undefined} onclick={() => toggle(record.id)}>{count ? displayWorkspace.expandedIds.includes(record.id) ? '⌄' : '›' : '·'}</button>
+                <button class="tree-select" aria-current={displayWorkspace.selectedId === record.id ? 'true' : undefined} onclick={() => select(record.id)}><span class="tree-dot {record.kind}"></span><span>{record.name || 'Unnamed record'}</span></button>
               </div>
             {:else}<p class="empty-tree">{search ? 'No matching records.' : 'Your world is ready for its first place.'}</p>{/each}
           </nav>
         </Sidebar>
+        {/if}
       </Pane>
       <PaneResizer class="pane-resizer" />
       <Pane minSize={35}>
-        <section class="map-panel" aria-label="World authoring workspace">
-          <div class="map-toolbar"><div class="map-tools">
-            {#if project}<details class="add-menu"><summary>＋ Add node</summary><div>
-              {#each world.nodeTypes as type}<button disabled={busy} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
-              <button disabled={busy} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
-              <button disabled={busy} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
-            </div></details>{:else}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
-            {#if project}<button class="secondary-button" disabled={busy} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
+        <section class="map-panel" aria-label={surface==='story'?'Story authoring workspace':'World authoring workspace'}>
+          <div class="map-toolbar">{#if project}<div class="workspace-tabs" aria-label="Workspace"><button aria-pressed={surface==='world'} onclick={()=>{void switchSurface('world');}}>World</button><button aria-pressed={surface==='story'} onclick={()=>{void switchSurface('story');}}>Story{passageRunning?' · working…':''}</button></div>{/if}<div class="map-tools">
+            {#if project&&surface==='world'}<details class="add-menu"><summary>＋ Add node</summary><div>
+              {#each world.nodeTypes as type}<button disabled={busy||!!historyWorld} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
+              <button disabled={busy||!!historyWorld} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
+              <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
+            </div></details>{:else if !project}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
+            {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
-          <SvelteFlowProvider><WorldMap {world} {workspace} {search} {colorMode} projectId={project?.storyId ?? null} editable={!!project && !busy} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider>
+          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
       <Pane defaultSize={25} minSize={20} maxSize={36}>
-        <Inspector record={selected} {records} {world} editable={!!project && !busy} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
+        {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
+        <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
           onAi={openAi}
           onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
+        {/if}
       </Pane>
     </PaneGroup>
   </main>

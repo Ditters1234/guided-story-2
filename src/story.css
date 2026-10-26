@@ -1,0 +1,56 @@
+.workspace-tabs { display: flex; gap: 6px; margin-right: auto; }
+.workspace-tabs button { padding: 8px 12px; border-radius: 5px; background: var(--surface); color: var(--muted); font-size: .85rem; }
+.workspace-tabs button[aria-pressed="true"] { color: var(--ink); background: var(--selection); }
+.workspace-surface { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.workspace-surface[hidden] { display: none; }
+.historical-world-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 20px; background: var(--selection); color: var(--ink); font-size: .85rem; }
+.story-workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
+.story-sidebar,.story-details { height: 100%; min-height: 0; overflow: auto; padding: 18px 17px; background: var(--surface-alt); }
+.story-details { padding: 24px 18px; background: var(--surface); }
+.story-details h2 { font-size: 1rem; margin: 0 0 18px; }
+.story-details h3,.story-drafts h2 { font-size: .9rem; margin: 18px 0 10px; }
+.story-details summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: 10px 0; }
+.next-passage { width: 100%; margin: 0 0 18px; }
+.story-chapters details { margin-bottom: 16px; }
+.story-chapters summary { cursor: pointer; font-size: .9rem; padding: 8px 0; overflow-wrap: anywhere; }
+.story-chapters summary small { display: block; margin: 5px 0 0 17px; color: var(--muted); font-size: .75rem; }
+.story-chapters button,.story-drafts button { width: 100%; text-align: left; display: block; padding: 10px 12px; margin: 4px 0; border-radius: 4px; background: transparent; color: var(--ink); font-size: .85rem; overflow-wrap: anywhere; }
+.story-chapters button.active,.story-drafts button.active { background: var(--selection); }
+.story-drafts { border-top: 1px solid var(--border); margin-top: 22px; padding-top: 4px; }
+.story-drafts small { display: block; color: var(--muted); margin-top: 5px; font-size: .75rem; }
+.effects-review { border-top: 1px solid var(--border); margin-top: 18px; }
+.passage-facts { font-size: .85rem; line-height: 1.6; }
+.passage-facts dt { color: var(--muted); margin-top: 14px; }
+.passage-facts dd { margin: 3px 0 0; }
+.story-plan-text { white-space: pre-wrap; font-size: .85rem; line-height: 1.7; }
+.story-scroll { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(16px,3vw,40px); }
+.passage-composer,.passage-reader { max-width: 54rem; margin: 0 auto; }
+.story-scroll summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: 10px 0; }
+.passage-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.chapter-plan { border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; }
+.scene-resource-list { max-height: 250px; overflow: auto; margin: 10px 0 20px; }
+.scene-resource-list>div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .85rem; }
+.scene-resource-list>div>span { width: 100%; }
+.scene-resource-list label { display: flex; align-items: center; gap: 5px; }
+.passage-generate,.effects-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
+.passage-generate label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .85rem; }
+.passage-generate input { width: 90px; }
+.prose-field textarea { min-height: 17rem; font-family: Georgia,serif; font-size: 1.05rem; line-height: 1.85; }
+.passage-effects textarea { width: 100%; font-family: Consolas,monospace; font-size: .8rem; }
+.passage-changes { border: 1px solid var(--border); border-radius: 6px; margin: 20px 0; padding: 14px; background: var(--surface-alt); font-size: .85rem; line-height: 1.65; }
+.passage-changes h3 { font-size: .95rem; }
+.context-coverage,.original-passage-output { margin-top: 20px; font-size: .8rem; line-height: 1.7; }
+.original-passage-output pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; }
+.composer-footer { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 18px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.composer-footer>span { color: var(--muted); font-size: .8rem; }
+.story-error,.story-warning { margin: 12px 16px; padding: 12px; background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); border-radius: 6px; font-size: .85rem; overflow-wrap: anywhere; }
+.story-job { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; color: var(--ink); background: var(--selection); font-size: .85rem; }
+.reader-navigation { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 12px; }
+.reader-navigation>span,.chapter-name { color: var(--muted); font-size: .85rem; }
+.passage-reader h2 { font-size: 1.8rem; margin: 8px 0 25px; }
+.accepted-prose { white-space: pre-wrap; overflow-wrap: anywhere; font: 1.1rem/1.95 Georgia,serif; }
+.passage-world-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 20px 0; margin-top: 30px; border-top: 1px solid var(--border); font-size: .85rem; }
+.passage-world-controls button[aria-pressed="true"] { background: var(--selection); color: var(--ink); }
+.continuity-notes { font-size: .85rem; line-height: 1.7; }
+.continuity-notes blockquote { margin: 8px 0 18px; border-left: 2px solid var(--border); padding-left: 12px; color: var(--muted); }
+.story-loading { color: var(--muted); padding: 20px; }

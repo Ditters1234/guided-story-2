@@ -8,7 +8,7 @@ Implementation has begun; see [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md) for c
 
 The foundation pass resolves relationship pinning as canonical attachment, with editable endpoints and native-validated removal/transfer previews. [WORLD_EDITING.md](WORLD_EDITING.md) records the implemented current-world semantics and limits. Node removal keeps dependent contents unplaced and preserves old saved snapshots; future passage forks remain the recovery/navigation design.
 
-The next slice implements shared [AI world authoring](AI_AUTHORING.md), including idea-to-foundation proposals, custom fields, grouped additions and protected-field revisions, with app-level LLM settings. This is part of Gate 2's input/review foundation and the continuing node toolkit. Gate 2 remains incomplete until prose, checked acceptance, contents/navigation and an independent passage fork work together. Prioritize that end-to-end path over more world-tool convenience features.
+Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fork slice](STORY_AUTHORING.md) now connect Gate 2's core path. First/later passages share one composer and acceptance transaction. Story mode dedicates its left pane to chapters/passages/drafts and its right pane to scene planning and effects review; World mode retains its own tree and inspector. Gate 3 still needs accepted wording edits and latest-event replacement, and Gate 4 needs older-story memory and media. See the foundation checkpoint for actual evidence and prototype limits.
 
 [Model targets](MODEL_TARGETS.md) records the confirmed approximately 30B/Qwen text priority and Krea 2/Z-Image/MOSS image direction. The initial Guided Story Krea workflow is pinned as data with an offline preparation contract; this does not advance the image delivery gate or establish live server compatibility. Keep context/task contracts compact before adding reasoning, longer windows or additional stages.
 
@@ -127,4 +127,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Proceed to Gate 0 and a compact screen walkthrough. No unresolved product decision blocks that work. The save protocol, map library fit and current model/workflow compatibility remain implementation validation tasks; they must be proven rather than treated as solved by this document.
+Continue from the bounded authoring loop into accepted-text revision, memory and media. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.

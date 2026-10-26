@@ -387,7 +387,7 @@ impl World {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RecordRef {
     pub id: String,
@@ -404,6 +404,7 @@ pub struct ProjectView {
     pub revision: u32,
     pub folder_path: String,
     pub world_ref: RecordRef,
+    pub story_ref: Option<RecordRef>,
     pub world: World,
 }
 

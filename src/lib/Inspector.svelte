@@ -2,8 +2,8 @@
   import type { WorldRecord } from './graph';
   import type { World } from './model';
   import PropertyInput from './PropertyInput.svelte';
-  let { record, records, world, editable, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
-    record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean;
+  let { record, records, world, editable, historical = false, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
+    record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
     onSelect: (id: string) => void;
     onProperty: (componentId: string, key: string, value: string | number | boolean | string[] | null) => void;
@@ -81,7 +81,7 @@
       </div>
       {#if editable}<button class="remove-node-button" onclick={() => onRemoveNode(node!.id)}>Remove this node…</button>{/if}
     {/if}
-    <div class="scope-note">{editable ? 'Valid edits save automatically. Historical snapshots are preserved.' : 'This is a fictional example. Create a project to save and edit it.'}</div>
+    <div class="scope-note">{historical ? 'Historical world snapshot · read only.' : editable ? 'Valid edits save automatically. Historical snapshots are preserved.' : 'This is a fictional example. Create a project to save and edit it.'}</div>
   {:else}
     <div class="inspector-empty"><span class="empty-symbol">◇</span><h2>A closer look</h2><p>Select a place, character, item or thread to inspect its details.</p></div>
   {/if}

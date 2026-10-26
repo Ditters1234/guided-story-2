@@ -4,9 +4,10 @@
   import type { World, Workspace } from './model';
   import { buildGraph, type WorldNode as WorldNodeType } from './graph';
   import WorldNode from './WorldNode.svelte';
-  let { world, workspace, search, projectId, colorMode, editable, onSelect, onToggle, onPositions, onLink, onConnect }: {
+  let { world, workspace, search, projectId, active = true, colorMode, editable, onSelect, onToggle, onPositions, onLink, onConnect }: {
     world: World; workspace: Workspace; search: string;
     projectId: string | null;
+    active?: boolean;
     colorMode: 'light' | 'dark';
     editable: boolean; onLink: (id: string) => void; onConnect: (source: string, target: string) => void;
     onSelect: (id: string) => void; onToggle: (id: string) => void;
@@ -18,7 +19,7 @@
   const { fitView } = useSvelteFlow();
   function fitSettledPanes() { requestAnimationFrame(() => requestAnimationFrame(() => { void fitView({ padding: 0.12 }); })); }
   $effect(() => { const graph = buildGraph(world, workspace, search, onToggle); nodes = graph.nodes; edges = graph.edges; });
-  $effect(() => { void projectId; fitSettledPanes(); });
+  $effect(() => { if (active) { void projectId; fitSettledPanes(); } });
 </script>
 
 <div class="world-canvas" aria-label="World map">

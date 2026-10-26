@@ -14,6 +14,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - AI world proposals require Apply; prose requires Accept passage. Edited prose invalidates extracted effects and checks.
 - AI node authoring derives fields, capabilities and output contracts from the project schema. Keep provider clients/job state separate from node data; custom presets must use the same creation/revision/protection pipeline.
 - Accepted passage versions and world snapshots are immutable. Current author edits must not change historical snapshots.
+- Publish passage text, effects, chapter membership and before/after snapshots through the same manifest transaction. Manual world commits preserve its narrative reference. Narrative checks fingerprint exact prose/plan/effects and scoped source; ordinary navigation must never trigger generation.
 - Use one Fork after this passage action. Copies must stand alone and exclude future story knowledge and pending operations.
 - Clothing is inventory with wear assignments; do not introduce separately editable wardrobe strings.
 - Use generic world nodes with reusable capabilities, project-local type/field definitions and typed links. Place/character/item/thread are presets, not hardcoded persistence collections. Container is an addable capability; custom nodes must roundtrip without engine changes. Keep built-in inventory/placement validation intact.
@@ -23,6 +24,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 - Preserve full retained prose on extraction/check failure. Never add unbounded automatic repairs, retries or provider switching.
 - Reading navigation, layout and portrait selection must not accidentally advance or rewrite the story.
 - Keep the workspace compact and functional. Avoid slogans, repeated headings, development-status copy, placeholder tabs and redundant legends; prioritize room for the map and editing controls.
+- Story mode uses chapter/passage/draft navigation on the left and scene planning/review on the right, with prose in the center. World mode uses the world tree and shared inspector.
 - Use the shared appearance tokens for UI colors and scalable text. Appearance preferences belong in the app config directory, not story snapshots. Portable themes are validated JSON data, not executable CSS.
 
 ## Source, data and verification

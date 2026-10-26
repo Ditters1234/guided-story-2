@@ -19,7 +19,9 @@ Optimize the task before increasing the model or context budget:
 - Keep world creation, narration, effects extraction and optional image-prompt preparation as separate bounded tasks. First and later passages must share that pipeline. Do not add an agent/planning loop or reasoning request by default.
 - Build future image captions from visible facts, pose, outfit items, composition and environment. Retain user-selected explicit appearance details and manual prompt edits. Image prompts contain neither UUID inventories nor story-planning instructions.
 
-These changes are verified with deterministic fixtures, not a quality benchmark against a real 30B model. Task-specific sampling, context retrieval and prompt length will need representative model probes as prose/media stages arrive. Do not claim throughput or VRAM savings without measuring them.
+The [passage composer](STORY_AUTHORING.md) now uses separate explicit narration and extraction requests, with selected scene records, directly carried/worn resources, the active chapter plan and the last two accepted passages. Budget checks happen before a job is marked running; narration output is bounded by both the configured allowance and the word target. This prototype does not yet retrieve older chapter summaries or filter character beliefs.
+
+These changes are verified with deterministic fixtures, not a quality benchmark against a real 30B model. Task-specific sampling, context retrieval and prompt length still need representative model probes. Do not claim throughput or VRAM savings without measuring them.
 
 ## Images
 

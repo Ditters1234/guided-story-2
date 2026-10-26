@@ -36,4 +36,4 @@ One generation can run at a time. The panel can close while generation continues
 
 Each generation captures an immutable source snapshot and a fingerprint of the selected records, schema, direction, scope, connection settings and prompt contract. Relevant changes block Apply; unrelated record edits and map layout changes can coexist. Applying revalidates against the latest world and preserves unrelated work. Request receipts reconcile an apply that committed before its status write completed, so retrying does not duplicate a group.
 
-This implements world foundation/revision tools. Story prose, passage acceptance/effects, chapter planning/history, forks, saved portraits and the image API remain future work.
+These world foundation/revision tools share their connection and single active-request limit with the [passage composer](STORY_AUTHORING.md). Passage prose, effects review, acceptance, editable chapter plans, reading/history and forks are implemented as a bounded prototype. Accepted-text revision, sustained-story memory, saved portraits and image submission remain future work.

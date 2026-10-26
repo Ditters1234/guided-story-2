@@ -35,6 +35,8 @@ struct Manifest {
     title: String,
     revision: u32,
     world_ref: RecordRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    story_ref: Option<RecordRef>,
     receipts: BTreeMap<String, Receipt>,
 }
 
@@ -199,6 +201,7 @@ impl Project {
             0,
             world,
             receipts,
+            None,
             |_| Ok(()),
         )?;
         Ok(project)
@@ -254,6 +257,10 @@ impl Project {
         validate_name(&manifest.title)?;
         let world: World = self.read_record("worlds", &manifest.world_ref)?;
         world.validate()?;
+        if let Some(reference) = &manifest.story_ref {
+            let index: crate::StoryIndex = self.read_record("stories", reference)?;
+            index.validate()?;
+        }
         Ok((manifest, world))
     }
 
@@ -266,6 +273,7 @@ impl Project {
             revision: manifest.revision,
             folder_path: self.folder_path(),
             world_ref: manifest.world_ref,
+            story_ref: manifest.story_ref,
             world,
         }
     }
@@ -297,10 +305,45 @@ impl Project {
         world: World,
         hook: impl Fn(&str) -> Result<(), String>,
     ) -> Result<CommitResult, String> {
+        self.commit_bundle(expected_revision, request_id, title, world, None, hook)
+    }
+
+    pub(crate) fn commit_story(
+        &self,
+        expected_revision: u32,
+        request_id: String,
+        title: String,
+        world: World,
+        index: crate::StoryIndex,
+    ) -> Result<CommitResult, String> {
+        self.commit_bundle(
+            expected_revision,
+            request_id,
+            title,
+            world,
+            Some(index),
+            |_| Ok(()),
+        )
+    }
+
+    pub(crate) fn commit_bundle(
+        &self,
+        expected_revision: u32,
+        request_id: String,
+        title: String,
+        world: World,
+        story: Option<crate::StoryIndex>,
+        hook: impl Fn(&str) -> Result<(), String>,
+    ) -> Result<CommitResult, String> {
         validate_id(&request_id)?;
         validate_name(&title)?;
         world.validate()?;
-        let fingerprint = Self::fingerprint(&title, &world)?;
+        let fingerprint = if let Some(index) = &story {
+            index.validate()?;
+            digest(&encode(&("story-commit-v1", &title, &world, index))?)
+        } else {
+            Self::fingerprint(&title, &world)?
+        };
         let (mut manifest, current_world) = self.load(&self.read_head()?)?;
         if let Some(receipt) = manifest.receipts.get(&request_id) {
             if receipt.fingerprint != fingerprint {
@@ -332,12 +375,20 @@ impl Project {
                 revision,
             },
         );
+        let story_ref = if let Some(index) = story {
+            let reference = self.write_record("stories", &index)?;
+            hook("after-story")?;
+            Some(reference)
+        } else {
+            manifest.story_ref
+        };
         self.publish(
             manifest.story_id,
             title,
             revision,
             world,
             manifest.receipts,
+            story_ref,
             hook,
         )?;
         Ok(CommitResult {
@@ -352,6 +403,7 @@ impl Project {
         folder: &str,
         value: &T,
     ) -> Result<RecordRef, String> {
+        fs::create_dir_all(self.root.join(folder)).map_err(|e| e.to_string())?;
         let bytes = encode(value)?;
         if bytes.len() as u64 > MAX_FILE_BYTES {
             return Err("Project record exceeds its size limit.".into());
@@ -373,6 +425,7 @@ impl Project {
         revision: u32,
         world: World,
         receipts: BTreeMap<String, Receipt>,
+        story_ref: Option<RecordRef>,
         hook: impl Fn(&str) -> Result<(), String>,
     ) -> Result<(), String> {
         hook("before-world")?;
@@ -384,6 +437,7 @@ impl Project {
             title,
             revision,
             world_ref,
+            story_ref,
             receipts,
         };
         let next = Head {

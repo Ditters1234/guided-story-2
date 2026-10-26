@@ -6,6 +6,8 @@ mod operations;
 mod preferences;
 mod provider;
 mod store;
+mod story;
+mod story_effects;
 
 pub use authoring::*;
 pub use connections::*;
@@ -15,3 +17,5 @@ pub use operations::*;
 pub use preferences::*;
 pub use provider::*;
 pub use store::Project;
+pub use story::*;
+pub use story_effects::*;

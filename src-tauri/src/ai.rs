@@ -4,21 +4,50 @@ use story_project::*;
 use tauri::{Manager, State};
 use tokio::sync::oneshot;
 
-struct ActiveRun {
-    id: String,
-    story_id: String,
-    cancel: Option<oneshot::Sender<()>>,
+pub(crate) struct ActiveRun {
+    pub id: String,
+    pub story_id: String,
+    pub kind: TextJobKind,
+    pub cancel: Option<oneshot::Sender<()>>,
+}
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum TextJobKind {
+    World,
+    Narration,
+    Effects,
 }
 #[derive(Clone)]
-struct Outcome {
-    text: Result<String, String>,
-    cancelled: bool,
-    incomplete: bool,
+pub(crate) struct Outcome {
+    pub text: Result<String, String>,
+    pub cancelled: bool,
+    pub incomplete: bool,
+    pub kind: TextJobKind,
+    pub settings: LlmConnection,
 }
 #[derive(Default)]
 pub(crate) struct AuthoringJobs {
-    active: Mutex<Option<ActiveRun>>,
-    unwritten: Mutex<BTreeMap<String, Outcome>>,
+    pub active: Mutex<Option<ActiveRun>>,
+    pub unwritten: Mutex<BTreeMap<String, Outcome>>,
+}
+pub(crate) fn idle_guard(
+    jobs: &AuthoringJobs,
+) -> Result<std::sync::MutexGuard<'_, Option<ActiveRun>>, String> {
+    let guard = jobs
+        .active
+        .lock()
+        .map_err(|_| "Authoring state needs reopening.")?;
+    if guard.is_some()
+        || !jobs
+            .unwritten
+            .lock()
+            .map_err(|_| "Authoring state needs reopening.")?
+            .is_empty()
+    {
+        return Err(
+            "Finish/cancel generation and save retained results before switching projects.".into(),
+        );
+    }
+    Ok(guard)
 }
 pub(crate) fn ensure_idle(jobs: &AuthoringJobs) -> Result<(), String> {
     if jobs
@@ -39,14 +68,92 @@ pub(crate) fn ensure_idle(jobs: &AuthoringJobs) -> Result<(), String> {
     }
     Ok(())
 }
-fn check_story(project: &Project, story_id: &str) -> Result<(), String> {
+pub(crate) fn check_story(project: &Project, story_id: &str) -> Result<(), String> {
     if project.view()?.story_id != story_id {
         return Err("The open story changed. Reload its proposals.".into());
     }
     Ok(())
 }
-fn connection(app: &tauri::AppHandle) -> Result<LlmConnection, String> {
+pub(crate) fn connection(app: &tauri::AppHandle) -> Result<LlmConnection, String> {
     Ok(load_connection(&preferences_root(app)?)?.settings)
+}
+pub(crate) fn finish_outcome(p: &Project, id: &str, outcome: &Outcome) -> Result<(), String> {
+    match outcome.kind {
+        TextJobKind::World => p.finish_authoring(
+            id,
+            outcome.text.clone(),
+            outcome.cancelled,
+            outcome.incomplete,
+        ),
+        kind => p.finish_passage(
+            id,
+            kind == TextJobKind::Effects,
+            outcome.text.clone(),
+            outcome.cancelled,
+            outcome.incomplete,
+            &outcome.settings,
+        ),
+    }
+}
+pub(crate) struct TextJob {
+    pub kind: TextJobKind,
+    pub system: String,
+    pub user: String,
+    pub schema: Option<serde_json::Value>,
+    pub output_tokens: u32,
+    pub demo: Result<String, String>,
+}
+pub(crate) fn spawn_text_job(
+    app: tauri::AppHandle,
+    id: String,
+    story: String,
+    settings: LlmConnection,
+    key: Option<String>,
+    job: TextJob,
+    cancelled: oneshot::Receiver<()>,
+) {
+    tauri::async_runtime::spawn(async move {
+        let generate = async {
+            if settings.provider == TextProvider::Demo {
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                job.demo.clone().map(|text| CompletionText {
+                    text,
+                    incomplete: false,
+                })
+            } else {
+                complete_text(
+                    &settings,
+                    key.as_deref(),
+                    &job.system,
+                    &job.user,
+                    job.schema.as_ref(),
+                    job.output_tokens,
+                )
+                .await
+            }
+        };
+        let (text, was_cancelled, incomplete) = tokio::select! {biased;_=cancelled=>(Err("Request cancelled. Saved prompts and outputs were kept.".into()),true,false),reply=generate=>match reply{Ok(reply)=>(Ok(reply.text),false,reply.incomplete),Err(error)=>(Err(error),false,false)}};
+        let outcome = Outcome {
+            text,
+            cancelled: was_cancelled,
+            incomplete,
+            kind: job.kind,
+            settings,
+        };
+        let jobs = app.state::<AuthoringJobs>();
+        if let Ok(mut active) = jobs.active.lock() {
+            let result = with_project(&app.state::<AppState>(), |p| {
+                check_story(p, &story)?;
+                finish_outcome(p, &id, &outcome)
+            });
+            if result.is_err() {
+                if let Ok(mut retained) = jobs.unwritten.lock() {
+                    retained.insert(id, outcome);
+                }
+            }
+            *active = None;
+        };
+    });
 }
 
 #[tauri::command]
@@ -110,12 +217,7 @@ fn view(app: &tauri::AppHandle, story_id: &str, id: &str) -> Result<AuthoringVie
     with_project(&state, |p| {
         check_story(p, story_id)?;
         if let Some(outcome) = cached {
-            match p.finish_authoring(
-                id,
-                outcome.text.clone(),
-                outcome.cancelled,
-                outcome.incomplete,
-            ) {
+            match finish_outcome(p, id, &outcome) {
                 Ok(()) => {
                     jobs.unwritten
                         .lock()
@@ -198,7 +300,7 @@ pub(crate) fn start_authoring(
         .lock()
         .map_err(|_| "Authoring state needs reopening.")?;
     if let Some(running) = active.as_ref() {
-        if running.id == id && running.story_id == story_id {
+        if running.id == id && running.story_id == story_id && running.kind == TextJobKind::World {
             drop(active);
             return view(&app, &story_id, &id);
         }
@@ -222,52 +324,27 @@ pub(crate) fn start_authoring(
     *active = Some(ActiveRun {
         id: id.clone(),
         story_id: story_id.clone(),
+        kind: TextJobKind::World,
         cancel: Some(cancel),
     });
     drop(active);
-    let worker_app = app.clone();
-    let worker_id = id.clone();
-    let worker_story = story_id.clone();
-    tauri::async_runtime::spawn(async move {
-        let generate = async {
-            if settings.provider == TextProvider::Demo {
-                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                demo_authoring(&prepared.context, &request).map(|text| CompletionText {
-                    text,
-                    incomplete: false,
-                })
-            } else {
-                complete_text(
-                    &settings,
-                    key.as_deref(),
-                    &prepared.system,
-                    &prepared.user,
-                    Some(&prepared.response_schema),
-                    settings.max_tokens,
-                )
-                .await
-            }
-        };
-        let outcome = tokio::select! {biased;_=cancelled=>Outcome{text:Err("Generation cancelled. The saved prompt and previous candidates were kept.".into()),cancelled:true,incomplete:false},reply=generate=>match reply{Ok(reply)=>Outcome{text:Ok(reply.text),cancelled:false,incomplete:reply.incomplete},Err(error)=>Outcome{text:Err(error),cancelled:false,incomplete:false}}};
-        let jobs = worker_app.state::<AuthoringJobs>();
-        if let Ok(mut active) = jobs.active.lock() {
-            let result = with_project(&worker_app.state::<AppState>(), |p| {
-                check_story(p, &worker_story)?;
-                p.finish_authoring(
-                    &worker_id,
-                    outcome.text.clone(),
-                    outcome.cancelled,
-                    outcome.incomplete,
-                )
-            });
-            if result.is_err() {
-                if let Ok(mut retained) = jobs.unwritten.lock() {
-                    retained.insert(worker_id.clone(), outcome);
-                }
-            }
-            *active = None;
-        };
-    });
+    let job = TextJob {
+        kind: TextJobKind::World,
+        system: prepared.system,
+        user: prepared.user,
+        schema: Some(prepared.response_schema),
+        output_tokens: settings.max_tokens,
+        demo: demo_authoring(&prepared.context, &request),
+    };
+    spawn_text_job(
+        app.clone(),
+        id.clone(),
+        story_id.clone(),
+        settings,
+        key,
+        job,
+        cancelled,
+    );
     view(&app, &story_id, &id)
 }
 #[tauri::command]

@@ -6,6 +6,8 @@ use story_project::{
 use tauri::{Manager, State};
 mod ai;
 use ai::*;
+mod passages;
+use passages::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -31,7 +33,7 @@ fn create_project(
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
 ) -> Result<ProjectView, String> {
-    ensure_idle(&jobs)?;
+    let _idle = idle_guard(&jobs)?;
     let parent = Path::new(&parent_path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
@@ -57,7 +59,7 @@ fn open_project(
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
 ) -> Result<ProjectView, String> {
-    ensure_idle(&jobs)?;
+    let _idle = idle_guard(&jobs)?;
     let path = Path::new(&folder_path)
         .canonicalize()
         .map_err(|e| e.to_string())?;
@@ -71,7 +73,9 @@ fn open_project(
         }
     }
     let project = Project::open(&path)?;
-    let recovery = project.interrupt_authoring();
+    let recovery = project
+        .interrupt_authoring()
+        .and(project.interrupt_passages());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -102,7 +106,7 @@ fn recover_project(
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
 ) -> Result<ProjectView, String> {
-    ensure_idle(&jobs)?;
+    let _idle = idle_guard(&jobs)?;
     let mut guard = state
         .0
         .lock()
@@ -114,7 +118,9 @@ fn recover_project(
         return Err("Reopen the app before recovering the project currently in use.".into());
     }
     let project = Project::recover(Path::new(&folder_path))?;
-    let recovery = project.interrupt_authoring();
+    let recovery = project
+        .interrupt_authoring()
+        .and(project.interrupt_passages());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -234,7 +240,17 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             start_authoring,
             cancel_authoring,
             apply_authoring,
-            close_authoring
+            close_authoring,
+            load_story,
+            next_passage_plan,
+            list_passage_drafts,
+            get_passage_draft,
+            save_passage_draft,
+            start_passage_job,
+            validate_passage,
+            accept_passage,
+            read_passage,
+            fork_after_passage
         ])
 }
 
