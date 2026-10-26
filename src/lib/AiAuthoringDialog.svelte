@@ -3,7 +3,7 @@
   import type { ApplyAuthoringResult_Serialize,AuthoringRequest,AuthoringSummary,AuthoringView_Serialize } from './bindings';
   import type { ProjectView,World } from './model';
   import { commands,unwrap } from './native';
-  import { editableFields,fieldId,newAuthoringRequest,parseCandidateForEditor } from './authoring-ui';
+  import { editableFields,fieldId,newAuthoringRequest,parseCandidateForEditor,changeCreationType } from './authoring-ui';
   import CandidateEditor from './CandidateEditor.svelte';
   let {project,world,initialId,initialRequest,onBeforeAction,onApply,onClose,onSettings,onRun}:{project:ProjectView;world:World;initialId:string|null;initialRequest:AuthoringRequest;onBeforeAction:()=>Promise<ProjectView>;onApply:(result:ApplyAuthoringResult_Serialize)=>Promise<void>;onClose:()=>void;onSettings:()=>void;onRun:(id:string,running:boolean)=>void}=$props();
   let dialog:HTMLDialogElement;
@@ -58,7 +58,7 @@
     {#if error}<div class="settings-error" role="alert">{error}<button class="quiet-button" onclick={()=>{void flushDraft().then(refresh).catch((caught)=>{error=describe(caught);});}}>Retry / refresh</button></div>{/if}
     {#if status==='draft'}
       <fieldset class="connection-form" disabled={!loaded||working}>
-        {#if request.mode==='create'}<label class="field">Create<select value={request.typeId??''} onchange={(event)=>{request.typeId=event.currentTarget.value||null;if(!request.typeId)request.bundle=true;touch();}}><option value="">World / mixed group from an idea</option>{#each world.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label><label class="check-field"><input type="checkbox" checked={request.bundle} disabled={!request.typeId} onchange={(event)=>{request.bundle=event.currentTarget.checked;touch();}} /><span>Include related nodes and possessions</span></label>
+        {#if request.mode==='create'}<label class="field">Create<select value={request.typeId??''} onchange={(event)=>{request=changeCreationType(world,request,event.currentTarget.value||null);touch();}}><option value="">World / mixed group from an idea</option>{#each world.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label><label class="check-field"><input type="checkbox" checked={request.bundle} disabled={!request.typeId} onchange={(event)=>{request.bundle=event.currentTarget.checked;touch();}} /><span>Include outfit items, belongings and related nodes</span></label>{#if !request.typeId}<p class="field-help">Develop the premise into named characters, places and linked outfit items. Review everything before Apply.</p>{/if}
         {:else}<div class="field"><strong>Revise / reroll {world.nodes.find((n)=>n.id===request.targetIds[0])?.name}</strong><span class="field-help">Only checked fields may change. Existing placement and links stay protected.</span></div><div class="editable-field-list">{#each fields as field}<label><input type="checkbox" checked={request.fields.some((f)=>fieldId(f)===fieldId(field))} onchange={()=>toggleField(field)} /><span>{field.label}</span></label>{/each}</div>{/if}
         <label class="field">Direction<textarea bind:value={request.direction} oninput={touch} rows={4} maxlength={12000} placeholder="Describe the node, connected group or world idea you want…"></textarea></label>
         <details class="reference-picker"><summary>Context references ({request.contextIds.length}/12)</summary><input aria-label="Find context references" placeholder="Find a node…" bind:value={contextSearch} /><div>{#each world.nodes.filter((n)=>!request.targetIds.includes(n.id)&&n.name.toLowerCase().includes(contextSearch.toLowerCase())).slice(0,100) as node}<label><input type="checkbox" checked={request.contextIds.includes(node.id)} disabled={request.contextIds.length>=12&&!request.contextIds.includes(node.id)} onchange={()=>toggleContext(node.id)} /><span>{node.name}</span></label>{/each}</div></details>
@@ -70,6 +70,7 @@
       {#if view?.stale&&status==='review'}<p class="inline-error" role="alert">The source world or LLM settings changed. Start a new candidate from the current source.</p>{/if}
       {#if view?.error}<p class="inline-error" role="alert">{view.error}</p>{/if}
       {#if status==='review'}
+        {#if view?.warnings.length}<div class="story-warning" role="status">{#each view.warnings as warning}<p>{warning}</p>{/each}</div>{/if}
         {#if validShape&&candidate&&view}<CandidateEditor {candidate} schema={view.context} {request} onChange={(next)=>{candidateText=JSON.stringify(next,null,2);touch();}} />{/if}
         <details class="candidate-json" open={!validShape}><summary>Edit candidate JSON</summary><textarea aria-label="Candidate JSON" bind:value={candidateText} oninput={touch} rows={12} maxlength={500000} spellcheck={false}></textarea></details>
         {#if view?.changes.length}<div class="change-review"><h3>Changes to apply</h3><ul>{#each view.changes as change}<li>{change}</li>{/each}</ul></div>{/if}

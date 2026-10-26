@@ -10,7 +10,24 @@ export function editableFields(world:World,ids:string[]):(EditableField&{label:s
 }
 export function newAuthoringRequest(world:World,targetId?:string):AuthoringRequest{
   return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
-    {mode:'create',direction:'',typeId:world.nodeTypes[0]?.id??null,bundle:false,targetIds:[],contextIds:[],fields:[]};
+    {mode:'create',direction:'',typeId:world.nodes.length?world.nodeTypes[0]?.id??null:null,bundle:!world.nodes.length,targetIds:[],contextIds:[],fields:[]};
+}
+export function changeCreationType(world:World,request:AuthoringRequest,typeId:string|null):AuthoringRequest{return {...request,typeId,bundle:!typeId||!!world.nodeTypes.find(d=>d.id===typeId)?.components.includes('core.character')||request.bundle};}
+export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeId:string,componentId:string):NodeCandidate{
+  const definition=world.componentTypes.find(d=>d.id===componentId);
+  if(!definition)throw Error('Choose a capability from this project.');
+  return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map(f=>[f.key,structuredClone(f.defaultValue)]))}});
+}
+export function wornItemType(world:World):string|null{
+  return world.componentTypes.some(d=>d.id==='core.wearable')&&['core.stored-in','core.worn-by'].every(id=>world.relationTypes.some(r=>r.id===id))?world.nodeTypes.find(d=>d.components.includes('core.item'))?.id??null:null;
+}
+export function addCandidateWornItem(world:World,candidate:NodeCandidate,wearerId:string):NodeCandidate{
+  const typeId=wornItemType(world),wearer=candidate.nodes.find(n=>n.id===wearerId);
+  if(!typeId||!wearer?.components['core.character'])throw Error('Choose a proposed character and a schema supporting wearable items.');
+  const item=makeNode(world,typeId,'New worn item','new:garment-'+crypto.randomUUID().replaceAll('-',''));
+  let next=addCandidateCapability(world,{...candidate,nodes:[...candidate.nodes,item]},item.id,'core.wearable');
+  next={...next,edges:[...next.edges,...['core.stored-in','core.worn-by'].map(typeId=>({id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId,sourceId:item.id,targetId:wearerId,description:''}))]};
+  return next;
 }
 export function addCandidateNode(world:World,candidate:NodeCandidate,typeId:string):NodeCandidate{
   const name=world.nodeTypes.find((d)=>d.id===typeId)?.name??'node';

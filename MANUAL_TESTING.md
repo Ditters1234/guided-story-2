@@ -24,6 +24,8 @@ In **Settings → LLM**, select the compatible API provider, enter the base URL 
 
 Start with one small node addition, then a short passage. Review the actual output and world effects before applying/accepting. Test a failed or cancelled request and confirm your existing prose/drafts remain. Model compatibility, generation quality and long-story continuity are part of this manual testing; they are not certified by the offline checks.
 
+In a fresh empty story, AI world tools defaults to **World / mixed group from an idea**. Try a short premise with a location and two adults: check that the people have personal names and developed profiles, and that clothing appears as separate wearable items linked to each wearer. Select a proposed character to inspect **Worn items**, or use **Add worn item** and edit the new item's appearance/coverage/layer before Apply. Missing-outfit warnings are advisory so deliberately unclothed characters remain possible. Earlier accepted characters are preserved; generate a new proposal to test the updated creation behavior. Existing character rerolls protect Name unless you check it.
+
 ## Your image server
 
 **Settings → Images** uses a direct, unauthenticated ComfyUI connection. Select the Guided Story Krea 2 profile matching your installation, or import an appropriate graph/binding profile for your model. Test connection checks workflow classes and installed choices without generating an image. Krea's loaders, custom nodes and filenames must match the installed workflow. Z-Image/MOSS require their own profiles; they are not checkpoint swaps in the Krea graph.

@@ -2,7 +2,7 @@
   import type { AuthoringRequest,NodeCandidate,PropertyValue } from './bindings';
   import type { World } from './model';
   import PropertyInput from './PropertyInput.svelte';
-  import { addCandidateNode,editCandidateNode } from './authoring-ui';
+  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType } from './authoring-ui';
   let {candidate,schema,request,onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
   const node=$derived(candidate.nodes.find((n)=>n.id===selected)??candidate.nodes[0]);
@@ -18,7 +18,9 @@
   <label class="field">Name<input value={node.name} maxlength={200} disabled={!allowed(node.id,null,'name')} oninput={(event)=>edit('name',event.currentTarget.value)} /></label>
   <label class="field">Story notes<textarea value={node.description} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'description')} oninput={(event)=>edit('description',event.currentTarget.value)}></textarea></label>
   <label class="field">Visible description<textarea value={node.visualDescription} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'visualDescription')} oninput={(event)=>edit('visualDescription',event.currentTarget.value)}></textarea></label>
+  {#if request.mode==='create'&&node.components['core.character']}<section class="capability"><strong>Worn items</strong>{#each candidate.edges.filter(e=>e.typeId==='core.worn-by'&&e.targetId===node!.id) as link}{@const garment=candidate.nodes.find(n=>n.id===link.sourceId)}{#if garment}<button class="text-action" onclick={()=>{selected=garment.id;}}>{garment.name} ↗</button>{/if}{:else}<p class="field-help">No worn items proposed.</p>{/each}{#if request.mode==='create'&&request.bundle}<button class="secondary-button" disabled={!wornItemType(schema)||candidate.nodes.length>=20} onclick={()=>{const next=addCandidateWornItem(schema,candidate,node!.id);selected=next.nodes.at(-1)!.id;onChange(next);}}>＋ Add worn item</button>{/if}</section>{/if}
   {#each Object.entries(node.components) as [componentId,values]}{@const definition=schema.componentTypes.find((d)=>d.id===componentId)}<section class="capability"><strong>{definition?.name??componentId}</strong>{#each definition?.fields??[] as field}<PropertyInput {field} value={values[field.key]??null} nodes={references} disabled={!allowed(node.id,componentId,field.key)} onChange={(value)=>property(componentId,field.key,value)} />{/each}</section>{/each}
+  {#if request.mode==='create'}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
 {/if}
 {#if request.mode==='create'&&request.bundle}
   <div class="candidate-group-actions"><select aria-label="Add a proposed node" value="" onchange={(event)=>{if(event.currentTarget.value){onChange(addCandidateNode(schema,candidate,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add proposed node…</option>{#each schema.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select>{#if node&&node.id!=='new:root'}<button class="text-action danger-text" onclick={()=>{onChange({nodes:candidate.nodes.filter((n)=>n.id!==node!.id),edges:candidate.edges.filter((e)=>e.sourceId!==node!.id&&e.targetId!==node!.id)});}}>Remove proposed node</button>{/if}</div>

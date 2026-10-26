@@ -1,4 +1,5 @@
 use super::*;
+mod quality_probe;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -29,6 +30,149 @@ fn request() -> AuthoringRequest {
         context_ids: vec![],
         fields: vec![],
     }
+}
+fn group_request() -> AuthoringRequest {
+    AuthoringRequest {
+        type_id: None,
+        bundle: true,
+        direction: "Develop a fictional isolated homestead with two adult inhabitants.".into(),
+        ..request()
+    }
+}
+#[test]
+fn creation_contract_and_clothing_pattern_support_custom_items_through_image_preparation() {
+    let (_dir, p) = create();
+    let mut world = p.view().unwrap().world;
+    world
+        .node_types
+        .iter_mut()
+        .find(|t| t.id == "core.item")
+        .unwrap()
+        .id = "custom.possession".into();
+    p.commit(0, id(), "Fictional".into(), world.clone())
+        .unwrap();
+    let req = group_request();
+    let prepared = prepare_authoring(&world, &req, &settings()).unwrap();
+    let character = prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["properties"]["typeId"]["const"] == "core.character")
+        .unwrap();
+    let required = character["properties"]["components"]["required"]
+        .as_array()
+        .unwrap();
+    assert!(required.contains(&json!("core.character")));
+    assert!(required.contains(&json!("core.holder")));
+    let input: Value = serde_json::from_str(&prepared.user).unwrap();
+    assert_eq!(input["responseBudget"]["outputTokens"], 4096);
+    assert_eq!(input["responseBudget"]["suggestedMaxNewNodes"], 10);
+    let example = &input["clothingExample"];
+    let garment: WorldNode = serde_json::from_value(example["garment"].clone()).unwrap();
+    assert_eq!(garment.type_id, "custom.possession");
+    let person = proposed_node(&world, "core.character", "new:wearer", "Nora Hale");
+    let rid = id();
+    p.save_authoring_draft(&rid, 0, req).unwrap();
+    p.start_authoring(&rid, 1, 1, &settings()).unwrap();
+    p.finish_authoring(
+        &rid,
+        Ok(serde_json::to_string(&NodeCandidate {
+            nodes: vec![person, garment],
+            edges: serde_json::from_value(example["links"].clone()).unwrap(),
+        })
+        .unwrap()),
+        false,
+        false,
+    )
+    .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert!(view.error.is_empty(), "{}", view.error);
+    assert!(view.warnings.is_empty());
+    assert_eq!(p.view().unwrap().world.nodes.len(), 0);
+    let world = p
+        .apply_authoring(&rid, view.version, &settings())
+        .unwrap()
+        .commit
+        .project
+        .world;
+    let person = &world
+        .nodes
+        .iter()
+        .find(|n| n.name == "Nora Hale")
+        .unwrap()
+        .id;
+    let image = p
+        .create_media(
+            &id(),
+            MediaTarget {
+                node_id: Some(person.clone()),
+                passage_id: None,
+                moment: ImageMoment::After,
+                subject_ids: vec![],
+            },
+        )
+        .unwrap();
+    assert_eq!(image.draft.source.facts[0].outfit.len(), 1);
+    assert!(image.draft.source.facts[0].outfit[0].contains("Linen work shirt"));
+}
+#[test]
+fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() {
+    let (_dir, p) = create();
+    let world = p.view().unwrap().world;
+    let mut req = group_request();
+    req.direction = "Two intentionally unclothed adult characters.".into();
+    let rid = id();
+    p.save_authoring_draft(&rid, 0, req).unwrap();
+    p.start_authoring(&rid, 1, 0, &settings()).unwrap();
+    let candidate = NodeCandidate {
+        nodes: vec![
+            proposed_node(&world, "core.character", "new:a", "Nora Hale"),
+            proposed_node(&world, "core.character", "new:b", "Elias Rowan"),
+        ],
+        edges: vec![],
+    };
+    p.finish_authoring(
+        &rid,
+        Ok(serde_json::to_string(&candidate).unwrap()),
+        false,
+        false,
+    )
+    .unwrap();
+    let view = p.authoring_view(&rid, &settings()).unwrap();
+    assert_eq!(view.warnings.len(), 2);
+    assert!(view.error.is_empty());
+    assert!(p.apply_authoring(&rid, view.version, &settings()).is_ok());
+    let single = AuthoringRequest {
+        type_id: Some("core.character".into()),
+        bundle: false,
+        ..request()
+    };
+    assert!(proposal_warnings(&candidate, &single).is_empty());
+}
+#[test]
+fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_presets() {
+    let mut world = World::default();
+    let mut node = proposed_node(&world, "core.character", &id(), "Elias Rowan");
+    node.components.remove("core.character");
+    world.nodes.push(node.clone());
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        type_id: None,
+        bundle: false,
+        target_ids: vec![node.id.clone()],
+        context_ids: vec![],
+        fields: vec![EditableField {
+            node_id: node.id,
+            component_id: None,
+            key: "description".into(),
+        }],
+        direction: "Change the description only.".into(),
+    };
+    let prepared = prepare_authoring(&world, &req, &settings()).unwrap();
+    let required = &prepared.response_schema["properties"]["nodes"]["items"]["anyOf"][0]
+        ["properties"]["components"]["required"];
+    assert!(required.as_array().unwrap().is_empty());
+    assert!(!prepared.user.contains("clothingExample"));
 }
 fn generated(p: &Project, request: AuthoringRequest) -> String {
     let rid = id();
