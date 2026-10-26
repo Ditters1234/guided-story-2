@@ -1,0 +1,41 @@
+# Guided Story 2 — manual testing
+
+## Start
+
+Double-click **Guided Story 2.exe** in this folder. This Windows build includes the interface; Node, Rust and the development server are not needed to run it. Windows and the Microsoft Edge WebView2 runtime are required. This is a development testing build, without an installer or automatic updates. `BUILD.json` identifies the source revision and executable checksum.
+
+The opening map is a read-only fictional example. Choose **Project → New project**, give your story a name and choose a parent folder. New stories start empty unless you select the example. Each story has its own portable folder. Choose **Project → Open project** to reopen it later. Keep your working stories outside this testing-build folder so you can replace the executable independently.
+
+The settings gear contains Appearance, Custom themes, LLM and Images. Existing device settings are preserved. Appearance and API settings stay separate from story folders. The offline demo provider lets you test proposal review without an LLM; its output is deterministic sample data, not a quality demonstration.
+
+## First pass: no model required
+
+1. **World editing.** Add a place, character and item. Edit their names and descriptions. Attach the character to the place; put the item on the character or inside a container. Check the map and inspector agree. Try a custom node preset or relationship if useful.
+2. **Save/reopen.** Close normally, reopen the executable and open the project folder. Check your edits, layout and clothing/possessions survived. Valid edits autosave; invalid form input is retained as a draft and should show an error rather than silently entering the world.
+3. **AI proposal review.** Select Offline demo in LLM settings. In **AI world tools**, describe an addition or connected group. Generate, edit the proposal and Apply. Proposed records should not appear in the established world before Apply. Try a targeted revision/reroll from a node's inspector.
+4. **Story.** Switch to Story. Plan a scene, choose its location/participants and generate demo prose or write a short passage manually. Review its effects, check/validate, then **Accept passage**. The contents list should update only after acceptance. Write another passage, optionally close the chapter, and inspect the next chapter's editable plan.
+5. **History.** Use Contents and Previous/Next. Inspect Before/After world snapshots; they should be read-only. Return to Current world to edit. Try Edit wording, or Fork after this passage into a separate folder. Changing earlier events uses a fork; latest-event replacement has a separate reviewed action.
+6. **Images.** In a saved node's Image section, choose Generate / choose image and import a small PNG/JPEG/WebP. Review it and choose Use as node image. For an accepted passage, use Illustrate passage. Import/generation alone should not publish an image. AI prompt tools use the LLM connection and Apply only prompt text; image generation remains separate.
+7. **Backup/restore.** Export a backup from the Project menu into a different parent folder. Choose Restore backup and select the outer backup folder, then restore into a new folder and Open restored story. Verify prose, history, images and saved drafts; edit the restored copy and reopen it. The original and backup should remain unchanged. Select the outer backup folder, not its `project` child.
+
+## Your LLM
+
+In **Settings → LLM**, select the compatible API provider, enter the base URL and optional key, then **Test connection**. Select a returned model and save. A single returned model is selected automatically. Testing fetches models without generating text. Approximately 30B/Qwen models are the initial target; adjust token budgets and API compatibility to your server. Unsupported sampling/thinking parameters produce an explicit error; the app does not silently retry another transport.
+
+Start with one small node addition, then a short passage. Review the actual output and world effects before applying/accepting. Test a failed or cancelled request and confirm your existing prose/drafts remain. Model compatibility, generation quality and long-story continuity are part of this manual testing; they are not certified by the offline checks.
+
+## Your image server
+
+**Settings → Images** uses a direct, unauthenticated ComfyUI connection. Select the Guided Story Krea 2 profile matching your installation, or import an appropriate graph/binding profile for your model. Test connection checks workflow classes and installed choices without generating an image. Krea's loaders, custom nodes and filenames must match the installed workflow. Z-Image/MOSS require their own profiles; they are not checkpoint swaps in the Krea graph.
+
+Try one small image. Generate image submits once; **Check result** retrieves the saved job explicitly. Review before accepting. A queued job retains its original endpoint and prompt ID across restart. An uncertain submission must be reconciled using its prompt ID; it never resends automatically.
+
+## What to report
+
+Record the build revision from `BUILD.json`, the action you took, what you expected, what happened, the exact error and whether restarting changed it. For provider issues, include the model/workflow name and relevant compatibility settings. Keep API keys and private story content out of public bug reports.
+
+Current limits include bounded chapter memory, no character-belief filtering or general pinned-fact protection, no image reference conditioning, and folder backups below 4 GiB/25,000 files. Backup progress has no byte meter/cancel control; keep the app open during a transfer. Automatic interrupted-transfer discovery/cleanup, full version-history browsing, broad accessibility/scale testing and installer/release validation remain unfinished. Structural checks do not certify narrative meaning or image accuracy.
+
+## Build from source
+
+With the repository's Node/Rust/Windows build prerequisites installed, run `npm ci`, `npm run verify`, then `npm run manual:build`. The last command builds a standalone release executable and creates a new ignored `build/manual-test-*` folder containing only the executable, this guide, third-party notices and build metadata. It never packages stories, connection settings or development fixtures. `npm run desktop` remains available for development.

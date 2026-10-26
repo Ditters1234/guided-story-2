@@ -62,8 +62,9 @@
   let showRelationshipType = $state(false);
   let showCreate = $state(false);
   let newTitle = $state('Untitled story');
-  let useExample = $state(true);
+  let useExample = $state(false);
   let recoveryPath = $state<string | null>(null);
+  function showNewProject(){newTitle='Untitled story';useExample=false;showCreate=true;}
   let editVersion = 0, savedVersion = 0, persistedDraftVersion = 0;
   let timer: ReturnType<typeof setTimeout>;
   let layoutTimer: ReturnType<typeof setTimeout>;
@@ -375,7 +376,7 @@
 <div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit || !!backupMode}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
-    <div class="header-actions"><details class="add-menu project-menu"><summary>Project</summary><div><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;void openProject();}}>Open project…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;showCreate=true;}}>New project…</button><button disabled={!desktop||busy||!project} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='export';}}>Export backup…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='restore';}}>Restore backup…</button></div></details><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
+    <div class="header-actions"><details class="add-menu project-menu"><summary>Project</summary><div><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;void openProject();}}>Open project…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;showNewProject();}}>New project…</button><button disabled={!desktop||busy||!project} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='export';}}>Export backup…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='restore';}}>Restore backup…</button></div></details><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
   </header>
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
   {#if appearance.error && !showSettings}<div class="error-banner" role="alert"><span>Settings: {appearance.error}</span><button onclick={()=>{showSettings=true;}}>Open settings</button></div>{/if}
@@ -441,10 +442,10 @@
   <div class="dialog-scrim"></div>
   <dialog open class="project-dialog" aria-labelledby="new-project-title">
     <form onsubmit={createProject}>
-      <span class="eyebrow">A NEW BEGINNING</span><h2 id="new-project-title">Create your story project.</h2>
+      <h2 id="new-project-title">New story</h2>
       <p>A self-contained folder for your world and its history. Choose where to keep it next.</p>
       <label class="field">Story title<input bind:value={newTitle} required maxlength={200} /></label>
-      <label class="check-field"><input type="checkbox" bind:checked={useExample} /><span>Start with the Brasswater example<small>Uncheck for an empty world.</small></span></label>
+      <label class="check-field"><input type="checkbox" bind:checked={useExample} /><span>Use the fictional Brasswater example<small>Leave unchecked to create your own world.</small></span></label>
       <div class="dialog-actions"><button type="button" class="quiet-button" onclick={() => { showCreate = false; }}>Cancel</button><button type="submit" class="primary-button" disabled={busy || !newTitle.trim()}>{busy ? 'Creating…' : 'Choose folder & create'}</button></div>
     </form>
   </dialog>

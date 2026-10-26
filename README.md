@@ -4,7 +4,11 @@ A Windows desktop tool in development for crafting illustrated stories through a
 
 **Status: world, passage and media authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Node images and passage illustrations support reviewed import or ComfyUI submission. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), [chapter memory](MEMORY.md), and [media](MEDIA.md) for behavior and limits.
 
-## Run the prototype
+## Manual testing
+
+See [the testing guide](MANUAL_TESTING.md) for first launch, offline checks and configuring your own LLM/ComfyUI servers. A standalone Windows testing build runs directly from its executable, with the interface embedded and no development server. Build one with `npm run manual:build`; it creates a fresh ignored `build/manual-test-*` folder containing only the app, guide, third-party notices and build metadata. Keep story projects outside that folder.
+
+## Run from source
 
 Requires Node.js 24+, Rust 1.90+ (MSVC target), Windows C++ build tools and WebView2. The workspace-local Rust toolchain, when present in `.tools/`, is detected by the scripts; it is not included in Git.
 
@@ -17,7 +21,7 @@ The opening world is a fictional example. Create a project to save/edit it, or s
 
 The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance and API controls. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 
-Checks: `npm run check`, `npm test`, `npm run build`, `npm run native:test`, and `npm run native:check`. `npm run bindings` regenerates checked-in frontend contracts from Rust.
+`npm run verify` runs the frontend/native checks and tests plus the frontend production build. Individual checks remain available. `npm run bindings` regenerates checked-in frontend contracts from Rust.
 
 ## The intended experience
 

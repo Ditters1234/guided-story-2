@@ -11,6 +11,8 @@
     "test": "vitest run",
     "desktop": "node scripts/desktop.mjs dev",
     "desktop:build": "node scripts/desktop.mjs build --no-bundle",
+    "manual:build": "npm run desktop:build && node scripts/package-manual-test.mjs",
+    "verify": "npm run check && npm test && npm run native:test && npm run native:check && npm run build",
     "native:test": "node scripts/cargo.mjs test -p story-project",
     "native:check": "node scripts/cargo.mjs check -p guided-story-2",
     "bindings": "node scripts/cargo.mjs run -p guided-story-2 -- --export-bindings"

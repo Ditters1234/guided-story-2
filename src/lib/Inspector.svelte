@@ -28,7 +28,7 @@
     <label class="field">Name<input value={record.name} disabled={!editable} oninput={(e) => onEdit('name', e.currentTarget.value)} maxlength={200} /></label>
     <label class="field">Story notes<textarea value={record.description} disabled={!editable} oninput={(e) => onEdit('description', e.currentTarget.value)} rows={5} maxlength={16000}></textarea></label>
     {#if record.kind !== 'thread'}
-      <label class="field">Visible description<textarea value={record.visualDescription} disabled={!editable} oninput={(e) => onEdit('visualDescription', e.currentTarget.value)} rows={4} maxlength={16000}></textarea><span class="field-help">Appearance and design details for future illustrations.</span></label>
+      <label class="field">Visible description<textarea value={record.visualDescription} disabled={!editable} oninput={(e) => onEdit('visualDescription', e.currentTarget.value)} rows={4} maxlength={16000}></textarea><span class="field-help">Visible appearance and design details used for images.</span></label>
     {/if}
     {#if record.kind === 'character'}
       <div class="linked-section"><h3>Worn & carried</h3>
