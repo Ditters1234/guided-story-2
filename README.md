@@ -30,7 +30,7 @@ Start with a story idea and let an LLM propose settings, characters, places, pos
 - Expand locations into subplaces, characters, carried/worn items, containers and connected story threads.
 - Edit everything through the map and one shared entity inspector; character nodes can display portraits.
 - Use manual edits or AI creation, revision and reroll tools for individual fields, records or connected groups. A character can be created with their outfit, satchel and its contents.
-- Treat clothing as actual inventory items, with wear assignments and derived outfit descriptions shared by narration and image preparation.
+- Treat clothing as inventory items with one physical relationship: worn, carried, or stored. Wearing implies inventory membership; narration and image preparation share the same garment records.
 - Write one passage at a time, grouped into chapters. Review prose and world changes before accepting them.
 - Browse a chapter-based table of contents with Previous/Next controls and passage-linked historical world states.
 - Create an independent story using **Fork after this passage**.

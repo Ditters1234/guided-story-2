@@ -48,7 +48,7 @@ impl Project {
         self.committed_story_request(
             &draft.id,
             &attempt.title,
-            &self.read_record("worlds", &attempt.world)?,
+            &attempt.world,
             &self.read_record("stories", &attempt.index)?,
         )
     }

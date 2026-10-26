@@ -16,9 +16,12 @@ describe('world projection', () => {
     expect(found.map((r) => r.name)).toEqual(['Brasswater House', 'The glasshouse', 'Mara Vale', 'Canvas satchel', 'Seed packets']);
   });
   it('projects wear from explicit links rather than assuming all carried items are worn', () => {
-    const records = worldRecords(exampleWorld());
+    const world = exampleWorld(), records = worldRecords(world);
     expect(records.find((r) => r.name === 'Waxed field coat')?.relation).toBe('worn by');
     expect(records.find((r) => r.name === 'Canvas satchel')?.relation).toBe('carried by');
+    const coat = world.nodes.find(n=>n.name==='Waxed field coat')!,person = world.nodes.find(n=>n.name==='Mara Vale')!;
+    expect(records.find(r=>r.id===coat.id)?.parentId).toBe(person.id);
+    expect(world.edges.filter(e=>e.sourceId===coat.id)).toHaveLength(1);
   });
   it('retains custom nodes, capability fields and typed nonphysical edges', () => {
     const world = exampleWorld();
@@ -34,12 +37,12 @@ describe('world projection', () => {
     const edited = editRecord(world, storm.id, 'description', 'Rain before evening.');
     expect(edited.nodes.find((n) => n.id === storm.id)?.components['custom.weather'].forecast).toBe('Rain');
   });
-  it('projects every visible canonical link with its original ID and direction, including worn and held links', () => {
+  it('projects every visible canonical link with its original ID and direction, including worn placement', () => {
     const world = exampleWorld();
     const graph = buildGraph(world, {version:0,positions:{},selectedId:null,expandedIds:world.nodes.map((n)=>n.id)}, '', () => {});
     expect(graph.edges.map((e)=>({id:e.id,source:e.source,target:e.target}))).toEqual(world.edges.map((e)=>({id:e.id,source:e.sourceId,target:e.targetId})));
     const coat = world.nodes.find((n)=>n.name==='Waxed field coat')!;
-    expect(graph.edges.filter((e)=>e.source===coat.id)).toHaveLength(2);
+    expect(graph.edges.filter((e)=>e.source===coat.id)).toHaveLength(1);
   });
   it('never turns thread grouping into a containment cycle', () => {
     const world = exampleWorld();

@@ -149,11 +149,12 @@ impl Project {
         &self,
         id: &str,
         title: &str,
-        world: &World,
+        world_ref: &RecordRef,
     ) -> Result<Option<u32>, String> {
         let (manifest, _) = self.load(&self.read_head()?)?;
         if let Some(receipt) = manifest.receipts.get(id) {
-            if receipt.fingerprint != Self::fingerprint(title, world)? {
+            let stored: StoredWorld = self.read_record("worlds", world_ref)?;
+            if receipt.fingerprint != Self::fingerprint(title, &stored)? {
                 return Err("This request ID was already used for different content.".into());
             }
             return Ok(Some(receipt.revision));
@@ -289,7 +290,7 @@ impl Project {
         Ok(self.to_view(manifest, world))
     }
 
-    fn fingerprint(title: &str, world: &World) -> Result<String, String> {
+    fn fingerprint(title: &str, world: &impl Serialize) -> Result<String, String> {
         Ok(digest(&encode(&(title, world))?))
     }
 
@@ -336,14 +337,15 @@ impl Project {
         &self,
         id: &str,
         title: &str,
-        world: &World,
+        world_ref: &RecordRef,
         index: &crate::StoryIndex,
     ) -> Result<Option<u32>, String> {
         let (manifest, _) = self.load(&self.read_head()?)?;
         let Some(receipt) = manifest.receipts.get(id) else {
             return Ok(None);
         };
-        let fingerprint = digest(&encode(&("story-commit-v1", title, world, index))?);
+        let stored: StoredWorld = self.read_record("worlds", world_ref)?;
+        let fingerprint = digest(&encode(&("story-commit-v1", title, &stored, index))?);
         if receipt.fingerprint != fingerprint {
             return Err("This story request ID was reused for different content.".into());
         }

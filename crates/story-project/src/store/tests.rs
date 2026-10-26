@@ -1,6 +1,7 @@
 use super::*;
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
+mod wearing_compatibility;
 
 fn request() -> String {
     Uuid::new_v4().to_string()
@@ -293,7 +294,7 @@ fn cycles_and_duplicate_entities_are_rejected() {
 }
 
 #[test]
-fn container_is_a_capability_and_wearing_requires_direct_holding() {
+fn container_is_a_capability_and_wearing_is_exclusive_physical_placement() {
     let mut world = World::default();
     let person = node(&world, "core.character", "Mara");
     let mut bag = node(&world, "core.item", "Satchel");
@@ -314,7 +315,7 @@ fn container_is_a_capability_and_wearing_requires_direct_holding() {
     ];
     world.nodes = vec![person.clone(), bag.clone(), coat.clone()];
     assert!(world.validate().is_err());
-    world.edges[1].target_id = person.id;
+    world.edges.remove(1);
     assert!(world.validate().is_ok());
     world.edges[0].target_id = bag.id;
     assert!(world.validate().is_err());

@@ -108,7 +108,7 @@ pub struct RelationDefinition {
     pub single_target: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+#[derive(Debug, Clone, Serialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct World {
     pub nodes: Vec<WorldNode>,
@@ -116,6 +116,37 @@ pub struct World {
     pub node_types: Vec<NodeTypeDefinition>,
     pub component_types: Vec<ComponentDefinition>,
     pub relation_types: Vec<RelationDefinition>,
+}
+
+/// Original field order/values for verifying immutable commit receipts. Never
+/// use this representation to edit or validate an active world.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct StoredWorld {
+    nodes: Vec<WorldNode>,
+    edges: Vec<WorldEdge>,
+    node_types: Vec<NodeTypeDefinition>,
+    component_types: Vec<ComponentDefinition>,
+    relation_types: Vec<RelationDefinition>,
+}
+
+// Upgrade the in-memory interpretation only. Checksums are verified against the
+// original bytes by storage; immutable records and historical references stay intact.
+impl<'de> Deserialize<'de> for World {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let data = StoredWorld::deserialize(deserializer)?;
+        let mut world = Self {
+            nodes: data.nodes,
+            edges: data.edges,
+            node_types: data.node_types,
+            component_types: data.component_types,
+            relation_types: data.relation_types,
+        };
+        world
+            .upgrade_legacy_wearing()
+            .map_err(serde::de::Error::custom)?;
+        Ok(world)
+    }
 }
 
 impl Default for World {
@@ -158,6 +189,71 @@ fn field_matches(value: &PropertyValue, kind: &FieldKind, ids: &BTreeSet<String>
 }
 
 impl World {
+    fn upgrade_legacy_wearing(&mut self) -> Result<(), String> {
+        let Some(index) = self
+            .relation_types
+            .iter()
+            .position(|r| r.id == "core.worn-by" && !r.physical_placement)
+        else {
+            return Ok(());
+        };
+        let mut expected = Self::default()
+            .relation_types
+            .into_iter()
+            .find(|r| r.id == "core.worn-by")
+            .unwrap();
+        expected.physical_placement = false;
+        if self.relation_types[index] != expected {
+            return Ok(());
+        }
+        // Validate every edge before discarding redundancy, so a damaged legacy
+        // placement cannot turn into an apparently valid save. Property drafts
+        // may remain invalid and editable; quantity validation runs on commit.
+        self.validate_connections(false)
+            .map_err(|e| format!("Invalid legacy wearing links: {e}"))?;
+        let mut redundant = BTreeSet::new();
+        for i in 0..self.edges.len() {
+            if self.edges[i].type_id != "core.worn-by" {
+                continue;
+            }
+            let wear = &self.edges[i];
+            let held = self
+                .edges
+                .iter()
+                .find(|e| {
+                    self.relation_types
+                        .iter()
+                        .any(|r| r.id == e.type_id && r.physical_placement)
+                        && e.source_id == wear.source_id
+                        && e.target_id == wear.target_id
+                })
+                .ok_or("Legacy wearing requires its original matching inventory link.")?;
+            let held_notes = if held.type_id == "core.stored-in" {
+                held.description.clone()
+            } else {
+                format!(
+                    "Previous placement ({}): {}",
+                    held.type_id, held.description
+                )
+            };
+            let notes = if held_notes.is_empty() || held_notes == wear.description {
+                wear.description.clone()
+            } else if wear.description.is_empty() {
+                held_notes
+            } else {
+                format!("{}\n\nInventory notes: {}", wear.description, held_notes)
+            };
+            if notes.chars().count() > 16000 {
+                return Err("Legacy wearing notes exceed one connection's limit; merge the notes before upgrading. Original files are preserved.".into());
+            }
+            redundant.insert(held.id.clone());
+            self.edges[i].description = notes;
+        }
+        self.edges.retain(|e| !redundant.contains(&e.id));
+        self.relation_types[index].physical_placement = true;
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         // Extensions use their own IDs rather than weakening built-in behavior.
         let builtins = Self::default();
@@ -207,11 +303,6 @@ impl World {
             .map(|d| (d.id.as_str(), d))
             .collect();
         let types: BTreeSet<_> = self.node_types.iter().map(|d| d.id.as_str()).collect();
-        let relations: BTreeMap<_, _> = self
-            .relation_types
-            .iter()
-            .map(|d| (d.id.as_str(), d))
-            .collect();
         for preset in &self.node_types {
             if preset
                 .components
@@ -261,7 +352,6 @@ impl World {
                 return Err("A node description is too long.".into());
             }
         }
-        let nodes: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
         for definition in &self.component_types {
             for field in &definition.fields {
                 if !field_matches(&field.default_value, &field.kind, &ids) {
@@ -311,6 +401,17 @@ impl World {
                 }
             }
         }
+        self.validate_connections(true)
+    }
+
+    fn validate_connections(&self, check_quantities: bool) -> Result<(), String> {
+        let ids: BTreeSet<_> = self.nodes.iter().map(|n| n.id.clone()).collect();
+        let nodes: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+        let relations: BTreeMap<_, _> = self
+            .relation_types
+            .iter()
+            .map(|r| (r.id.as_str(), r))
+            .collect();
         let mut edge_ids = BTreeSet::new();
         let mut physical: BTreeMap<&str, &str> = BTreeMap::new();
         let mut single = BTreeSet::new();
@@ -371,15 +472,16 @@ impl World {
         for edge in self.edges.iter().filter(|e| e.type_id == "core.worn-by") {
             let item = nodes[edge.source_id.as_str()];
             if physical.get(edge.source_id.as_str()).copied() != Some(edge.target_id.as_str())
-                || item
-                    .components
-                    .get("core.item")
-                    .and_then(|v| v.get("quantity"))
-                    .and_then(PropertyValue::as_u64)
-                    != Some(1)
+                || (check_quantities
+                    && item
+                        .components
+                        .get("core.item")
+                        .and_then(|v| v.get("quantity"))
+                        .and_then(PropertyValue::as_u64)
+                        != Some(1))
             {
                 return Err(
-                    "A worn item must be held directly by its wearer with quantity one.".into(),
+                    "A worn item must have quantity one and a single physical placement at its wearer.".into(),
                 );
             }
         }

@@ -9,7 +9,7 @@ Design pass: October 25, 2026. This document records the target design for a fre
 - Generate one scene/passage at a time, grouped into chapters.
 - Use the same text and image APIs as Guided Story.
 - Prioritize local LLMs around 30B parameters, including Qwen-class models. Target Krea 2, Z-Image and MOSS-Image families through ComfyUI, with Guided Story's existing workflow as the initial Krea 2 profile. Preserve model-specific workflows and sampling rather than assuming checkpoint interchangeability. See [model targets](MODEL_TARGETS.md).
-- Provide deeper character customization; clothing consists of inventory items.
+- Provide deeper character customization; clothing consists of inventory items. Each item has one physical relationship: worn by, carried by, or stored inside. Wearing implies inventory membership without a second possession link.
 - Unify story creation, the first passage and later chapter creation.
 - Keep the world and story editable as writing progresses.
 - Let the user submit a story idea and have the LLM fill in initial story settings and world records, followed by user revision before prose generation.
@@ -242,10 +242,10 @@ Recommended fields and relationships:
 
 Rules:
 
-1. A worn item is directly held by its wearer and represents one tracked garment unit. Split a stack before wearing one unit. A pair of boots may be one explicitly named unit.
+1. A worn item uses one physical Worn by relationship and represents one tracked garment unit. Wearing implies inventory membership. Split a stack before wearing one unit. A pair of boots may be one explicitly named unit.
 2. Layering supports shirts under coats, dresses spanning regions and multiple accessories. Coverage regions are flexible enough for nonhuman characters. Avoid a rigid one-item-per-slot rule.
 3. Wearing a coat does not erase the shirt beneath it. A visible-outfit projection accounts for framing and covered layers without inventing unseen details.
-4. Removing an item clears its wear assignment while retaining it as carried, unless a destination is supplied. Transfers clear wear assignments atomically.
+4. Taking clothing off changes its relationship to carried, unless a storage destination is supplied. Transfers replace the physical relationship atomically. Detach leaves an item unplaced.
 5. Wearing a bag preserves its contained items and their storage paths.
 6. Applying a preset checks availability and compatibility; missing items are listed rather than created or teleported. Preview proposed removals and additions together.
 7. Protection can cover a garment's design or a wear assignment. Protecting appearance need not freeze all future outfit changes.

@@ -19,14 +19,14 @@ export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeI
   return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map(f=>[f.key,structuredClone(f.defaultValue)]))}});
 }
 export function wornItemType(world:World):string|null{
-  return world.componentTypes.some(d=>d.id==='core.wearable')&&['core.stored-in','core.worn-by'].every(id=>world.relationTypes.some(r=>r.id===id))?world.nodeTypes.find(d=>d.components.includes('core.item'))?.id??null:null;
+  return world.componentTypes.some(d=>d.id==='core.wearable')&&world.relationTypes.some(r=>r.id==='core.worn-by'&&r.physicalPlacement)?world.nodeTypes.find(d=>d.components.includes('core.item'))?.id??null:null;
 }
 export function addCandidateWornItem(world:World,candidate:NodeCandidate,wearerId:string):NodeCandidate{
   const typeId=wornItemType(world),wearer=candidate.nodes.find(n=>n.id===wearerId);
   if(!typeId||!wearer?.components['core.character'])throw Error('Choose a proposed character and a schema supporting wearable items.');
   const item=makeNode(world,typeId,'New worn item','new:garment-'+crypto.randomUUID().replaceAll('-',''));
   let next=addCandidateCapability(world,{...candidate,nodes:[...candidate.nodes,item]},item.id,'core.wearable');
-  next={...next,edges:[...next.edges,...['core.stored-in','core.worn-by'].map(typeId=>({id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId,sourceId:item.id,targetId:wearerId,description:''}))]};
+  next={...next,edges:[...next.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId:'core.worn-by',sourceId:item.id,targetId:wearerId,description:''}]};
   return next;
 }
 export function addCandidateNode(world:World,candidate:NodeCandidate,typeId:string):NodeCandidate{

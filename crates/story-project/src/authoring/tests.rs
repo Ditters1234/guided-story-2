@@ -497,7 +497,6 @@ fn connected_character_outfit_container_and_custom_references_remap_atomically()
     );
     seeds.description = "Literal text new:bag stays text.".into();
     let edges = [
-        ("stored-in", "new:coat", "new:root"),
         ("worn-by", "new:coat", "new:root"),
         ("stored-in", "new:bag", "new:root"),
         ("stored-in", "new:seeds", "new:bag"),
@@ -538,7 +537,7 @@ fn connected_character_outfit_container_and_custom_references_remap_atomically()
         .project
         .world;
     assert_eq!(after.nodes.len(), 4);
-    assert_eq!(after.edges.len(), 4);
+    assert_eq!(after.edges.len(), 3);
     after.validate().unwrap();
     let bag = &after.nodes.iter().find(|n| n.name == "Satchel").unwrap().id;
     let seeds = after.nodes.iter().find(|n| n.name == "Seeds").unwrap();

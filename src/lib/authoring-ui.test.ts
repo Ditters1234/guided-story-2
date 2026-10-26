@@ -9,9 +9,9 @@ describe('shared AI node editor',()=>{
     for(const type of ['core.character','custom.person'])expect(changeCreationType(world,single,type).bundle).toBe(true);
     expect(changeCreationType(world,single,null).bundle).toBe(true);expect(request.direction).toBe('');
   });
-  it('adds a separate wearable item with both ownership and wear assignment without changing the world',()=>{
+  it('adds a separate wearable item with one wear placement without changing the world',()=>{
     const world=emptyWorld(),before=structuredClone(world),person=makeNode(world,'core.character','Nora Hale','new:person');const input={nodes:[person],edges:[]};
-    const next=addCandidateWornItem(world,input,person.id),item=next.nodes[1];expect(item.components['core.item'].quantity).toBe(1);expect(item.components['core.wearable']).toEqual({regions:'torso',layer:1});expect(next.edges.map(e=>[e.typeId,e.sourceId,e.targetId])).toEqual([['core.stored-in',item.id,person.id],['core.worn-by',item.id,person.id]]);expect(item.id.slice(4).length).toBeLessThanOrEqual(40);expect(new Set(next.edges.map(e=>e.id)).size).toBe(2);expect(input.nodes).toHaveLength(1);expect(world).toEqual(before);
+    const next=addCandidateWornItem(world,input,person.id),item=next.nodes[1];expect(item.components['core.item'].quantity).toBe(1);expect(item.components['core.wearable']).toEqual({regions:'torso',layer:1});expect(next.edges.map(e=>[e.typeId,e.sourceId,e.targetId])).toEqual([['core.worn-by',item.id,person.id]]);expect(item.id.slice(4).length).toBeLessThanOrEqual(40);expect(new Set(next.edges.map(e=>e.id)).size).toBe(1);expect(input.nodes).toHaveLength(1);expect(world).toEqual(before);
   });
   it('uses custom item presets and schema-defined capability defaults when repairing a candidate',()=>{
     const world=emptyWorld();world.nodeTypes=world.nodeTypes.map(t=>t.id==='core.item'?{...t,id:'custom.possession'}:t);world.componentTypes.push({id:'custom.condition',name:'Condition',description:'',fields:[{key:'condition',label:'Condition',kind:'text',required:true,defaultValue:'sound'}]});

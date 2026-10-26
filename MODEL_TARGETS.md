@@ -23,6 +23,8 @@ The [passage composer](STORY_AUTHORING.md) uses separate explicit narration and 
 
 Deterministic fixtures verify contracts and storage. An explicit local Qwen-class 27B creation probe on October 26 used only a fictional homestead premise and a fresh test project. The first response exhausted 4,096 tokens after adding optional props/threads; it was retained and blocked from Apply. After adding the compact-output/group-budget instructions, one separate run completed in about 60 seconds with 10 nodes, two named adult profiles and three linked garments per person. Native validation/Apply and image outfit capture passed. This is one scoped creation check, not a representative model benchmark or certification of narration, memory, revision or image-prompt quality. Task-specific sampling, context retrieval and prompt length still need broader probes; no throughput/VRAM savings are claimed.
 
+A later single-placement check used the revised one-link wearing contract with the same fictional premise and 4,096-token allowance. One local request completed in about 50 seconds with eight nodes, three worn garments and two separately carried items; native validation/Apply and image outfit capture passed without duplicate possession links. Garment selection was sparse, so a valid structure should not be presented as proof of a complete outfit. Author review and manual/AI expansion remain necessary.
+
 ## Images
 
 Use Guided Story's existing **ComfyUI API-format workflow** as the initial Krea 2 profile. The exact graphs and provenance are in [workflows/README.md](workflows/README.md). The desktop variant retains its installed-path conventions, custom save node and LoRA; do not substitute a different saver, encoder or model silently.

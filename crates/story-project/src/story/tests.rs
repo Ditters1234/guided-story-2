@@ -51,7 +51,6 @@ fn fixture() -> (tempfile::TempDir, Project) {
     for (kind, source, target) in [
         ("core.present-at", 1, 0),
         ("core.present-at", 2, 0),
-        ("core.stored-in", 3, 1),
         ("core.worn-by", 3, 1),
     ] {
         world.edges.push(WorldEdge {
@@ -145,9 +144,10 @@ fn evidence_checked_transfer_commits_prose_world_and_history_once() {
     let stored = w
         .edges
         .iter()
-        .find(|e| e.type_id == "core.stored-in")
+        .find(|e| e.type_id == "core.worn-by")
         .unwrap();
     let mut link = stored.clone();
+    link.type_id = "core.stored-in".into();
     link.target_id = w.nodes[2].id.clone();
     let mut edit = edits(&p, "Mara took off the field coat and handed it to Jon.");
     edit.effects_text = serde_json::to_string(&PassageEffects {
@@ -183,6 +183,61 @@ fn evidence_checked_transfer_commits_prose_world_and_history_once() {
         .iter()
         .any(|e| e.id == stored.id && e.target_id == w.nodes[2].id));
 }
+#[test]
+fn taking_off_changes_one_placement_and_conflicting_effect_placements_are_rejected() {
+    let (_dir, p) = fixture();
+    let source = p.view().unwrap().world;
+    let wear = source
+        .edges
+        .iter()
+        .find(|e| e.type_id == "core.worn-by")
+        .unwrap()
+        .clone();
+    let carried = WorldEdge {
+        type_id: "core.stored-in".into(),
+        ..wear.clone()
+    };
+    let mut edit = edits(&p, "Mara took off her coat and carried it over her arm.");
+    let change = PassageEffect::PutLink {
+        link: carried.clone(),
+        evidence: edit.prose.clone(),
+    };
+    let conflict = PassageEffect::PutLink {
+        link: WorldEdge {
+            id: id(),
+            ..wear.clone()
+        },
+        evidence: edit.prose.clone(),
+    };
+    edit.effects_text = serde_json::to_string(&PassageEffects {
+        changes: vec![change.clone(), conflict],
+        ..Default::default()
+    })
+    .unwrap();
+    let proposal = id();
+    p.save_passage(&proposal, 0, edit.clone()).unwrap();
+    assert!(p.validate_passage(&proposal, 1, &settings()).is_err());
+    assert_eq!(p.view().unwrap().world, source);
+    edit.effects_text = serde_json::to_string(&PassageEffects {
+        changes: vec![change],
+        ..Default::default()
+    })
+    .unwrap();
+    let accepted = accept(&p, edit);
+    let reading = p.read_passage(&accepted).unwrap();
+    assert!(reading.before.edges.contains(&wear));
+    assert!(reading.after.edges.contains(&carried));
+    assert_eq!(
+        reading
+            .after
+            .edges
+            .iter()
+            .filter(|e| e.source_id == wear.source_id)
+            .count(),
+        1
+    );
+}
+
 #[test]
 fn prose_edits_invalidate_checked_effects_and_close_choice_is_metadata() {
     let (_dir, p) = fixture();
@@ -483,7 +538,7 @@ fn introduced_outfit_container_and_notes_resolve_aliases_atomically() {
         .after
         .edges
         .iter()
-        .any(|e| e.type_id == "core.stored-in"
+        .any(|e| e.type_id == "core.worn-by"
             && e.source_id == read.passage.effects.notes[0].node_ids[0]));
 }
 #[test]

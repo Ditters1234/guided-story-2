@@ -43,11 +43,7 @@ pub(super) fn fixture() -> (tempfile::TempDir, Project) {
             ("layer".into(), PropertyValue::Number(2.0)),
         ]),
     );
-    for (kind, source, target) in [
-        ("core.present-at", 1, 0),
-        ("core.stored-in", 2, 1),
-        ("core.worn-by", 2, 1),
-    ] {
+    for (kind, source, target) in [("core.present-at", 1, 0), ("core.worn-by", 2, 1)] {
         world.edges.push(WorldEdge {
             id: id(),
             type_id: kind.into(),

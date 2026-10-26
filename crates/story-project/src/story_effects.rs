@@ -199,7 +199,6 @@ pub(crate) fn preview_passage_effects(
             }
         }
     }
-    let mut detached = BTreeSet::new();
     for change in &effects.changes {
         if let PassageEffect::RemoveLink { id, .. } = change {
             let old = source
@@ -210,13 +209,6 @@ pub(crate) fn preview_passage_effects(
             if !scoped.contains(&old.source_id) || !scoped.contains(&old.target_id) {
                 return Err("Removed link is outside the supplied context.".into());
             }
-            if source
-                .relation_types
-                .iter()
-                .any(|r| r.id == old.type_id && r.physical_placement)
-            {
-                detached.insert(old.source_id.clone());
-            }
             world.edges.retain(|e| e.id != *id);
         }
     }
@@ -226,7 +218,7 @@ pub(crate) fn preview_passage_effects(
         .filter(|r| r.physical_placement)
         .map(|r| r.id.clone())
         .collect();
-    let mut moved = detached;
+    let mut placed = BTreeSet::new();
     for change in &effects.changes {
         if let PassageEffect::PutLink { link, .. } = change {
             if !allowed.contains(&link.source_id) || !allowed.contains(&link.target_id) {
@@ -241,67 +233,18 @@ pub(crate) fn preview_passage_effects(
             link.id = resolve(&link.id);
             link.source_id = resolve(&link.source_id);
             link.target_id = resolve(&link.target_id);
-            if let Some(old) = world
-                .edges
-                .iter()
-                .find(|e| e.id == link.id && physical.contains(&e.type_id))
-            {
-                moved.insert(old.source_id.clone());
-            }
             world.edges.retain(|e| {
                 e.id != link.id
                     && !(e.source_id == link.source_id
                         && ((definition.physical_placement && physical.contains(&e.type_id))
                             || (definition.single_target && e.type_id == link.type_id)))
             });
-            if definition.physical_placement {
-                moved.insert(link.source_id.clone());
-            }
-            if link.type_id == "core.worn-by"
-                && !world.edges.iter().any(|e| {
-                    e.type_id == "core.stored-in"
-                        && e.source_id == link.source_id
-                        && e.target_id == link.target_id
-                })
-            {
-                let prior = world
-                    .edges
-                    .iter()
-                    .find(|e| physical.contains(&e.type_id) && e.source_id == link.source_id)
-                    .map(|e| e.id.clone());
-                world
-                    .edges
-                    .retain(|e| !(e.source_id == link.source_id && physical.contains(&e.type_id)));
-                let key = format!("auto-held-{}", link.source_id);
-                let id = prior.unwrap_or_else(|| {
-                    allocations
-                        .entry(key)
-                        .or_insert_with(|| uuid::Uuid::new_v4().to_string())
-                        .clone()
-                });
-                world.edges.push(WorldEdge {
-                    id,
-                    type_id: "core.stored-in".into(),
-                    source_id: link.source_id.clone(),
-                    target_id: link.target_id.clone(),
-                    description: String::new(),
-                });
-                moved.insert(link.source_id.clone());
+            if definition.physical_placement && !placed.insert(link.source_id.clone()) {
+                return Err("An effect proposes multiple physical placements for one node. Keep only its final worn, carried or stored placement.".into());
             }
             world.edges.push(link);
         }
     }
-    let held: BTreeSet<_> = world
-        .edges
-        .iter()
-        .filter(|e| e.type_id == "core.stored-in")
-        .map(|e| (e.source_id.clone(), e.target_id.clone()))
-        .collect();
-    world.edges.retain(|e| {
-        e.type_id != "core.worn-by"
-            || !moved.contains(&e.source_id)
-            || held.contains(&(e.source_id.clone(), e.target_id.clone()))
-    });
     for edge in &source.edges {
         if !world.edges.iter().any(|e| e.id == edge.id) {
             labels.push(format!("Remove {}", link_label(source, edge)));

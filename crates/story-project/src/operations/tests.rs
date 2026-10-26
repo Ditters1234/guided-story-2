@@ -1,6 +1,7 @@
 use super::*;
 use crate::{ComponentDefinition, FieldDefinition, Project, WorldNode};
 use std::collections::BTreeMap;
+use uuid::Uuid;
 
 fn id() -> String {
     Uuid::new_v4().to_string()
@@ -76,7 +77,7 @@ fn fixture() -> (World, String, String, String, String) {
         .insert("core.wearable".into(), defaults);
     link(&mut w, "core.present-at", &person, &place);
     link(&mut w, "core.stored-in", &bag, &person);
-    link(&mut w, "core.stored-in", &coat, &person);
+
     link(&mut w, "core.worn-by", &coat, &person);
     w.validate().unwrap();
     (w, place, person, bag, coat)
@@ -88,9 +89,10 @@ fn transfer_ends_wearing_without_mutating_the_source_or_changing_link_identity()
     let mut edge = w
         .edges
         .iter()
-        .find(|e| e.source_id == coat && e.type_id == "core.stored-in")
+        .find(|e| e.source_id == coat && e.type_id == "core.worn-by")
         .unwrap()
         .clone();
+    edge.type_id = "core.stored-in".into();
     edge.target_id = bag.clone();
     let p = preview_world_edit(&w, WorldEdit::PutLink { link: edge.clone() }).unwrap();
     assert_eq!(w, before);
@@ -108,14 +110,15 @@ fn transfer_ends_wearing_without_mutating_the_source_or_changing_link_identity()
     assert!(p.changes.iter().any(|c| c.contains("worn by")));
 }
 #[test]
-fn wearing_establishes_direct_possession_and_taking_off_retains_it() {
+fn wearing_is_one_placement_and_taking_off_changes_it_to_carried() {
     let (w, _, person, bag, coat) = fixture();
     let old = w
         .edges
         .iter()
-        .find(|e| e.source_id == coat && e.type_id == "core.stored-in")
+        .find(|e| e.source_id == coat && e.type_id == "core.worn-by")
         .unwrap();
     let mut moved = old.clone();
+    moved.type_id = "core.stored-in".into();
     moved.target_id = bag;
     let w = preview_world_edit(&w, WorldEdit::PutLink { link: moved })
         .unwrap()
@@ -128,13 +131,24 @@ fn wearing_establishes_direct_possession_and_taking_off_retains_it() {
     assert!(w
         .edges
         .iter()
-        .any(|e| e.id == old.id && e.target_id == person));
-    let p = preview_world_edit(&w, WorldEdit::RemoveLink { id: wear.id }).unwrap();
+        .any(|e| e.id == wear.id && e.target_id == person));
+    assert_eq!(w.edges.iter().filter(|e| e.source_id == coat).count(), 1);
+    let carried = WorldEdge {
+        type_id: "core.stored-in".into(),
+        ..wear.clone()
+    };
+    let p = preview_world_edit(&w, WorldEdit::PutLink { link: carried }).unwrap();
     assert!(p
         .world
         .edges
         .iter()
-        .any(|e| e.id == old.id && e.target_id == person));
+        .any(|e| e.id == wear.id && e.target_id == person && e.type_id == "core.stored-in"));
+    assert_eq!(
+        p.world.edges.iter().filter(|e| e.source_id == coat).count(),
+        1
+    );
+    let detached = preview_world_edit(&p.world, WorldEdit::RemoveLink { id: wear.id }).unwrap();
+    assert!(!detached.world.edges.iter().any(|e| e.source_id == coat));
 }
 #[test]
 fn removal_keeps_children_and_clears_only_typed_references() {
@@ -293,10 +307,11 @@ fn reconnecting_source_releases_old_wearer_and_preserves_unrelated_links() {
     let mut edge = w
         .edges
         .iter()
-        .find(|e| e.source_id == coat && e.type_id == "core.stored-in")
+        .find(|e| e.source_id == coat && e.type_id == "core.worn-by")
         .unwrap()
         .clone();
     edge.source_id = other.clone();
+    edge.type_id = "core.stored-in".into();
     edge.target_id = place;
     let p = preview_world_edit(&w, WorldEdit::PutLink { link: edge }).unwrap();
     assert!(!p.world.edges.iter().any(|e| e.source_id == coat));

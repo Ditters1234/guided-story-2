@@ -34,7 +34,7 @@ export function exampleWorld(): World {
   world.nodes[5].components['core.container'] = {};
   world.nodes[5].components['core.item'].unit='satchel';
   world.nodes[6].components['core.item'] = {quantity:3,unit:'packet'};
-  const links: [number,string,number,number][] = [[11,'inside',2,1],[12,'inside',3,1],[13,'present-at',4,2],[14,'stored-in',5,4],[15,'stored-in',6,4],[16,'stored-in',7,6],[17,'worn-by',5,4],[18,'related',8,2],[19,'related',8,4]];
+  const links: [number,string,number,number][] = [[11,'inside',2,1],[12,'inside',3,1],[13,'present-at',4,2],[15,'stored-in',6,4],[16,'stored-in',7,6],[17,'worn-by',5,4],[18,'related',8,2],[19,'related',8,4]];
   world.edges=links.map(([n,type,source,target])=>({id:id(n),typeId:'core.'+type,sourceId:id(source),targetId:id(target),description:''}));
   return world;
 }

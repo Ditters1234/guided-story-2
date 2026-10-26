@@ -3,7 +3,6 @@ use crate::{FieldKind, PropertyValue, World, WorldEdge};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeSet;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
@@ -58,7 +57,6 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
         .map_err(|e| format!("Finish the current world edits first: {e}"))?;
     let mut world = source.clone();
     let mut changes = Vec::new();
-    let mut placement_changed = BTreeSet::new();
     match edit {
         WorldEdit::PutLink { link } => {
             crate::validate_id(&link.id)?;
@@ -68,11 +66,6 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                 .find(|d| d.id == link.type_id)
                 .ok_or("Unknown relationship type.")?
                 .clone();
-            if let Some(previous) = world.edges.iter().find(|e| e.id == link.id) {
-                if physical(&world, &previous.type_id) {
-                    placement_changed.insert(previous.source_id.clone());
-                }
-            }
             world.edges.retain(|e| e.id != link.id);
             if definition.physical_placement || definition.single_target {
                 let physical_types: BTreeSet<_> = world
@@ -87,50 +80,11 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                             || (definition.single_target && e.type_id == link.type_id)))
                 });
             }
-            if definition.physical_placement {
-                placement_changed.insert(link.source_id.clone());
-            }
-            // Wearing establishes direct possession as one atomic operation.
-            if link.type_id == "core.worn-by" {
-                let old_placement = world
-                    .edges
-                    .iter()
-                    .find(|e| e.source_id == link.source_id && physical(&world, &e.type_id))
-                    .cloned();
-                if old_placement
-                    .as_ref()
-                    .is_none_or(|e| e.target_id != link.target_id)
-                {
-                    let physical_types: BTreeSet<_> = world
-                        .relation_types
-                        .iter()
-                        .filter(|d| d.physical_placement)
-                        .map(|d| d.id.clone())
-                        .collect();
-                    world.edges.retain(|e| {
-                        e.source_id != link.source_id || !physical_types.contains(&e.type_id)
-                    });
-                    world.edges.push(WorldEdge {
-                        id: old_placement
-                            .map(|e| e.id)
-                            .unwrap_or_else(|| Uuid::new_v4().to_string()),
-                        type_id: "core.stored-in".into(),
-                        source_id: link.source_id.clone(),
-                        target_id: link.target_id.clone(),
-                        description: String::new(),
-                    });
-                }
-            }
             world.edges.push(link);
         }
         WorldEdit::RemoveLink { id } => {
-            let previous = world
-                .edges
-                .iter()
-                .find(|e| e.id == id)
-                .ok_or("The connection no longer exists.")?;
-            if physical(&world, &previous.type_id) {
-                placement_changed.insert(previous.source_id.clone());
+            if !world.edges.iter().any(|e| e.id == id) {
+                return Err("The connection no longer exists.".into());
             }
             world.edges.retain(|e| e.id != id);
         }
@@ -155,7 +109,6 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                     changes.push(format!(
                         "Keep {child} as an unplaced node, with its own contents intact."
                     ));
-                    placement_changed.insert(edge.source_id.clone());
                 }
             }
             world.nodes.retain(|n| n.id != id);
@@ -214,20 +167,6 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
             ));
         }
     }
-    // Taking an item off its wearer also ends wearing. Removing just wearing keeps possession.
-    let placements: Vec<_> = world
-        .edges
-        .iter()
-        .filter(|e| physical(&world, &e.type_id))
-        .map(|e| (e.source_id.clone(), e.target_id.clone()))
-        .collect();
-    world.edges.retain(|e| {
-        !(e.type_id == "core.worn-by"
-            && placement_changed.contains(&e.source_id)
-            && !placements
-                .iter()
-                .any(|(s, t)| s == &e.source_id && t == &e.target_id))
-    });
     world
         .validate()
         .map_err(|e| format!("Cannot apply this change: {e}"))?;
