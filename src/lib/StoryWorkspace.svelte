@@ -3,17 +3,23 @@
   import {commands,unwrap} from './native';
   import {PassageSession} from './passage-session.svelte';
   import {diffProse} from './prose-diff';
+  import ChapterMemoryEditor from './ChapterMemoryEditor.svelte';
   import type {ProjectView,World} from './model';
-  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions} from './bindings';
-  let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onHistory,onRun,onFork,onSettings,onPanels}:{
+  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize} from './bindings';
+  let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onHistory,onRun,onFork,onSettings,onPanels}:{
     project:ProjectView;world:World;selectedId:string|null;otherBusy:boolean;
     onBeforeAction:()=>Promise<ProjectView>;onAccept:(result:PassageAcceptance_Serialize)=>Promise<void>;
+    onMemoryApply:(result:CommitResult_Serialize)=>Promise<void>;
     onHistory:(snapshot:World|null,label:string)=>void;onRun:(running:boolean)=>void;onFork:(id:string)=>Promise<void>;onSettings:()=>void;
     onPanels:(contents?:Snippet,details?:Snippet)=>void;
   }=$props();
   const session=new PassageSession(untrack(()=>project.storyId));
-  let index=$state<StoryIndex>({schemaVersion:1,chapters:[],passages:[]}),drafts=$state<PassageSummary[]>([]);
-  let reading=$state<PassageReading_Serialize|null>(null),mode=$state<'draft'|'reader'>('draft'),moment=$state<'before'|'after'>('after');
+  let index=$state<StoryIndex>({schemaVersion:1,chapters:[],passages:[],memories:{}}),drafts=$state<PassageSummary[]>([]);
+  let reading=$state<PassageReading_Serialize|null>(null),mode=$state<'draft'|'reader'|'memory'>('draft'),moment=$state<'before'|'after'>('after');
+  let memoryOpened=$state(false),memoryRunning=$state(false),memoryDetails=$state<Snippet>();
+  let memoryPanel=$state<{flushDraft:()=>Promise<void>;refresh:()=>Promise<void>}>();
+  function registerMemoryDetails(panel?:Snippet){memoryDetails=panel;}
+  async function openMemory(){try{await session.flush();mode='memory';memoryOpened=true;onHistory(null,'');}catch(caught){error=describe(caught);}}
   let loaded=$state(false),working=$state(false),error=$state(''),referenceSearch=$state('');
   let versions=$state<PassageVersions|null>(null),versionsError=$state('');
   const selection=$derived(index.passages.findIndex((p)=>p.id===reading?.passage.id));
@@ -26,9 +32,9 @@
   const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
-  $effect(()=>{onRun(session.running);});
+  $effect(()=>{onRun(session.running||memoryRunning);});
   $effect(()=>{const revision=project.revision;if(loaded)untrack(()=>{void refreshIndex().then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});});void revision;});
-  export async function flushDraft(){await session.flush();}
+  export async function flushDraft(){await session.flush();await memoryPanel?.flushDraft();}
   async function refreshIndex(){index=unwrap(await commands.loadStory(project.storyId));drafts=unwrap(await commands.listPassageDrafts(project.storyId));}
   async function openDraft(id:string){working=true;try{await session.open(id);reading=null;mode='draft';onHistory(null,'');error='';}catch(caught){error=describe(caught);}finally{working=false;}}
   async function fresh(usePlan?:PassagePlan){working=true;try{
@@ -74,13 +80,15 @@
         {#each chapter.passageIds as id}{@const entry=index.passages.find((p)=>p.id===id)}<button class:active={mode==='reader'&&reading?.passage.id===id} aria-current={mode==='reader'&&reading?.passage.id===id?'page':undefined} disabled={working} onclick={()=>{void read(id);}}>{entry?.title??'Passage'}</button>{/each}
       </details>{:else}<p class="field-help">No accepted passages yet.</p>{/each}
     </nav>
+    {#if index.passages.length}<button class="secondary-button chapter-memory-link" aria-pressed={mode==='memory'} disabled={working} onclick={()=>{void openMemory();}}>Chapter memory{memoryRunning?' · working…':''}</button>{/if}
     {#if drafts.length}<section class="story-drafts"><h2>Drafts</h2>{#each drafts as draft}{@const current=session.id===draft.id}<button class:active={mode==='draft'&&current} disabled={blocked} onclick={()=>{void openDraft(draft.id);}}><span>{(current?session.value?.plan.title:draft.title)||'Untitled passage'}</span><small>{draft.revisionKind==='wording'?'Wording · ':draft.revisionKind==='events'?'Replace events · ':''}{(current?session.view?.stage??draft.stage:draft.stage).replace('needsCheck','needs review')}</small></button>{/each}</section>{/if}
   </aside>
 {/snippet}
 
 {#snippet detailsPanel()}
-  <aside class="story-details" aria-label={mode==='reader'?'Passage details':'Scene planning and review'}>
-  {#if mode==='reader'&&reading}
+  <aside class="story-details" aria-label={mode==='memory'?'Chapter memory sources':mode==='reader'?'Passage details':'Scene planning and review'}>
+  {#if mode==='memory'}{#if memoryDetails}{@render memoryDetails()}{/if}
+  {:else if mode==='reader'&&reading}
     <h2>Passage details</h2>
     <p class="field-help">{reading.passage.plan.chapterTitle} · {reading.passage.plan.title}</p>
     <dl class="passage-facts"><dt>Viewpoint</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.viewpointId)?.name??'Ensemble / unspecified'}</dd><dt>Location</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.locationId)?.name??'Unspecified'}</dd></dl>
@@ -112,7 +120,7 @@
         <section class="effects-review"><h3>World changes</h3>
           {#if session.view?.stale}<p class="story-warning">Source world/history or LLM settings changed. Recheck before accepting.</p>{/if}
           {#if session.view?.error}<p class="story-warning" role="alert">{session.view.error}</p>{/if}
-          <div class="effects-actions"><button class="secondary-button" disabled={otherBusy} onclick={()=>{void start(true);}}>Check world changes with AI</button><button class="text-action" onclick={()=>{session.value!.effectsText='{"changes":[],"notes":[],"suggestChapterEnd":false}';session.touch();}}>Use no world changes</button></div>
+          <div class="effects-actions"><button class="secondary-button" disabled={otherBusy||memoryRunning} onclick={()=>{void start(true);}}>Check world changes with AI</button><button class="text-action" onclick={()=>{session.value!.effectsText='{"changes":[],"notes":[],"suggestChapterEnd":false}';session.touch();}}>Use no world changes</button></div>
           <details class="passage-effects" open={!!session.view?.error}><summary>Review / edit effects JSON</summary><textarea aria-label="Passage effects JSON" bind:value={session.value.effectsText} oninput={()=>session.touch()} rows={10} maxlength={500000} spellcheck={false}></textarea></details>
           <button class="secondary-button" onclick={()=>{void validate();}}>Validate my effects</button>
           {#if session.view?.changes.length}<div class="passage-changes"><h3>Changes on acceptance</h3><ul>{#each session.view.changes as change}<li>{change}</li>{/each}</ul></div>{:else}<p class="field-help">No world changes in the current effects draft.</p>{/if}
@@ -122,13 +130,17 @@
       {/if}
       {/if}
     </fieldset>
-    {#if session.view}<details class="context-coverage"><summary>Generation context</summary><p>Prose: {session.view.narrationProvider||'Manual'} · Effects: {session.view.effectsProvider||'Manual'}</p><p>{session.view.contextNodes.join(', ')||'No existing world nodes selected.'}</p><p>Recent text: up to two accepted passages. Older chapters are not yet summarized automatically. Participants do not move until prose establishes a move.</p></details>{/if}
+    {#if session.view}<details class="context-coverage"><summary>Generation context</summary><p>Prose: {session.view.narrationProvider||'Manual'} · Effects: {session.view.effectsProvider||'Manual'}</p><p>{session.view.contextNodes.join(', ')||'No existing world nodes selected.'}</p><p>Recent text: up to two accepted passages. Participants do not move until prose establishes a move.</p>
+      {#if session.view.memory.coverage.olderPassages>0}{@const coverage=session.view.memory.coverage}<p>{coverage.selectedPoints} earlier memory points · {coverage.currentSummaries}/{coverage.closedChapters} completed chapters have current summaries.</p><p>{coverage.unrepresentedPassages} older passages have no current summary or accepted notes. {coverage.omittedPoints} available points omitted by scope/size limits.</p>{#if coverage.staleSummaries||coverage.unavailableSummaries}<p>{coverage.staleSummaries} stale and {coverage.unavailableSummaries} unavailable summaries excluded.</p>{/if}{#each session.view.memory.points as point}<button class="text-action memory-source-link" disabled={working} onclick={()=>{void read(point.passageId);}}>{point.text}<small>{point.reason}</small></button>{/each}{/if}
+    </details>{/if}
     {#if session.view?.originalProse||session.view?.originalEffects}<details class="original-passage-output"><summary>Original model output</summary>{#if session.view.originalProse}<pre>{session.view.originalProse}</pre>{/if}{#if session.view.originalEffects}<pre>{session.view.originalEffects}</pre>{/if}</details>{/if}
   {:else}<p class="story-loading">Loading story…</p>{/if}
   </aside>
 {/snippet}
 
 <section class="story-workspace" aria-label="Story composer and reader">
+  {#if memoryOpened}<div class="workspace-surface" hidden={mode!=='memory'}><ChapterMemoryEditor bind:this={memoryPanel} {project} otherBusy={otherBusy||session.running} {onBeforeAction} onApply={onMemoryApply} onRun={running=>{memoryRunning=running;}} onDetails={registerMemoryDetails}/></div>{/if}
+  <div class="workspace-surface" hidden={mode==='memory'}>
   {#if error||session.error}<div class="story-error" role="alert"><span>{error||session.error}</span><button class="text-action" onclick={()=>{void session.flush().then(()=>session.refresh()).then(()=>{error='';}).catch((caught)=>{error=describe(caught);});}}>Retry / refresh</button></div>{/if}
   {#if session.running}<div class="story-job" role="status"><span>{session.view?.stage==='narrating'?'Writing passage…':'Checking world changes…'} You can browse the world while this runs.</span><button class="secondary-button" onclick={()=>{if(session.id)void commands.cancelAuthoring(session.id).then(unwrap).then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});}}>Cancel</button></div>{/if}
   <div class="story-scroll">
@@ -142,7 +154,7 @@
       <fieldset class="passage-fields" disabled={blocked||session.view?.stage==='accepted'}>
         <label class="field">Passage title<input bind:value={session.value.plan.title} disabled={wording} oninput={()=>session.touch()} maxlength={200} /></label>
         <label class="field">{wording?'Wording direction (for AI polish)':'Passage direction'}<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder={wording?'How should the wording change while keeping events intact?':'What happens in this passage, and where should it stop?'}></textarea></label>
-        <div class="passage-generate">{#if !wording}<label>Target words<input type="number" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}<button class="secondary-button" disabled={otherBusy||!session.value.plan.direction.trim()} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button><button class="text-action" onclick={onSettings}>LLM settings</button></div>
+        <div class="passage-generate">{#if !wording}<label>Target words<input type="number" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}<button class="secondary-button" disabled={otherBusy||memoryRunning||!session.value.plan.direction.trim()} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button><button class="text-action" onclick={onSettings}>LLM settings</button></div>
         {#if session.view?.narrationProvider.startsWith('Offline demo')}<p class="field-help">{session.view.narrationProvider}</p>{/if}
         <label class="field prose-field">Passage<textarea bind:value={session.value.prose} oninput={()=>session.touch()} rows={16} maxlength={100000} placeholder="Generate a passage or write it here."></textarea><span class="field-help">{wordCount} words</span></label>
       </fieldset>
@@ -151,4 +163,5 @@
   {:else}<p class="story-loading">Loading story…</p>{/if}
   </div>
   {#if mode==='draft'}<footer class="composer-footer"><span aria-live="polite">{session.error?'Draft not saved':session.saving?'Saving draft…':session.dirty?'Unsaved draft':session.running?'Request running':session.readyToAccept?'Checked · ready for review':'Draft saved'}</span><button class="primary-button" disabled={blocked||!session.readyToAccept} onclick={()=>{void accept();}}>{wording?'Accept wording only':replacing?'Accept replacement':'Accept passage'}</button></footer>{/if}
+  </div>
 </section>

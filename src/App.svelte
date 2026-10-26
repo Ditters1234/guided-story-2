@@ -84,6 +84,7 @@
     }historyWorld=snapshot;historyLabel=label;search='';
   }
   async function acceptedPassage(result:PassageAcceptance_Serialize){await adopt(result.commit.project);surface='story';storyOpened=true;}
+  async function appliedMemory(result:CommitResult_Serialize){await adopt(result.project);surface='story';storyOpened=true;}
   async function forkPassage(id:string){
     if(!project||busy)return;busy=true;
     try{if(!await prepareSwitch())return;const parent=await open({directory:true,multiple:false,title:'Choose where to save the independent story fork'});if(typeof parent!=='string')return;
@@ -389,7 +390,7 @@
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
           <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
-          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />

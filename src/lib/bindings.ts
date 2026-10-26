@@ -28,7 +28,7 @@ export const commands = {
 	cancelAuthoring: (id: string) => typedError<null, string>(__TAURI_INVOKE("cancel_authoring", { id })),
 	applyAuthoring: (storyId: string, id: string, expectedVersion: number) => typedError<ApplyAuthoringResult_Serialize, string>(__TAURI_INVOKE("apply_authoring", { storyId, id, expectedVersion })),
 	closeAuthoring: () => typedError<null, string>(__TAURI_INVOKE("close_authoring")),
-	loadStory: (storyId: string) => typedError<StoryIndex, string>(__TAURI_INVOKE("load_story", { storyId })),
+	loadStory: (storyId: string) => typedError<StoryIndex_Serialize, string>(__TAURI_INVOKE("load_story", { storyId })),
 	nextPassagePlan: (storyId: string) => typedError<PassagePlan_Serialize, string>(__TAURI_INVOKE("next_passage_plan", { storyId })),
 	listPassageDrafts: (storyId: string) => typedError<PassageSummary_Serialize[], string>(__TAURI_INVOKE("list_passage_drafts", { storyId })),
 	getPassageDraft: (storyId: string, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("get_passage_draft", { storyId, id })),
@@ -39,6 +39,15 @@ export const commands = {
 	beginPassageRevision: (storyId: string, id: string, passageId: string, source: RecordRef, kind: PassageRevisionKind) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("begin_passage_revision", { storyId, id, passageId, source, kind })),
 	clonePassageDraft: (storyId: string, sourceId: string, expectedVersion: number, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("clone_passage_draft", { storyId, sourceId, expectedVersion, id })),
 	passageVersions: (storyId: string, id: string) => typedError<PassageVersions_Serialize, string>(__TAURI_INVOKE("passage_versions", { storyId, id })),
+	chapterMemoryStatus: (storyId: string) => typedError<ChapterMemoryStatus[], string>(__TAURI_INVOKE("chapter_memory_status", { storyId })),
+	listMemoryDrafts: (storyId: string) => typedError<MemoryDraftSummary[], string>(__TAURI_INVOKE("list_memory_drafts", { storyId })),
+	createMemoryDraft: (storyId: string, id: string, chapterId: string) => typedError<MemoryView, string>(__TAURI_INVOKE("create_memory_draft", { storyId, id, chapterId })),
+	getMemoryDraft: (storyId: string, id: string) => typedError<MemoryView, string>(__TAURI_INVOKE("get_memory_draft", { storyId, id })),
+	saveMemoryDraft: (storyId: string, id: string, expectedVersion: number, edits: MemoryEdits) => typedError<MemoryView, string>(__TAURI_INVOKE("save_memory_draft", { storyId, id, expectedVersion, edits })),
+	parseMemoryJson: (storyId: string, id: string, expectedVersion: number) => typedError<MemoryView, string>(__TAURI_INVOKE("parse_memory_json", { storyId, id, expectedVersion })),
+	memorySourcePassage: (storyId: string, id: string, passageId: string) => typedError<string, string>(__TAURI_INVOKE("memory_source_passage", { storyId, id, passageId })),
+	startMemoryJob: (storyId: string, id: string, expectedVersion: number, expectedRevision: number) => typedError<MemoryView, string>(__TAURI_INVOKE("start_memory_job", { storyId, id, expectedVersion, expectedRevision })),
+	applyMemory: (storyId: string, id: string, expectedVersion: number) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("apply_memory", { storyId, id, expectedVersion })),
 	readPassage: (storyId: string, id: string) => typedError<PassageReading_Serialize, string>(__TAURI_INVOKE("read_passage", { storyId, id })),
 	forkAfterPassage: (storyId: string, id: string, parentPath: string, title: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("fork_after_passage", { storyId, id, parentPath, title })),
 };
@@ -181,6 +190,15 @@ export type Chapter = {
 	passageIds: string[],
 };
 
+export type ChapterMemoryStatus = {
+	closed: boolean,
+	chapterId: string,
+	title: string,
+	status: MemoryStatus,
+	points: number,
+	error: string,
+};
+
 export type CommitResult = CommitResult_Serialize | CommitResult_Deserialize;
 
 export type CommitResult_Deserialize = {
@@ -317,6 +335,89 @@ export type LlmConnection_Serialize = {
 	structuredOutput: StructuredOutput,
 	tokenParameter: TokenParameter,
 	credentialRef: string | null,
+};
+
+export type MemoryContext = MemoryContext_Serialize | MemoryContext_Deserialize;
+
+export type MemoryContext_Deserialize = {
+	points: RememberedPoint_Deserialize[],
+	coverage: MemoryCoverage,
+};
+
+export type MemoryContext_Serialize = {
+	points: RememberedPoint_Serialize[],
+	coverage: MemoryCoverage,
+};
+
+export type MemoryCoverage = {
+	olderPassages: number,
+	closedChapters: number,
+	currentSummaries: number,
+	missingSummaries: number,
+	staleSummaries: number,
+	unavailableSummaries: number,
+	unrepresentedPassages: number,
+	availablePoints: number,
+	selectedPoints: number,
+	omittedPoints: number,
+	byteBudget: number,
+};
+
+export type MemoryDraftSummary = {
+	id: string,
+	chapterId: string,
+	title: string,
+	stage: MemoryStage,
+};
+
+export type MemoryEdits = {
+	direction: string,
+	output: MemoryOutput,
+	rawJson: string,
+};
+
+export type MemoryNode = {
+	id: string,
+	name: string,
+};
+
+export type MemoryOutput = {
+	points: MemoryPoint[],
+	noLastingFacts: boolean,
+};
+
+export type MemoryPoint = {
+	text: string,
+	passageId: string,
+	evidence: string,
+	nodeIds: string[],
+};
+
+export type MemorySource = {
+	passageId: string,
+	title: string,
+	record: RecordRef,
+};
+
+export type MemoryStage = "review" | "running" | "failed" | "cancelled" | "interrupted" | "applied";
+
+export type MemoryStatus = "missing" | "current" | "stale" | "unavailable";
+
+export type MemoryView = {
+	seededFromStale: boolean,
+	id: string,
+	version: number,
+	chapterId: string,
+	title: string,
+	sources: MemorySource[],
+	nodes: MemoryNode[],
+	stage: MemoryStage,
+	edits: MemoryEdits,
+	originalOutput: string,
+	provider: string,
+	error: string,
+	stale: boolean,
+	canApply: boolean,
 };
 
 export type NodeCandidate = {
@@ -477,6 +578,7 @@ export type PassageVersions_Serialize = {
 export type PassageView = PassageView_Serialize | PassageView_Deserialize;
 
 export type PassageView_Deserialize = {
+	memory: MemoryContext_Deserialize,
 	revision?: PassageRevisionView_Deserialize | null,
 	narrationProvider: string,
 	effectsProvider: string,
@@ -496,6 +598,7 @@ export type PassageView_Deserialize = {
 };
 
 export type PassageView_Serialize = {
+	memory: MemoryContext_Serialize,
 	revision: PassageRevisionView_Serialize | null,
 	narrationProvider: string,
 	effectsProvider: string,
@@ -583,10 +686,42 @@ export type RelationDefinition_Serialize = {
 	singleTarget: boolean,
 };
 
-export type StoryIndex = {
+export type RememberedPoint = RememberedPoint_Serialize | RememberedPoint_Deserialize;
+
+export type RememberedPoint_Deserialize = {
+	text: string,
+	passageId: string,
+	chapterId: string,
+	source: RecordRef,
+	nodeIds: string[],
+	summary?: RecordRef | null,
+	reason: string,
+};
+
+export type RememberedPoint_Serialize = {
+	text: string,
+	passageId: string,
+	chapterId: string,
+	source: RecordRef,
+	nodeIds: string[],
+	summary: RecordRef | null,
+	reason: string,
+};
+
+export type StoryIndex = StoryIndex_Serialize | StoryIndex_Deserialize;
+
+export type StoryIndex_Deserialize = {
 	schemaVersion: number,
 	chapters: Chapter[],
 	passages: PassageEntry[],
+	memories?: { [key in string]: RecordRef },
+};
+
+export type StoryIndex_Serialize = {
+	schemaVersion: number,
+	chapters: Chapter[],
+	passages: PassageEntry[],
+	memories?: { [key in string]: RecordRef },
 };
 
 export type StructuredOutput = "json" | "schema" | "prompt";

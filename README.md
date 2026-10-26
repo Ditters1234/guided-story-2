@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: world and passage authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. The Story workspace supports manual/AI prose, reviewed acceptance, chapters, historical snapshots, independent forks, wording revisions and latest-passage event replacement. Sustained-story memory and saved/generated media remain planned. See [foundation status](FOUNDATION_STATUS.md) for verification and limits, [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), and [passage authoring](STORY_AUTHORING.md).
+**Status: world and passage authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Saved/generated media remain planned. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), and [chapter memory](MEMORY.md) for behavior and limits.
 
 ## Run the prototype
 
@@ -50,7 +50,7 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 - **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates and an offline preparation contract are bundled; submission/media remain planned.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Continuing work adds longer-story memory and media while retaining the same acceptance and storage rules.
+The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory now adds reviewed older context with coverage tracking. Continuing work adds media and further memory/knowledge controls while retaining the same acceptance and storage rules.
 
 ## References and reuse
 

@@ -15,6 +15,7 @@ pub(crate) enum TextJobKind {
     World,
     Narration,
     Effects,
+    Memory,
 }
 #[derive(Clone)]
 pub(crate) struct Outcome {
@@ -80,6 +81,12 @@ pub(crate) fn connection(app: &tauri::AppHandle) -> Result<LlmConnection, String
 pub(crate) fn finish_outcome(p: &Project, id: &str, outcome: &Outcome) -> Result<(), String> {
     match outcome.kind {
         TextJobKind::World => p.finish_authoring(
+            id,
+            outcome.text.clone(),
+            outcome.cancelled,
+            outcome.incomplete,
+        ),
+        TextJobKind::Memory => p.finish_memory(
             id,
             outcome.text.clone(),
             outcome.cancelled,

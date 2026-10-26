@@ -8,6 +8,8 @@ mod ai;
 use ai::*;
 mod passages;
 use passages::*;
+mod memory;
+use memory::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -75,7 +77,8 @@ fn open_project(
     let project = Project::open(&path)?;
     let recovery = project
         .interrupt_authoring()
-        .and(project.interrupt_passages());
+        .and(project.interrupt_passages())
+        .and(project.interrupt_memories());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -120,7 +123,8 @@ fn recover_project(
     let project = Project::recover(Path::new(&folder_path))?;
     let recovery = project
         .interrupt_authoring()
-        .and(project.interrupt_passages());
+        .and(project.interrupt_passages())
+        .and(project.interrupt_memories());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -252,6 +256,15 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             begin_passage_revision,
             clone_passage_draft,
             passage_versions,
+            chapter_memory_status,
+            list_memory_drafts,
+            create_memory_draft,
+            get_memory_draft,
+            save_memory_draft,
+            parse_memory_json,
+            memory_source_passage,
+            start_memory_job,
+            apply_memory,
             read_passage,
             fork_after_passage
         ])

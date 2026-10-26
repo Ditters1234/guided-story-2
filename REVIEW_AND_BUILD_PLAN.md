@@ -8,7 +8,7 @@ Implementation has begun; see [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md) for c
 
 The foundation pass resolves relationship pinning as canonical attachment, with editable endpoints and native-validated removal/transfer previews. [WORLD_EDITING.md](WORLD_EDITING.md) records the implemented current-world semantics and limits. Node removal keeps dependent contents unplaced and preserves old saved snapshots; future passage forks remain the recovery/navigation design.
 
-Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fork slice](STORY_AUTHORING.md) connect Gate 2's core path. Story mode dedicates its left pane to chapters/passages/drafts and its right pane to planning/review. Gate 3's initial wording revision and latest-event replacement paths now preserve immutable superseded versions, exact-source review and guarded before-state replacement. Semantic review remains advisory; broader editing controls and real-provider validation remain pending. Gate 4 needs older-story memory and media. See the foundation checkpoint for actual evidence and limits.
+Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fork slice](STORY_AUTHORING.md) connect Gate 2's core path. Story mode dedicates its left pane to chapters/passages/drafts and its right pane to planning/review. Gate 3's initial wording and event-replacement paths preserve immutable versions and exact-source review. Gate 4 now has [chapter memory](MEMORY.md): reviewed summaries, older-note retrieval, visible gaps, budget limits and source-aware invalidation/forks. Media, belief filtering, further compaction and real-provider validation remain pending. See the foundation checkpoint for actual evidence and limits.
 
 [Model targets](MODEL_TARGETS.md) records the confirmed approximately 30B/Qwen text priority and Krea 2/Z-Image/MOSS image direction. The initial Guided Story Krea workflow is pinned as data with an offline preparation contract; this does not advance the image delivery gate or establish live server compatibility. Keep context/task contracts compact before adding reasoning, longer windows or additional stages.
 
@@ -69,7 +69,7 @@ Use deterministic selection first: current viewpoint and participants, location 
 
 Reserve response/schema overhead before optional context. Required constraints that do not fit block with a useful report. Do not increase the context window or add model calls as a substitute for fixing selection. Debug views show selection reasons and estimated budgets.
 
-Store source-linked passage notes in the acceptance transaction. Add completed-chapter summaries and older-story compaction after the core slice, with coverage and stale-state tracking. Summaries never override current structured facts. If memory maintenance fails, retain accepted prose, mark coverage incomplete and offer retry; no silent claim of complete history. Forks omit future coverage and polish invalidates affected sources. This is part of the first-release plan, not a promise that recent prose alone supports a novel indefinitely.
+Source-linked passage notes and reviewed completed-chapter summaries now provide bounded older context, with coverage and stale-state tracking. Further compaction remains pending. Summaries never override current structured facts. If memory maintenance fails, retain accepted prose, mark coverage incomplete and offer retry; no silent claim of complete history. Forks omit future coverage and polish invalidates affected sources. This is part of the first-release plan, not a promise that bounded recall supports a novel indefinitely.
 
 ### Media contracts
 
@@ -127,4 +127,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Continue from the bounded authoring/revision loop into memory and media. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.
+Continue from the bounded authoring/revision/memory loop into media and further memory/knowledge controls. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.

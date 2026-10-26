@@ -206,6 +206,9 @@ impl Project {
             chapter.passage_ids.retain(|id| retained.contains(id));
         }
         index.chapters.retain(|ch| !ch.passage_ids.is_empty());
+        index
+            .memories
+            .retain(|id, _| index.chapters.iter().any(|ch| &ch.id == id));
         if let (Some(chapter), Some(entry)) = (index.chapters.last_mut(), index.passages.last()) {
             let last: AcceptedPassage = self.read_record("passages", &entry.record)?;
             chapter.title = last.plan.chapter_title;
@@ -220,6 +223,21 @@ impl Project {
         &self,
         draft: &PassageDraft,
         settings: &LlmConnection,
+    ) -> Result<(World, RecordRef, Value, String, Vec<String>), String> {
+        self.draft_input_budget(
+            draft,
+            settings,
+            draft
+                .source
+                .as_ref()
+                .map_or(default_memory_budget(), |s| s.memory_budget),
+        )
+    }
+    pub(super) fn draft_input_budget(
+        &self,
+        draft: &PassageDraft,
+        settings: &LlmConnection,
+        memory_budget: u32,
     ) -> Result<(World, RecordRef, Value, String, Vec<String>), String> {
         if let Some(revision) = &draft.revision {
             let base = self.revision_base(revision, true)?;
@@ -237,7 +255,7 @@ impl Project {
             let world: World = self.read_record("worlds", &base.before_world)?;
             let history = self.history_before(&revision.passage_id)?;
             let (context, mut input, fingerprint, recent) =
-                self.story_input_at(&world, &draft.edits.plan, settings, &history)?;
+                self.story_input_at(&world, &draft.edits.plan, settings, &history, memory_budget)?;
             if revision.kind == PassageRevisionKind::Wording {
                 input["originalProse"] = json!(base.prose);
                 input["acceptedEffects"] = json!(base.effects);
@@ -247,7 +265,7 @@ impl Project {
         } else {
             let current = self.view()?;
             let (context, input, fingerprint, recent) =
-                self.story_input(&current.world, &draft.edits.plan, settings)?;
+                self.story_input(&current.world, &draft.edits.plan, settings, memory_budget)?;
             Ok((context, current.world_ref, input, fingerprint, recent))
         }
     }

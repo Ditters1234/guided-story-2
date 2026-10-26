@@ -62,3 +62,19 @@
 .prose-diff del { color: var(--danger); background: var(--danger-bg); text-decoration-thickness: 1px; }
 .prose-diff ins { color: var(--ink); background: var(--selection); text-decoration: underline; text-underline-offset: 3px; }
 .prose-diff del,.prose-diff ins { padding: 0 .08em; }
+.chapter-memory-link { width: 100%; margin: 12px 0; }
+.memory-editor { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--surface); }
+.memory-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.memory-toolbar h2 { font-size: 1rem; margin: 0; }
+.memory-toolbar label { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: .85rem; }
+.memory-toolbar select { min-width: 140px; max-width: 100%; flex: 1; }
+.memory-point { margin: 20px 0; padding: 16px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px; }
+.memory-point h3 { font-size: .9rem; margin: 0; }
+.memory-point .section-actions { margin-bottom: 14px; }
+.memory-node-list { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; max-height: 200px; overflow: auto; }
+.memory-node-list label { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+.memory-json textarea { width: 100%; font: .8rem/1.6 Consolas,monospace; margin: 10px 0; }
+.memory-saved button { margin: 5px 8px 5px 0; }
+.memory-source-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 1rem/1.9 Georgia,serif; }
+.memory-source-link { display: block; width: 100%; text-align: left; line-height: 1.6; margin: 10px 0; }
+.memory-source-link small { display: block; color: var(--muted); }
