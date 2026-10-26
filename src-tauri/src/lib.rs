@@ -10,6 +10,8 @@ mod passages;
 use passages::*;
 mod memory;
 use memory::*;
+mod media;
+use media::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -78,7 +80,8 @@ fn open_project(
     let recovery = project
         .interrupt_authoring()
         .and(project.interrupt_passages())
-        .and(project.interrupt_memories());
+        .and(project.interrupt_memories())
+        .and(project.interrupt_media());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -124,7 +127,8 @@ fn recover_project(
     let recovery = project
         .interrupt_authoring()
         .and(project.interrupt_passages())
-        .and(project.interrupt_memories());
+        .and(project.interrupt_memories())
+        .and(project.interrupt_media());
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
@@ -265,6 +269,26 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             memory_source_passage,
             start_memory_job,
             apply_memory,
+            load_image_settings,
+            save_image_settings,
+            bundled_image_profile,
+            test_image_connection,
+            create_image_candidate,
+            get_image_candidate,
+            list_images,
+            save_image_candidate,
+            preview_image_workflow,
+            submit_image,
+            check_image,
+            recover_image_prompt,
+            import_image,
+            image_preview,
+            accept_image,
+            choose_node_image,
+            node_image,
+            saved_image,
+            map_images,
+            clear_node_image,
             read_passage,
             fork_after_passage
         ])

@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: world and passage authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Saved/generated media remain planned. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), and [chapter memory](MEMORY.md) for behavior and limits.
+**Status: world, passage and media authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Node images and passage illustrations support reviewed import or ComfyUI submission. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), [chapter memory](MEMORY.md), and [media](MEDIA.md) for behavior and limits.
 
 ## Run the prototype
 
@@ -47,10 +47,10 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 - **Desktop:** Tauri + Svelte, Windows first.
 - **Supporting tools:** TypeScript/Vite, Svelte Flow, Paneforge and Rust, with Tauri Specta generating command/type bindings.
 - **Text:** configurable OpenAI-compatible Chat Completions service, prioritizing Qwen-class local models around 30B.
-- **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates and an offline preparation contract are bundled; submission/media remain planned.
+- **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates, preflight, explicit submission/result checks and accepted project-local images are implemented. Separate workflow profiles preserve model-specific graphs. Real-provider compatibility remains unverified.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory now adds reviewed older context with coverage tracking. Continuing work adds media and further memory/knowledge controls while retaining the same acceptance and storage rules.
+The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows. Further prompt assistance, knowledge controls, export/restore and release validation remain pending.
 
 ## References and reuse
 

@@ -2,14 +2,28 @@
 //! This prepares data only; submission, jobs and saved media belong to the media service.
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// JSON numbers cross the WebView bridge as JavaScript numbers. Workflows reject
+/// integers beyond the safe range rather than silently rounding saved graphs.
+#[derive(Type, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum WorkflowJson {
+    Null,
+    Boolean(bool),
+    Number(f64),
+    Text(String),
+    Array(Vec<WorkflowJson>),
+    Object(std::collections::BTreeMap<String, WorkflowJson>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkflowInput {
     pub node_id: String,
     pub input: String,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WorkflowBindings {
     pub prompt: WorkflowInput,
@@ -21,17 +35,19 @@ pub struct WorkflowBindings {
     pub cfg: Option<WorkflowInput>,
     pub output_node: String,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ImageWorkflowProfile {
     pub schema_version: u32,
     pub id: String,
     pub name: String,
     pub family: String,
+    #[specta(type = WorkflowJson)]
     pub workflow: Value,
     pub bindings: WorkflowBindings,
 }
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ImageWorkflowRequest {
     pub prompt: String,
     pub negative: Option<String>,
@@ -51,6 +67,10 @@ pub fn parse_comfy_workflow(text: &str) -> Result<Value, String> {
     Ok(graph)
 }
 fn validate_graph(graph: &Value) -> Result<(), String> {
+    let mut values = vec![graph];
+    while let Some(value) = values.pop() {
+        match value{Value::Number(n) if n.as_f64().is_some_and(|v|v.abs()>9_007_199_254_740_991.0)=>return Err("Workflow numbers must stay within JavaScript's safe numeric range; use a smaller seed.".into()),Value::Array(a)=>values.extend(a),Value::Object(o)=>values.extend(o.values()),_=>()}
+    }
     if graph.to_string().len() > 1_000_000 {
         return Err("Workflow JSON exceeds 1 MB.".into());
     }
@@ -214,6 +234,34 @@ impl ImageWorkflowProfile {
             (&self.bindings.cfg, request.cfg.map(|v| json!(v)), "CFG"),
         ] {
             set_optional(&mut graph, binding, value, label)?;
+        }
+        for (binding, label) in [
+            (&self.bindings.width, "width"),
+            (&self.bindings.height, "height"),
+            (&self.bindings.steps, "steps"),
+        ] {
+            if let Some(binding) = binding {
+                let value = bound_value(&graph, binding)?
+                    .as_u64()
+                    .ok_or("Workflow dimensions and steps must be whole numbers.")?;
+                if if label == "steps" {
+                    !(1..=150).contains(&value)
+                } else {
+                    !(64..=4096).contains(&value) || value % 8 != 0
+                } {
+                    return Err(format!(
+                        "Check the workflow's default or overridden {label}."
+                    ));
+                }
+            }
+        }
+        if let Some(binding) = &self.bindings.cfg {
+            let value = bound_value(&graph, binding)?
+                .as_f64()
+                .ok_or("Workflow CFG must be a number.")?;
+            if !(0.0..=30.0).contains(&value) {
+                return Err("Check the workflow's default or overridden CFG.".into());
+            }
         }
         Ok(graph)
     }

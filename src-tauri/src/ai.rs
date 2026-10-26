@@ -29,10 +29,17 @@ pub(crate) struct Outcome {
 pub(crate) struct AuthoringJobs {
     pub active: Mutex<Option<ActiveRun>>,
     pub unwritten: Mutex<BTreeMap<String, Outcome>>,
+    pub media: Mutex<super::media::ImageActivity>,
 }
 pub(crate) fn idle_guard(
     jobs: &AuthoringJobs,
-) -> Result<std::sync::MutexGuard<'_, Option<ActiveRun>>, String> {
+) -> Result<
+    (
+        std::sync::MutexGuard<'_, Option<ActiveRun>>,
+        std::sync::MutexGuard<'_, super::media::ImageActivity>,
+    ),
+    String,
+> {
     let guard = jobs
         .active
         .lock()
@@ -48,9 +55,20 @@ pub(crate) fn idle_guard(
             "Finish/cancel generation and save retained results before switching projects.".into(),
         );
     }
-    Ok(guard)
+    let media = jobs
+        .media
+        .lock()
+        .map_err(|_| "Image activity needs reopening.")?;
+    if media.busy || media.retained.is_some() {
+        return Err(
+            "Finish the image request and save its retained result before switching projects."
+                .into(),
+        );
+    }
+    Ok((guard, media))
 }
 pub(crate) fn ensure_idle(jobs: &AuthoringJobs) -> Result<(), String> {
+    super::media::ensure_image_idle(jobs)?;
     if jobs
         .active
         .lock()

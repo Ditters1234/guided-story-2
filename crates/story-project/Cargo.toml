@@ -14,6 +14,7 @@ specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 url = "2"
 reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls", "stream", "system-proxy"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Security_Cryptography", "Win32_Foundation"] }

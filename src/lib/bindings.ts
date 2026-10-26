@@ -48,6 +48,26 @@ export const commands = {
 	memorySourcePassage: (storyId: string, id: string, passageId: string) => typedError<string, string>(__TAURI_INVOKE("memory_source_passage", { storyId, id, passageId })),
 	startMemoryJob: (storyId: string, id: string, expectedVersion: number, expectedRevision: number) => typedError<MemoryView, string>(__TAURI_INVOKE("start_memory_job", { storyId, id, expectedVersion, expectedRevision })),
 	applyMemory: (storyId: string, id: string, expectedVersion: number) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("apply_memory", { storyId, id, expectedVersion })),
+	loadImageSettings: () => typedError<ImageConnection_Serialize, string>(__TAURI_INVOKE("load_image_settings")),
+	saveImageSettings: (expectedVersion: number, settings: ImageConnection_Deserialize) => typedError<ImageConnection_Serialize, string>(__TAURI_INVOKE("save_image_settings", { expectedVersion, settings })),
+	bundledImageProfile: (desktopLayout: boolean) => typedError<ImageWorkflowProfile_Serialize, string>(__TAURI_INVOKE("bundled_image_profile", { desktopLayout })),
+	testImageConnection: (settings: ImageConnection_Deserialize) => typedError<ImagePreflight, string>(__TAURI_INVOKE("test_image_connection", { settings })),
+	createImageCandidate: (storyId: string, id: string, target: MediaTarget_Deserialize) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("create_image_candidate", { storyId, id, target })),
+	getImageCandidate: (storyId: string, id: string) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("get_image_candidate", { storyId, id })),
+	listImages: (storyId: string, target: MediaTarget_Deserialize | null) => typedError<MediaEntry[], string>(__TAURI_INVOKE("list_images", { storyId, target })),
+	saveImageCandidate: (storyId: string, id: string, expectedVersion: number, request: ImageWorkflowRequest_Deserialize) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("save_image_candidate", { storyId, id, expectedVersion, request })),
+	previewImageWorkflow: (storyId: string, id: string, expectedVersion: number) => typedError<MediaSubmission_Serialize, string>(__TAURI_INVOKE("preview_image_workflow", { storyId, id, expectedVersion })),
+	submitImage: (storyId: string, id: string, expectedVersion: number) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("submit_image", { storyId, id, expectedVersion })),
+	checkImage: (storyId: string, id: string) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("check_image", { storyId, id })),
+	recoverImagePrompt: (storyId: string, id: string, expectedVersion: number, promptId: string) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("recover_image_prompt", { storyId, id, expectedVersion, promptId })),
+	importImage: (storyId: string, id: string, expectedVersion: number, path: string) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("import_image", { storyId, id, expectedVersion, path })),
+	imagePreview: (storyId: string, id: string, accepted: boolean, size: number | null) => typedError<number[], string>(__TAURI_INVOKE("image_preview", { storyId, id, accepted, size })),
+	acceptImage: (storyId: string, id: string, expectedVersion: number) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("accept_image", { storyId, id, expectedVersion })),
+	chooseNodeImage: (storyId: string, nodeId: string, assetId: string, requestId: string) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("choose_node_image", { storyId, nodeId, assetId, requestId })),
+	nodeImage: (storyId: string, nodeId: string, world: World_Deserialize) => typedError<MediaEntry | null, string>(__TAURI_INVOKE("node_image", { storyId, nodeId, world })),
+	savedImage: (storyId: string, id: string) => typedError<MediaAsset_Serialize, string>(__TAURI_INVOKE("saved_image", { storyId, id })),
+	mapImages: (storyId: string, world: World_Deserialize) => typedError<{ [key in string]: MediaEntry }, string>(__TAURI_INVOKE("map_images", { storyId, world })),
+	clearNodeImage: (storyId: string, nodeId: string, requestId: string) => typedError<CommitResult_Serialize, string>(__TAURI_INVOKE("clear_node_image", { storyId, nodeId, requestId })),
 	readPassage: (storyId: string, id: string) => typedError<PassageReading_Serialize, string>(__TAURI_INVOKE("read_passage", { storyId, id })),
 	forkAfterPassage: (storyId: string, id: string, parentPath: string, title: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("fork_after_passage", { storyId, id, parentPath, title })),
 };
@@ -297,6 +317,81 @@ export type FieldDefinition = {
 
 export type FieldKind = "text" | "number" | "boolean" | "nodeRef" | "nodeRefs";
 
+export type ImageConnection = ImageConnection_Serialize | ImageConnection_Deserialize;
+
+export type ImageConnection_Deserialize = {
+	schemaVersion: number,
+	version: number,
+	baseUrl: string,
+	timeoutSeconds: number,
+	profile: ImageWorkflowProfile_Deserialize,
+};
+
+export type ImageConnection_Serialize = {
+	schemaVersion: number,
+	version: number,
+	baseUrl: string,
+	timeoutSeconds: number,
+	profile: ImageWorkflowProfile_Serialize,
+};
+
+export type ImageFile = {
+	id: string,
+	sha256: string,
+	extension: string,
+	width: number,
+	height: number,
+};
+
+export type ImageMoment = "before" | "after";
+
+export type ImagePreflight = {
+	ready: boolean,
+	issues: string[],
+};
+
+export type ImageWorkflowProfile = ImageWorkflowProfile_Serialize | ImageWorkflowProfile_Deserialize;
+
+export type ImageWorkflowProfile_Deserialize = {
+	schemaVersion: number,
+	id: string,
+	name: string,
+	family: string,
+	workflow: WorkflowJson,
+	bindings: WorkflowBindings_Deserialize,
+};
+
+export type ImageWorkflowProfile_Serialize = {
+	schemaVersion: number,
+	id: string,
+	name: string,
+	family: string,
+	workflow: WorkflowJson,
+	bindings: WorkflowBindings_Serialize,
+};
+
+export type ImageWorkflowRequest = ImageWorkflowRequest_Serialize | ImageWorkflowRequest_Deserialize;
+
+export type ImageWorkflowRequest_Deserialize = {
+	prompt: string,
+	negative?: string | null,
+	seed?: number | null,
+	width?: number | null,
+	height?: number | null,
+	steps?: number | null,
+	cfg?: number | null,
+};
+
+export type ImageWorkflowRequest_Serialize = {
+	prompt: string,
+	negative: string | null,
+	seed: number | null,
+	width: number | null,
+	height: number | null,
+	steps: number | null,
+	cfg: number | null,
+};
+
 export type LlmConnection = LlmConnection_Serialize | LlmConnection_Deserialize;
 
 export type LlmConnection_Deserialize = {
@@ -335,6 +430,132 @@ export type LlmConnection_Serialize = {
 	structuredOutput: StructuredOutput,
 	tokenParameter: TokenParameter,
 	credentialRef: string | null,
+};
+
+export type MediaAsset = MediaAsset_Serialize | MediaAsset_Deserialize;
+
+export type MediaAsset_Deserialize = {
+	schemaVersion: number,
+	id: string,
+	target: MediaTarget_Deserialize,
+	source: MediaSource_Deserialize,
+	request: ImageWorkflowRequest_Deserialize,
+	submission?: MediaSubmission_Deserialize | null,
+	image: ImageFile,
+	imported: boolean,
+};
+
+export type MediaAsset_Serialize = {
+	schemaVersion: number,
+	id: string,
+	target: MediaTarget_Serialize,
+	source: MediaSource_Serialize,
+	request: ImageWorkflowRequest_Serialize,
+	submission: MediaSubmission_Serialize | null,
+	image: ImageFile,
+	imported: boolean,
+};
+
+export type MediaDraft = MediaDraft_Serialize | MediaDraft_Deserialize;
+
+export type MediaDraft_Deserialize = {
+	schemaVersion: number,
+	id: string,
+	storyId: string,
+	version: number,
+	target: MediaTarget_Deserialize,
+	source: MediaSource_Deserialize,
+	request: ImageWorkflowRequest_Deserialize,
+	stage: MediaStage,
+	submission?: MediaSubmission_Deserialize | null,
+	image?: ImageFile | null,
+	error: string,
+	imported: boolean,
+};
+
+export type MediaDraft_Serialize = {
+	schemaVersion: number,
+	id: string,
+	storyId: string,
+	version: number,
+	target: MediaTarget_Serialize,
+	source: MediaSource_Serialize,
+	request: ImageWorkflowRequest_Serialize,
+	stage: MediaStage,
+	submission: MediaSubmission_Serialize | null,
+	image: ImageFile | null,
+	error: string,
+	imported: boolean,
+};
+
+export type MediaEntry = {
+	id: string,
+	label: string,
+	stage: MediaStage,
+	applicable: boolean,
+	error: string,
+};
+
+export type MediaSource = MediaSource_Serialize | MediaSource_Deserialize;
+
+export type MediaSource_Deserialize = {
+	world: RecordRef,
+	passage?: RecordRef | null,
+	facts: ShotFact[],
+};
+
+export type MediaSource_Serialize = {
+	world: RecordRef,
+	passage: RecordRef | null,
+	facts: ShotFact[],
+};
+
+export type MediaStage = "draft" | "submitting" | "unknown" | "queued" | "ready" | "failed" | "accepted";
+
+export type MediaSubmission = MediaSubmission_Serialize | MediaSubmission_Deserialize;
+
+export type MediaSubmission_Deserialize = {
+	endpoint: string,
+	timeoutSeconds: number,
+	profile: ImageWorkflowProfile_Deserialize,
+	graph: WorkflowJson,
+	promptId?: string | null,
+};
+
+export type MediaSubmission_Serialize = {
+	endpoint: string,
+	timeoutSeconds: number,
+	profile: ImageWorkflowProfile_Serialize,
+	graph: WorkflowJson,
+	promptId: string | null,
+};
+
+export type MediaTarget = MediaTarget_Serialize | MediaTarget_Deserialize;
+
+export type MediaTarget_Deserialize = {
+	nodeId?: string | null,
+	passageId?: string | null,
+	moment: ImageMoment,
+	subjectIds: string[],
+};
+
+export type MediaTarget_Serialize = {
+	nodeId: string | null,
+	passageId: string | null,
+	moment: ImageMoment,
+	subjectIds: string[],
+};
+
+export type MediaView = MediaView_Serialize | MediaView_Deserialize;
+
+export type MediaView_Deserialize = {
+	draft: MediaDraft_Deserialize,
+	stale: boolean,
+};
+
+export type MediaView_Serialize = {
+	draft: MediaDraft_Serialize,
+	stale: boolean,
 };
 
 export type MemoryContext = MemoryContext_Serialize | MemoryContext_Deserialize;
@@ -708,6 +929,14 @@ export type RememberedPoint_Serialize = {
 	reason: string,
 };
 
+export type ShotFact = {
+	nodeId: string,
+	name: string,
+	appearance: string,
+	outfit: string[],
+	fingerprint: string,
+};
+
 export type StoryIndex = StoryIndex_Serialize | StoryIndex_Deserialize;
 
 export type StoryIndex_Deserialize = {
@@ -715,6 +944,8 @@ export type StoryIndex_Deserialize = {
 	chapters: Chapter[],
 	passages: PassageEntry[],
 	memories?: { [key in string]: RecordRef },
+	media?: { [key in string]: RecordRef },
+	portraits?: { [key in string]: string },
 };
 
 export type StoryIndex_Serialize = {
@@ -722,6 +953,8 @@ export type StoryIndex_Serialize = {
 	chapters: Chapter[],
 	passages: PassageEntry[],
 	memories?: { [key in string]: RecordRef },
+	media?: { [key in string]: RecordRef },
+	portraits?: { [key in string]: string },
 };
 
 export type StructuredOutput = "json" | "schema" | "prompt";
@@ -756,6 +989,41 @@ export type ThemeMode = "light" | "dark";
 export type ThinkingControl = "provider" | "chatTemplateOff" | "directOff";
 
 export type TokenParameter = "maxTokens" | "maxCompletionTokens";
+
+export type WorkflowBindings = WorkflowBindings_Serialize | WorkflowBindings_Deserialize;
+
+export type WorkflowBindings_Deserialize = {
+	prompt: WorkflowInput,
+	negative?: WorkflowInput | null,
+	seed?: WorkflowInput | null,
+	width?: WorkflowInput | null,
+	height?: WorkflowInput | null,
+	steps?: WorkflowInput | null,
+	cfg?: WorkflowInput | null,
+	outputNode: string,
+};
+
+export type WorkflowBindings_Serialize = {
+	prompt: WorkflowInput,
+	negative: WorkflowInput | null,
+	seed: WorkflowInput | null,
+	width: WorkflowInput | null,
+	height: WorkflowInput | null,
+	steps: WorkflowInput | null,
+	cfg: WorkflowInput | null,
+	outputNode: string,
+};
+
+export type WorkflowInput = {
+	nodeId: string,
+	input: string,
+};
+
+/**
+ *  JSON numbers cross the WebView bridge as JavaScript numbers. Workflows reject
+ *  integers beyond the safe range rather than silently rounding saved graphs.
+ */
+export type WorkflowJson = null | boolean | number | null | string | WorkflowJson[] | { [key in string]: WorkflowJson };
 
 export type Workspace = Workspace_Serialize | Workspace_Deserialize;
 

@@ -139,6 +139,10 @@ impl Project {
     pub(crate) fn root_path(&self) -> &Path {
         &self.root
     }
+    pub(crate) fn committed_request_revision(&self, id: &str) -> Result<Option<u32>, String> {
+        let (manifest, _) = self.load(&self.read_head()?)?;
+        Ok(manifest.receipts.get(id).map(|r| r.revision))
+    }
     pub(crate) fn committed_revision_for(
         &self,
         id: &str,

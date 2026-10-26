@@ -2,8 +2,10 @@
   import type { WorldRecord } from './graph';
   import type { World } from './model';
   import PropertyInput from './PropertyInput.svelte';
-  let { record, records, world, editable, historical = false, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
+  import NodeImage from './NodeImage.svelte';
+  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
+    imageStoryId:string|null;revision:number;onImage:(id:string)=>void;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
     onSelect: (id: string) => void;
     onProperty: (componentId: string, key: string, value: string | number | boolean | string[] | null) => void;
@@ -13,19 +15,6 @@
     onAi: (id:string)=>void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
-  let portrait = $state<string | null>(null);
-  let previewError = $state('');
-  let previousId = $state('');
-  $effect(() => { if (record?.id !== previousId) { previousId = record?.id ?? ''; portrait = null; previewError = ''; } });
-  function preview(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { previewError = 'Choose a PNG, JPEG or WebP up to 8 MB.'; return; }
-    const reader = new FileReader();
-    reader.onload = () => { portrait = String(reader.result); previewError = ''; };
-    reader.onerror = () => { previewError = 'The image could not be opened.'; };
-    reader.readAsDataURL(file);
-  }
 </script>
 
 <section class="inspector">
@@ -35,14 +24,7 @@
       {#if record.parentId}<button class="parent-link" onclick={() => onSelect(record!.parentId!)}>{record.relation} {records.find((r) => r.id === record!.parentId)?.name ?? 'Unknown record'} ↗</button>{/if}
     </div>
     {#if editable}<button class="secondary-button record-ai-action" onclick={()=>onAi(record!.id)}>Revise / reroll with AI…</button>{/if}
-    {#if record.kind === 'character'}
-      <div class="portrait-preview">
-        {#if portrait}<img src={portrait} alt={`Preview for ${record.name}`} />{:else}<div class="portrait-placeholder"><span>{record.name.split(' ').map((s) => s[0]).slice(0, 2).join('')}</span><small>No portrait yet</small></div>{/if}
-        <label class="preview-button">Preview an image<input type="file" accept="image/png,image/jpeg,image/webp" onchange={preview} /></label>
-      </div>
-      <p class="field-help">Image preview only. Saved portraits and generation arrive in the media milestone.</p>
-      {#if previewError}<p class="inline-error">{previewError}</p>{/if}
-    {/if}
+    {#if imageStoryId}<details class="node-image" open={record.kind==='character'}><summary>Image</summary><div class="portrait-preview"><NodeImage storyId={imageStoryId} nodeId={record.id} {world} {revision} {historical}/></div>{#if editable}<button class="secondary-button" onclick={()=>onImage(record!.id)}>Generate / choose image…</button>{/if}</details>{/if}
     <label class="field">Name<input value={record.name} disabled={!editable} oninput={(e) => onEdit('name', e.currentTarget.value)} maxlength={200} /></label>
     <label class="field">Story notes<textarea value={record.description} disabled={!editable} oninput={(e) => onEdit('description', e.currentTarget.value)} rows={5} maxlength={16000}></textarea></label>
     {#if record.kind !== 'thread'}

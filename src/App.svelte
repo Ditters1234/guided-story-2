@@ -12,6 +12,8 @@
   import SettingsDialog from './lib/SettingsDialog.svelte';
   import AiAuthoringDialog from './lib/AiAuthoringDialog.svelte';
   import StoryWorkspace from './lib/StoryWorkspace.svelte';
+  import ImageDialog from './lib/ImageDialog.svelte';
+  import type {MediaTarget,PassageReading_Serialize} from './lib/bindings';
   import { newAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
@@ -24,6 +26,10 @@
   const initialWorld = exampleWorld();
   const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [...initialWorld.nodes.filter((n) => n.components["core.place"] || n.components["core.character"]).map((n) => n.id)], selectedId: initialWorld.nodes.find((n) => n.components["core.character"])!.id, positions: {} });
   let project = $state<ProjectView | null>(null);
+  let imageTarget=$state<MediaTarget|null>(null),imageWorlds=$state<{before:World;after:World}|null>(null);
+  let imageDialog=$state<{flushDraft:()=>Promise<void>}>();
+  function nodeImage(id:string){if(!project||historyWorld)return;imageWorlds={before:structuredClone($state.snapshot(world)),after:structuredClone($state.snapshot(world))};imageTarget={nodeId:id,passageId:null,moment:'after',subjectIds:[]};}
+  function passageImage(reading:PassageReading_Serialize,moment:'before'|'after'){imageWorlds={before:reading.before,after:reading.after};const source=moment==='before'?reading.before:reading.after;const plan=reading.passage.plan;const subjects=[...new Set([plan.viewpointId,...plan.participantIds,plan.locationId].filter((id):id is string=>!!id&&source.nodes.some(n=>n.id===id)))].slice(0,4);imageTarget={nodeId:null,passageId:reading.passage.id,moment,subjectIds:subjects};}
   let world = $state<World>(initialWorld);
   let workspace = $state<Workspace>(initialWorkspace());
   let search = $state('');
@@ -33,6 +39,7 @@
   let busy = $state(false);
   const appearance = new AppearanceSettings();
   let showSettings = $state(false);
+  let settingsSection=$state<'appearance'|'llm'|'images'>('appearance');
   let settingsDialog=$state<{flushSettings:()=>Promise<void>}>();
   let showAi=$state(false),aiRunning=$state(false),aiRunId=$state<string|null>(null),aiRequest=$state<AuthoringRequest|null>(null);
   let aiDialog=$state<{flushDraft:()=>Promise<void>}>();
@@ -215,7 +222,7 @@
   }
 
   async function prepareSwitch() {
-    try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();if(aiRunning||passageRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
+    try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();if(aiRunning||passageRunning)throw Error('Cancel or finish generation before changing projects.');await flush(); await flushLayout(); return true; } catch(caught) { error = 'Resolve unsaved work before changing projects. ' + describe(caught); return false; }
   }
   async function openProject() {
     if (!desktop || busy) return;
@@ -332,7 +339,7 @@
     const aiPoll=setInterval(()=>{if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
     if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
-      try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
+      try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
       try { await appearance.flush(); } catch { event.preventDefault(); showSettings=true; return; }
       if (!project) return;
       busy = true;
@@ -353,7 +360,7 @@
 <div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
-    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button><button class="settings-button quiet-button" onclick={()=>{showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
+    <div class="header-actions"><button class="quiet-button" onclick={openProject} disabled={!desktop || busy}>Open project</button><button class="primary-button" onclick={() => { showCreate = true; }} disabled={!desktop || busy}>＋ New project</button><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
   </header>
   {#if !desktop}<div class="browser-banner">Browser preview · Project saving is available in the desktop app. Run <code>npm run desktop</code>.</div>{/if}
   {#if appearance.error && !showSettings}<div class="error-banner" role="alert"><span>Settings: {appearance.error}</span><button onclick={()=>{showSettings=true;}}>Open settings</button></div>{/if}
@@ -389,15 +396,15 @@
             </div></details>{:else if !project}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
-          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
-          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
+          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={()=>{void storyPanel?.flushDraft().then(()=>{settingsSection='llm';showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
       <Pane defaultSize={25} minSize={20} maxSize={36}>
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
         <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
-          onAi={openAi}
+          onAi={openAi} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
           onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
         {/if}
@@ -407,8 +414,9 @@
   <footer class="status-bar"><span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
 </div>
 
-{#if showSettings}<SettingsDialog bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
-{#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={()=>{showAi=false;showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
+{#if showSettings}<SettingsDialog initialSection={settingsSection} bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
+{#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}
+{#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={()=>{showAi=false;settingsSection='llm';showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
 {#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 

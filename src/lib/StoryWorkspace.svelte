@@ -4,17 +4,19 @@
   import {PassageSession} from './passage-session.svelte';
   import {diffProse} from './prose-diff';
   import ChapterMemoryEditor from './ChapterMemoryEditor.svelte';
+  import PassageImages from './PassageImages.svelte';
   import type {ProjectView,World} from './model';
   import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize} from './bindings';
-  let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onHistory,onRun,onFork,onSettings,onPanels}:{
+  let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onImage,onHistory,onRun,onFork,onSettings,onPanels}:{
     project:ProjectView;world:World;selectedId:string|null;otherBusy:boolean;
     onBeforeAction:()=>Promise<ProjectView>;onAccept:(result:PassageAcceptance_Serialize)=>Promise<void>;
     onMemoryApply:(result:CommitResult_Serialize)=>Promise<void>;
+    onImage:(passage:PassageReading_Serialize,moment:'before'|'after')=>void;
     onHistory:(snapshot:World|null,label:string)=>void;onRun:(running:boolean)=>void;onFork:(id:string)=>Promise<void>;onSettings:()=>void;
     onPanels:(contents?:Snippet,details?:Snippet)=>void;
   }=$props();
   const session=new PassageSession(untrack(()=>project.storyId));
-  let index=$state<StoryIndex>({schemaVersion:1,chapters:[],passages:[],memories:{}}),drafts=$state<PassageSummary[]>([]);
+  let index=$state<StoryIndex>({schemaVersion:1,chapters:[],passages:[],memories:{},media:{},portraits:{}}),drafts=$state<PassageSummary[]>([]);
   let reading=$state<PassageReading_Serialize|null>(null),mode=$state<'draft'|'reader'|'memory'>('draft'),moment=$state<'before'|'after'>('after');
   let memoryOpened=$state(false),memoryRunning=$state(false),memoryDetails=$state<Snippet>();
   let memoryPanel=$state<{flushDraft:()=>Promise<void>;refresh:()=>Promise<void>}>();
@@ -91,6 +93,7 @@
   {:else if mode==='reader'&&reading}
     <h2>Passage details</h2>
     <p class="field-help">{reading.passage.plan.chapterTitle} · {reading.passage.plan.title}</p>
+    <button class="secondary-button" disabled={working} onclick={()=>onImage(reading!,moment)}>Illustrate passage…</button>
     <dl class="passage-facts"><dt>Viewpoint</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.viewpointId)?.name??'Ensemble / unspecified'}</dd><dt>Location</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.locationId)?.name??'Unspecified'}</dd></dl>
     {#if reading.passage.plan.chapterPlan}<details><summary>Chapter direction</summary><p class="story-plan-text">{reading.passage.plan.chapterPlan}</p></details>{/if}
     <div class="passage-revision-actions"><button class="secondary-button" disabled={blocked||otherBusy} onclick={()=>{void revise('wording');}}>Edit wording</button>
@@ -148,6 +151,7 @@
     <article class="passage-reader">
       <div class="reader-navigation"><button class="secondary-button" disabled={working||selection<=0} onclick={()=>{void read(index.passages[selection-1].id);}}>← Previous</button><span>{selection+1} / {index.passages.length}</span><button class="secondary-button" disabled={working||selection>=index.passages.length-1} onclick={()=>{void read(index.passages[selection+1].id);}}>Next →</button></div>
       <p class="chapter-name">{reading.passage.plan.chapterTitle}</p><h2>{reading.passage.plan.title}</h2>{#if reading.passage.narrationProvider.startsWith('Offline demo')}<p class="field-help">{reading.passage.narrationProvider}</p>{/if}<div class="accepted-prose">{reading.passage.prose}</div>
+      <PassageImages storyId={project.storyId} passageId={reading.passage.id} revision={project.revision}/>
     </article>
   {:else if session.value}
     <div class="passage-composer">

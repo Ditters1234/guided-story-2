@@ -21,4 +21,4 @@ The native `guided_story_image_workflow()` profile binds:
 
 Preparation clones the graph and changes only supplied bound values. A nonempty negative prompt fails explicitly for this profile. Unbound model/LoRA/encoder/scheduler/save settings remain intact. Another model family can provide its own API graph and bindings without engine changes; no universal nine-step sampler or hardcoded loader name is imposed on it. See [model targets](../MODEL_TARGETS.md).
 
-These are pinned templates for the forthcoming media service. The current app does not submit them, download weights or execute ComfyUI nodes.
+These pinned templates feed the [media service](../MEDIA.md), which validates availability before explicit submission. The app does not download weights or install/replace ComfyUI nodes. Direct connections and imported model-specific JSON profiles are supported; live model/custom-node compatibility remains unverified.

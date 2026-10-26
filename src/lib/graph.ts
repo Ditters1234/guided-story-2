@@ -6,7 +6,7 @@ export type WorldRecord = {
   id: string; name: string; description: string; visualDescription: string;
   kind: RecordKind; parentId: string | null; relation: string; detail: string;
 };
-export type WorldNodeData = WorldRecord & { count: number; expanded: boolean; onToggle: (id: string) => void };
+export type WorldNodeData = WorldRecord & { count: number; expanded: boolean; onToggle: (id: string) => void; imageId?:string;imageStoryId?:string };
 export type WorldNode = Node<WorldNodeData, 'world'>;
 
 export function worldRecords(world: World): WorldRecord[] {

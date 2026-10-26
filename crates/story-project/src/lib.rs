@@ -1,6 +1,7 @@
 mod authoring;
 mod connections;
 mod image_workflow;
+mod media;
 mod memory;
 mod model;
 mod operations;
@@ -13,6 +14,7 @@ mod story_effects;
 pub use authoring::*;
 pub use connections::*;
 pub use image_workflow::*;
+pub use media::*;
 pub use memory::*;
 pub use model::*;
 pub use operations::*;

@@ -86,6 +86,10 @@ pub struct StoryIndex {
     pub passages: Vec<PassageEntry>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub memories: BTreeMap<String, RecordRef>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub media: BTreeMap<String, RecordRef>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub portraits: BTreeMap<String, String>,
 }
 impl Default for StoryIndex {
     fn default() -> Self {
@@ -94,6 +98,8 @@ impl Default for StoryIndex {
             chapters: vec![],
             passages: vec![],
             memories: BTreeMap::new(),
+            media: BTreeMap::new(),
+            portraits: BTreeMap::new(),
         }
     }
 }
@@ -146,6 +152,24 @@ impl StoryIndex {
                 return Err("Invalid chapter memory reference.".into());
             }
             validate_id(&reference.id)?;
+        }
+        if self.media.len() > 2000 {
+            return Err("Accepted image limit reached (2,000).".into());
+        }
+        for (id, reference) in &self.media {
+            validate_id(id)?;
+            validate_id(&reference.id)?;
+            if reference.sha256.len() != 64
+                || !reference.sha256.bytes().all(|b| b.is_ascii_hexdigit())
+            {
+                return Err("Invalid media reference.".into());
+            }
+        }
+        for (node, asset) in &self.portraits {
+            validate_id(node)?;
+            if !self.media.contains_key(asset) {
+                return Err("Selected portrait is not in the accepted media index.".into());
+            }
         }
         Ok(())
     }
@@ -1255,6 +1279,7 @@ impl Project {
             });
         }
         self.copy_memories_for_fork(&fork, &index, &mut kept)?;
+        self.copy_media_for_fork(&fork, &index, &mut kept)?;
         fork.commit_story(0, uuid::Uuid::new_v4().to_string(), title, boundary, kept)?;
         drop(fork);
         fs::rename(&staging, &destination)
