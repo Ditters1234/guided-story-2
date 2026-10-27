@@ -5,7 +5,7 @@
   import { commands,unwrap } from './native';
   import { editableFields,fieldId,newAuthoringRequest,parseCandidateForEditor,changeCreationType } from './authoring-ui';
   import CandidateEditor from './CandidateEditor.svelte';
-  let {project,world,initialId,initialRequest,onBeforeAction,onApply,onClose,onSettings,onRun}:{project:ProjectView;world:World;initialId:string|null;initialRequest:AuthoringRequest;onBeforeAction:()=>Promise<ProjectView>;onApply:(result:ApplyAuthoringResult_Serialize)=>Promise<void>;onClose:()=>void;onSettings:()=>void;onRun:(id:string,running:boolean)=>void}=$props();
+  let {project,world,initialId,initialRequest,onBeforeAction,onApply,onClose,onSettings,onRun}:{project:ProjectView;world:World;initialId:string|null;initialRequest:AuthoringRequest;onBeforeAction:()=>Promise<ProjectView>;onApply:(result:ApplyAuthoringResult_Serialize)=>Promise<void>;onClose:()=>void;onSettings:(section?:'llm'|'prompts')=>void;onRun:(id:string,running:boolean)=>void}=$props();
   let dialog:HTMLDialogElement;
   let currentId=$state(untrack(()=>initialId??crypto.randomUUID()));
   let request=$state<AuthoringRequest>(untrack(()=>structuredClone($state.snapshot(initialRequest))));
@@ -43,7 +43,7 @@
   }
   async function generate(){working=true;error='';try{await flushDraft();const current=await onBeforeAction();view=unwrap(await commands.startAuthoring(project.storyId,currentId,version,current.revision));version=view.version;report();await refresh();}catch(caught){error=describe(caught);try{await refresh();}catch{}}finally{working=false;}}
   async function apply(){working=true;error='';try{await flushDraft();await onBeforeAction();const result=unwrap(await commands.applyAuthoring(project.storyId,currentId,version));view=result.proposal;version=view.version;await onApply(result);onClose();}catch(caught){error=describe(caught);try{await refresh();}catch{}}finally{working=false;}}
-  async function close(settings=false){try{await flushDraft();if(settings)onSettings();else onClose();}catch{}}
+  async function close(settings:'llm'|'prompts'|null=null){try{await flushDraft();if(settings)onSettings(settings);else onClose();}catch{}}
   function toggleContext(id:string){request.contextIds=request.contextIds.includes(id)?request.contextIds.filter((v)=>v!==id):[...request.contextIds,id];touch();}
   function toggleField(field:typeof fields[number]){const key=fieldId(field);request.fields=request.fields.some((f)=>fieldId(f)===key)?request.fields.filter((f)=>fieldId(f)!==key):[...request.fields,{nodeId:field.nodeId,componentId:field.componentId,key:field.key}];touch();}
   onMount(()=>{void(async()=>{try{if(initialId)await refresh();else{loaded=true;touch();await flushDraft();}loaded=true;await list();}catch(caught){error=describe(caught);}})();return()=>{clearTimeout(timer);clearTimeout(poll);};});
@@ -79,7 +79,7 @@
       {#if status==='applied'}<p class="field-help">Applied at revision {view?.appliedRevision}.</p>{/if}
     {/if}
   </div>
-  <footer class="settings-footer"><div><span class="field-help" aria-live="polite">{saveStatus}</span><button class="text-action" disabled={status==='running'||working} onclick={()=>{void close(true);}}>LLM settings</button></div><div class="ai-footer-actions">
+  <footer class="settings-footer"><div><span class="field-help" aria-live="polite">{saveStatus}</span><button class="text-action" disabled={status==='running'||working} onclick={()=>{void close('llm');}}>LLM settings</button><button class="text-action" disabled={status==='running'||working} onclick={()=>{void close('prompts');}}>Prompts</button></div><div class="ai-footer-actions">
     {#if status==='draft'}<button class="primary-button" disabled={working||!loaded||!request.direction.trim()||(request.mode==='revise'&&!request.fields.length)} onclick={()=>{void generate();}}>{working?'Starting…':'Generate proposal'}</button>
     {:else if status!=='running'}<button class="secondary-button" disabled={working} onclick={()=>{void newDraft();}}>New candidate / reroll</button>{#if status==='review'}<button class="primary-button" disabled={working||!!view?.error||!!view?.stale||!view?.changes.length} onclick={()=>{void apply();}}>{working?'Applying…':'Apply proposal'}</button>{/if}{/if}
   </div></footer>

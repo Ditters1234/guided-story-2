@@ -9,13 +9,13 @@
   import ChapterMemoryEditor from './ChapterMemoryEditor.svelte';
   import PassageImages from './PassageImages.svelte';
   import type {ProjectView,World} from './model';
-  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize,PassageEffects} from './bindings';
+  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize,PassageEffects,TextPromptTask} from './bindings';
   let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onImage,onHistory,onRun,onFork,onSettings,onPanels}:{
     project:ProjectView;world:World;selectedId:string|null;otherBusy:boolean;
     onBeforeAction:()=>Promise<ProjectView>;onAccept:(result:PassageAcceptance_Serialize)=>Promise<void>;
     onMemoryApply:(result:CommitResult_Serialize)=>Promise<void>;
     onImage:(passage:PassageReading_Serialize,moment:'before'|'after')=>void;
-    onHistory:(snapshot:World|null,label:string)=>void;onRun:(running:boolean)=>void;onFork:(id:string)=>Promise<void>;onSettings:()=>void;
+    onHistory:(snapshot:World|null,label:string)=>void;onRun:(running:boolean)=>void;onFork:(id:string)=>Promise<void>;onSettings:(section?:'llm'|'prompts',task?:TextPromptTask)=>void;
     onPanels:(contents?:Snippet,details?:Snippet)=>void;
   }=$props();
   const session=new PassageSession(untrack(()=>project.storyId));
@@ -173,7 +173,7 @@
     <fieldset class="passage-fields passage-toolbar" aria-label="Passage generation" disabled={blocked||session.view?.stage==='accepted'}>
       {#if !wording}<label>Target words<input type="number" aria-label="Target words" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}
       <button class="primary-button" disabled={!!generationHelp} title={generationHelp||undefined} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button>
-      <button class="text-action" onclick={onSettings}>LLM settings</button>
+      <button class="text-action" onclick={()=>onSettings()}>LLM settings</button><button class="text-action" onclick={()=>onSettings('prompts',wording?'wording':'passage')}>Prompts</button>
       {#if generationHelp}<p class="field-help generation-help" role="status">{generationHelp}</p>{/if}
     </fieldset>
   {/if}

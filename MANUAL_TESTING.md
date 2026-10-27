@@ -8,7 +8,9 @@ The app reopens the last story you successfully opened or created. On first laun
 
 The first launch after updating from an older build has no remembered story yet: open yours once. Close and relaunch to check that it returns. The folder choice is stored with device settings, outside story projects. If the folder was moved/deleted, is locked, or cannot be read, an error and the New/Open choices should appear without loading example data or overwriting the saved choice. Canceling the folder picker should leave those choices available. An explicit `--project` launch overrides the remembered folder.
 
-The settings gear contains Appearance, Custom themes, LLM and Images. Existing device settings are preserved. Appearance and API settings stay separate from story folders. The offline demo provider lets you test proposal review without an LLM; its output is deterministic sample data, not a quality demonstration.
+The settings gear contains Appearance, Custom themes, LLM, Prompts and Images. Existing device settings are preserved. Appearance and API settings stay separate from story folders. The offline demo provider lets you test proposal review without an LLM; its output is deterministic sample data, not a quality demonstration.
+
+In **Settings → Prompts**, choose an AI tool and edit its full system instructions. Save, close/reopen and check the text survived. Try editing two tools before saving, then restoring just one with **Restore default** and saving again; the other edit should remain. Empty/invalid saves should retain your input and show an error. API settings and saved credentials should survive prompt edits. **Prompts** shortcuts in Story and AI world tools should open the relevant tool's instructions after saving the current draft. Editing prompts must not generate text or accept anything. The offline demo does not follow style instructions; test instruction quality separately with your model.
 
 ## First pass: no model required
 

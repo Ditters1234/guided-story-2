@@ -2,6 +2,8 @@
 
 The world workspace's **AI world tools** button creates a node or a group from an idea. Any node's inspector offers **Revise / reroll with AI**. Both use the same schema-driven service and review panel, including custom node types and capability fields. AI support is a service over world nodes; connection clients, credentials and job state are not embedded in each node.
 
+The footer's **Prompts** shortcut opens **Settings → Prompts → World creation & rerolls**. Edit the full shared instructions there, save, then return to your retained draft. Per-request direction stays in the authoring dialog. [Prompt settings](PROMPTS.md) documents the other tools and save behavior.
+
 ## Create, review and apply
 
 1. Open a saved project and configure **Settings → LLM**. The offline demo exercises the review flow without contacting a model.

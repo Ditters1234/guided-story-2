@@ -1,4 +1,37 @@
 use super::*;
+#[test]
+fn chapter_memory_uses_the_exact_editable_system_prompt() {
+    let (_dir, p) = fixture();
+    accept(
+        &p,
+        "Mara found the key beside the window.",
+        true,
+        None,
+        false,
+    );
+    let chapter = p.story_index().unwrap().chapters[0].id.clone();
+    let draft = id();
+    p.create_memory_draft(&draft, &chapter).unwrap();
+    let mut connection = settings();
+    connection.prompts.overrides.insert(
+        TextPromptTask::Memory,
+        "Summarize only consequential completed events.".into(),
+    );
+    let view = p.memory_view(&draft).unwrap();
+    let request = p
+        .start_memory(
+            &draft,
+            view.version,
+            p.view().unwrap().revision,
+            &connection,
+        )
+        .unwrap();
+    assert_eq!(
+        request.system,
+        "Summarize only consequential completed events."
+    );
+    assert!(request.user.contains("responseSchema") && request.user.contains("Mara found the key"));
+}
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }

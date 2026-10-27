@@ -1,7 +1,9 @@
 use crate::store::atomic_write;
+use crate::{PromptOverrides, PromptSettingsView, TextPromptTask};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use std::{
     fs::{self, File, OpenOptions},
     io::Read,
@@ -62,6 +64,8 @@ pub struct LlmConnection {
     pub structured_output: StructuredOutput,
     pub token_parameter: TokenParameter,
     pub credential_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "PromptOverrides::is_default")]
+    pub prompts: PromptOverrides,
 }
 impl Default for LlmConnection {
     fn default() -> Self {
@@ -82,11 +86,13 @@ impl Default for LlmConnection {
             structured_output: StructuredOutput::Json,
             token_parameter: TokenParameter::MaxTokens,
             credential_ref: None,
+            prompts: PromptOverrides::default(),
         }
     }
 }
 impl LlmConnection {
     pub fn validate(&self) -> Result<(), String> {
+        self.prompts.validate()?;
         if self.schema_version != 1 {
             return Err("Unsupported LLM connection settings.".into());
         }
@@ -188,10 +194,10 @@ fn read_connection(root: &Path) -> Result<LlmConnection, String> {
         Err(e) => return Err(e.to_string()),
     };
     let mut bytes = vec![];
-    file.take(16385)
+    file.take(262145)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
-    if bytes.len() > 16384 {
+    if bytes.len() > 262144 {
         return Err("LLM connection settings are too large.".into());
     }
     let settings: LlmConnection = serde_json::from_slice(&bytes).map_err(|_| {
@@ -215,9 +221,12 @@ pub fn save_connection(
     mut settings: LlmConnection,
     key: ApiKeyUpdate,
 ) -> Result<ConnectionView, String> {
-    settings.validate()?;
     let _lock = lock(root)?;
     let current = read_connection(root)?;
+    // Transport forms may have loaded before prompt edits in another tab.
+    // Prompt changes have their own version and dedicated save command.
+    settings.prompts = current.prompts.clone();
+    settings.validate()?;
     if current.version != expected {
         return Err("Connection settings changed. Reload before saving.".into());
     }
@@ -266,6 +275,34 @@ pub fn save_connection(
         has_api_key: settings.credential_ref.is_some(),
         settings,
     })
+}
+pub fn save_prompt_templates(
+    root: &Path,
+    expected: u32,
+    mut overrides: BTreeMap<TextPromptTask, String>,
+) -> Result<PromptSettingsView, String> {
+    overrides.retain(|task, text| text != task.default_text());
+    let next = PromptOverrides {
+        version: expected
+            .checked_add(1)
+            .ok_or("Prompt settings version limit reached.")?,
+        overrides,
+    };
+    next.validate()?;
+    let _lock = lock(root)?;
+    let mut current = read_connection(root)?;
+    if current.prompts == next {
+        return Ok(current.prompt_settings_view());
+    }
+    if current.prompts.version != expected {
+        return Err("Prompts changed in another window. Reload before saving; your edits are still in the editor.".into());
+    }
+    current.prompts = next;
+    atomic_write(
+        &root.join("llm-connection.json"),
+        &serde_json::to_vec_pretty(&current).map_err(|e| e.to_string())?,
+    )?;
+    Ok(current.prompt_settings_view())
 }
 pub fn connection_api_key(root: &Path, settings: &LlmConnection) -> Result<Option<String>, String> {
     let Some(id) = &settings.credential_ref else {

@@ -1,5 +1,24 @@
 use super::*;
 use crate::media::tests::{accept_passage, fixture, png};
+#[test]
+fn image_prompt_assistance_uses_the_exact_override_and_preserves_captured_facts() {
+    let (_dir, p) = fixture();
+    let media = media(&p);
+    let mut connection = text();
+    connection.prompts.overrides.insert(
+        TextPromptTask::ImagePrompt,
+        "Describe a clear composition using the captured outfit.".into(),
+    );
+    let image = ImageConnection::default();
+    let key = proposal(&p, &media, &connection, &image);
+    let request = p.start_image_prompt(&key, 1, &connection, &image).unwrap();
+    assert_eq!(
+        request.system,
+        "Describe a clear composition using the captured outfit."
+    );
+    assert!(request.user.contains("Blue coat") && request.user.contains("responseSchema"));
+    assert_eq!(p.view().unwrap().revision, 0);
+}
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }

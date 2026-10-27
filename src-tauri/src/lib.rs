@@ -281,6 +281,8 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_preferences,
             load_llm_connection,
             save_llm_connection,
+            load_prompt_templates,
+            save_prompt_templates,
             test_llm_connection,
             list_authoring,
             get_authoring,

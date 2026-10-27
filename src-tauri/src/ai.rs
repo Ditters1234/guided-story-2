@@ -195,6 +195,24 @@ pub(crate) fn load_llm_connection(app: tauri::AppHandle) -> Result<ConnectionVie
 }
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn load_prompt_templates(
+    app: tauri::AppHandle,
+) -> Result<story_project::PromptSettingsView, String> {
+    Ok(load_connection(&preferences_root(&app)?)?
+        .settings
+        .prompt_settings_view())
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn save_prompt_templates(
+    expected_version: u32,
+    overrides: std::collections::BTreeMap<story_project::TextPromptTask, String>,
+    app: tauri::AppHandle,
+) -> Result<story_project::PromptSettingsView, String> {
+    story_project::save_prompt_templates(&preferences_root(&app)?, expected_version, overrides)
+}
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn save_llm_connection(
     expected_version: u32,
     settings: LlmConnection,

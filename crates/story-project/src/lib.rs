@@ -11,6 +11,7 @@ mod provider;
 mod store;
 mod story;
 mod story_effects;
+mod text_prompts;
 
 pub use authoring::*;
 pub use connections::*;
@@ -25,3 +26,4 @@ pub use provider::*;
 pub use store::{inspect_backup, restore_backup, BackupReport, Project};
 pub use story::*;
 pub use story_effects::*;
+pub use text_prompts::*;

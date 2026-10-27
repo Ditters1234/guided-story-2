@@ -22,6 +22,8 @@ export const commands = {
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
 	loadLlmConnection: () => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("load_llm_connection")),
 	saveLlmConnection: (expectedVersion: number, settings: LlmConnection_Deserialize, key: ApiKeyUpdate) => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("save_llm_connection", { expectedVersion, settings, key })),
+	loadPromptTemplates: () => typedError<PromptSettingsView, string>(__TAURI_INVOKE("load_prompt_templates")),
+	savePromptTemplates: (expectedVersion: number, overrides: Partial<{ [key in TextPromptTask]: string }>) => typedError<PromptSettingsView, string>(__TAURI_INVOKE("save_prompt_templates", { expectedVersion, overrides })),
 	testLlmConnection: () => typedError<ConnectionTest, string>(__TAURI_INVOKE("test_llm_connection")),
 	listAuthoring: (storyId: string) => typedError<AuthoringSummary[], string>(__TAURI_INVOKE("list_authoring", { storyId })),
 	getAuthoring: (storyId: string, id: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("get_authoring", { storyId, id })),
@@ -547,6 +549,7 @@ export type LlmConnection_Deserialize = {
 	structuredOutput: StructuredOutput,
 	tokenParameter: TokenParameter,
 	credentialRef?: string | null,
+	prompts?: PromptOverrides,
 };
 
 export type LlmConnection_Serialize = {
@@ -566,6 +569,7 @@ export type LlmConnection_Serialize = {
 	structuredOutput: StructuredOutput,
 	tokenParameter: TokenParameter,
 	credentialRef: string | null,
+	prompts?: PromptOverrides,
 };
 
 export type MediaAsset = MediaAsset_Serialize | MediaAsset_Deserialize;
@@ -1024,6 +1028,16 @@ export type ProjectView_Serialize = {
 	world: World_Serialize,
 };
 
+export type PromptOverrides = {
+	version: number,
+	overrides: Partial<{ [key in TextPromptTask]: string }>,
+};
+
+export type PromptSettingsView = {
+	version: number,
+	templates: TextPromptTemplate[],
+};
+
 export type PropertyValue = string | number | null | boolean | string[] | null;
 
 export type RecordRef = {
@@ -1104,6 +1118,17 @@ export type StoryIndex_Serialize = {
 };
 
 export type StructuredOutput = "json" | "schema" | "prompt";
+
+export type TextPromptTask = "world" | "passage" | "wording" | "effects" | "memory" | "imagePrompt";
+
+export type TextPromptTemplate = {
+	id: TextPromptTask,
+	label: string,
+	description: string,
+	defaultText: string,
+	text: string,
+	customized: boolean,
+};
 
 export type TextProvider = "compatible" | "demo";
 

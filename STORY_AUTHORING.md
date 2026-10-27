@@ -2,6 +2,8 @@
 
 The Story workspace uses the same composer for the first passage and every later passage. Its left pane holds chapters, passages and saved drafts; the center is for prose; the right pane holds scene planning, world-change review or accepted-passage details. Switching to World restores the world tree/map/shared inspector. This is a bounded prototype, not yet the full editing/media/memory design.
 
+The toolbar's **Prompts** shortcut opens the full passage-writing instructions, or wording instructions for a wording draft. **Settings → Prompts** also exposes world-change extraction, chapter memory and the other AI tools. These are device-wide defaults; scene/chapter direction remains in this composer. See [prompt editing](PROMPTS.md).
+
 ## Write and review
 
 1. Open **Story**. The scene starts from the selected place/character, or a retained scene choice, with nearby characters offered as an editable cast. It includes at most 12 other participants and does not pull in the whole map. Chapter/passage titles and a word target have usable defaults. Edit viewpoint, location, participants, references and direction as needed. New passages inherit an open chapter's plan; closing a chapter offers a new editable plan on the next writing action. Opening a composer makes no model request.

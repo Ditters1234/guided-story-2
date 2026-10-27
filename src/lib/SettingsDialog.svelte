@@ -1,19 +1,22 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import type { AppearanceSettings } from './appearance.svelte';
-  import type { ThemeDefinition } from './bindings';
+  import type { ThemeDefinition,TextPromptTask } from './bindings';
   import { builtInThemes, colorKeys, copyTheme, downloadTheme, parseThemeJson, resolveTheme } from './appearance';
   import { desktop } from './native';
   import LlmSettings, {type ConnectionStatus} from './LlmSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
-  let {settings,systemDark,onClose,initialSection='appearance'}:{settings:AppearanceSettings;systemDark:boolean;onClose:()=>void;initialSection?:'appearance'|'llm'|'images'}=$props();
-  const sections=[{id:'appearance',label:'Appearance'},{id:'themes',label:'Custom themes'},{id:'llm',label:'LLM'},{id:'images',label:'Images'}] as const;
-  let section=$state<'appearance'|'themes'|'llm'|'images'>(untrack(()=>initialSection));
+  import PromptSettings from './PromptSettings.svelte';
+  let {settings,systemDark,onClose,initialSection='appearance',initialPromptTask='passage'}:{settings:AppearanceSettings;systemDark:boolean;onClose:()=>void;initialSection?:'appearance'|'llm'|'images'|'prompts';initialPromptTask?:TextPromptTask}=$props();
+  const sections=[{id:'appearance',label:'Appearance'},{id:'themes',label:'Custom themes'},{id:'llm',label:'LLM'},{id:'prompts',label:'Prompts'},{id:'images',label:'Images'}] as const;
+  let section=$state<'appearance'|'themes'|'llm'|'images'|'prompts'>(untrack(()=>initialSection));
   let llmPanel=$state<{flushConnection:()=>Promise<void>;testConnection:()=>Promise<void>}>();
   let connectionStatus=$state<ConnectionStatus>({ready:false,dirty:false,working:false,error:'',notice:''});
   let imagePanel=$state<{flushConnection:()=>Promise<void>;testConnection:()=>Promise<void>}>();
   let imageStatus=$state<ConnectionStatus>({ready:false,dirty:false,working:false,error:'',notice:''});
-  export async function flushSettings(){try{await llmPanel?.flushConnection();}catch(error){section='llm';throw error;}try{await imagePanel?.flushConnection();}catch(error){section='images';throw error;}}
+  let promptPanel=$state<{flushPrompts:()=>Promise<void>}>();
+  let promptStatus=$state<ConnectionStatus>({ready:false,dirty:false,working:false,error:'',notice:''});
+  export async function flushSettings(){try{await llmPanel?.flushConnection();}catch(error){section='llm';throw error;}try{await promptPanel?.flushPrompts();}catch(error){section='prompts';throw error;}try{await imagePanel?.flushConnection();}catch(error){section='images';throw error;}}
   async function close(){try{await flushSettings();onClose();}catch{}}
   let dialog: HTMLDialogElement;
   let draft=$state<ThemeDefinition>(untrack(()=>copyTheme(resolveTheme($state.snapshot(settings.value),systemDark))));
@@ -86,12 +89,14 @@
     </div>
     <div id="settings-panel-llm" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-llm" hidden={section!=='llm'}><LlmSettings bind:this={llmPanel} onStatus={(next)=>{connectionStatus=next;}} /></div>
     <div id="settings-panel-images" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-images" hidden={section!=='images'}><ImageSettings bind:this={imagePanel} onStatus={next=>{imageStatus=next;}} /></div>
+    <div id="settings-panel-prompts" role="tabpanel" tabindex="0" aria-labelledby="settings-tab-prompts" hidden={section!=='prompts'}><PromptSettings bind:this={promptPanel} initialTask={initialPromptTask} onStatus={next=>{promptStatus=next;}} /></div>
     </fieldset>
   </div>
   <footer class="settings-footer">
-    <span aria-live="polite" class:danger-text={section==='llm'&&!!connectionStatus.error||section==='images'&&!!imageStatus.error}>
+    <span aria-live="polite" class:danger-text={section==='llm'&&!!connectionStatus.error||section==='images'&&!!imageStatus.error||section==='prompts'&&!!promptStatus.error}>
       {#if section==='llm'}{connectionStatus.working?'Working…':connectionStatus.error||(connectionStatus.dirty?'Unsaved connection changes':connectionStatus.notice||(desktop?'Connection settings':'Desktop connection settings unavailable'))}
       {:else if section==='images'}{imageStatus.working?'Working…':imageStatus.error||(imageStatus.dirty?'Unsaved image settings':imageStatus.notice||'Image connection settings')}
+      {:else if section==='prompts'}{promptStatus.working?'Saving prompts…':promptStatus.error||(promptStatus.dirty?'Unsaved prompt edits':promptStatus.notice||'Prompt defaults for this device')}
       {:else}{settings.error?'Settings not saved':!settings.ready?'Loading…':settings.saving?'Saving…':settings.dirty?'Unsaved settings':desktop?'Appearance saved on this device':'Preview settings · this tab only'}{/if}
     </span>
     <div class="settings-footer-actions">
@@ -100,7 +105,8 @@
         <button class="primary-button" type="submit" form="llm-connection-form" disabled={!connectionStatus.ready||connectionStatus.working||!connectionStatus.dirty||!settings.ready}>Save connection</button>
       {/if}
       {#if section==='images'}<button type="button" class="secondary-button" disabled={!imageStatus.ready||imageStatus.working} onclick={()=>{void imagePanel?.testConnection();}}>Test connection</button><button class="primary-button" type="submit" form="image-connection-form" disabled={!imageStatus.ready||imageStatus.working||!imageStatus.dirty}>Save connection</button>{/if}
-      <button class="primary-button" disabled={connectionStatus.working||imageStatus.working} onclick={()=>{void close();}}>Done</button>
+      {#if section==='prompts'}<button class="primary-button" type="submit" form="prompt-settings-form" disabled={!promptStatus.ready||promptStatus.working||!promptStatus.dirty}>Save prompts</button>{/if}
+      <button class="primary-button" disabled={connectionStatus.working||imageStatus.working||promptStatus.working} onclick={()=>{void close();}}>Done</button>
     </div>
   </footer>
 </dialog>

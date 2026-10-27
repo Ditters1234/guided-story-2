@@ -32,6 +32,7 @@ button:not(:disabled):hover{filter:brightness(.97)}
 
 .main-workspace{flex:1;min-height:0;display:flex}
 .main-workspace>[data-pane-group]{flex:1}
+.prompt-settings{display:flex;flex-direction:column;gap:16px}.prompt-settings-fields{border:0;margin:0;padding:0;min-width:0}.prompt-settings-fields>.field-help{margin-bottom:14px}.prompt-editor-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:12px 0;color:var(--muted);font-size:.85rem}.prompt-settings textarea{min-height:20rem;line-height:1.6}.prompt-default pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.6;color:var(--muted)}
 .project-start{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:32px;background:var(--background)}.project-start h1{font-size:1.7rem}.project-start-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}.project-start>p{color:var(--muted)}
 .pane-resizer{width:5px;background:var(--border);transition:background .12s}
 .pane-resizer:hover,.pane-resizer[data-active]{background:var(--selection)}
