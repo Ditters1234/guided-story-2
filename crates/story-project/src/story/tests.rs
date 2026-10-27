@@ -111,6 +111,37 @@ fn drafts_survive_reopen_without_changing_canonical_world_or_history() {
     assert_eq!(p.passage_view(&rid, &settings()).unwrap().edits, edit);
 }
 #[test]
+fn blank_direction_can_generate_first_and_later_passages_without_changing_the_world() {
+    let (_dir, p) = fixture();
+    for turn in 0..2 {
+        let before = p.view().unwrap();
+        let rid = id();
+        let mut edit = edits(&p, "");
+        edit.plan.direction = "  ".into();
+        p.save_passage(&rid, 0, edit).unwrap();
+        let prepared = p
+            .start_passage(&rid, 1, before.revision, false, &settings())
+            .unwrap();
+        assert!(prepared.system.contains("Passage direction is optional"));
+        assert!(prepared.user.contains("Mara") && prepared.user.contains("Field coat"));
+        if turn == 1 {
+            assert!(prepared.user.contains("The room fell quiet."));
+        }
+        p.finish_passage(&rid, false, Ok(prepared.demo), false, false, &settings())
+            .unwrap();
+        let view = p.passage_view(&rid, &settings()).unwrap();
+        assert!(!view.edits.prose.trim().is_empty());
+        assert_eq!(p.view().unwrap().world_ref, before.world_ref);
+        assert_eq!(p.view().unwrap().revision, before.revision);
+        assert!(!view.can_accept);
+        p.validate_passage(&rid, view.version, &settings()).unwrap();
+        let view = p.passage_view(&rid, &settings()).unwrap();
+        p.accept_passage(&rid, view.version, &settings()).unwrap();
+    }
+    assert_eq!(p.story_index().unwrap().passages.len(), 2);
+}
+
+#[test]
 fn first_and_later_passages_share_acceptance_and_chapter_planning() {
     let (_dir, p) = fixture();
     let first = accept(&p, edits(&p, "Mara waited beside the window."));

@@ -3,6 +3,7 @@
   import {commands,unwrap} from './native';
   import {PassageSession} from './passage-session.svelte';
   import {diffProse} from './prose-diff';
+  import {scenePlan} from './scene-plan';
   import ChapterMemoryEditor from './ChapterMemoryEditor.svelte';
   import PassageImages from './PassageImages.svelte';
   import type {ProjectView,World} from './model';
@@ -33,6 +34,7 @@
   const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
   const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
+  const generationHelp=$derived(otherBusy?'Finish the other AI request before generating a passage.':memoryRunning?'Finish chapter memory generation first.':wording&&!session.value?.plan.direction.trim()?'Add wording direction before generating a polish candidate.':'');
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
   $effect(()=>{onRun(session.running||memoryRunning);});
   $effect(()=>{const revision=project.revision;if(loaded)untrack(()=>{void refreshIndex().then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});});void revision;});
@@ -40,12 +42,7 @@
   async function refreshIndex(){index=unwrap(await commands.loadStory(project.storyId));drafts=unwrap(await commands.listPassageDrafts(project.storyId));}
   async function openDraft(id:string){working=true;try{await session.open(id);reading=null;mode='draft';onHistory(null,'');error='';}catch(caught){error=describe(caught);}finally{working=false;}}
   async function fresh(usePlan?:PassagePlan){working=true;try{
-    await session.flush();await onBeforeAction();const plan=usePlan?structuredClone(usePlan):unwrap(await commands.nextPassagePlan(project.storyId));
-    if(!usePlan){const previous=session.value?.plan;const selected=world.nodes.find((n)=>n.id===selectedId);
-      plan.viewpointId=previous?.viewpointId&&world.nodes.some((n)=>n.id===previous.viewpointId)?previous.viewpointId:selected?.components['core.character']?selected.id:null;
-      plan.locationId=previous?.locationId&&world.nodes.some((n)=>n.id===previous.locationId)?previous.locationId:selected?.components['core.place']?selected.id:world.edges.find((e)=>e.typeId==='core.present-at'&&e.sourceId===plan.viewpointId)?.targetId??world.nodes.find((n)=>n.components['core.place'])?.id??null;
-      plan.participantIds=(previous?.participantIds??[]).filter((id)=>world.nodes.some((n)=>n.id===id));
-    }
+    await session.flush();await onBeforeAction();const plan=usePlan?structuredClone(usePlan):scenePlan(world,unwrap(await commands.nextPassagePlan(project.storyId)),selectedId,session.value?.plan);
     await session.create(plan);reading=null;mode='draft';onHistory(null,'');await refreshIndex();error='';
   }catch(caught){error=describe(caught);}finally{working=false;}}
   async function read(id:string){working=true;try{await session.flush();reading=unwrap(await commands.readPassage(project.storyId,id));versions=null;versionsError='';mode='reader';moment='after';showMoment();error='';}catch(caught){error=describe(caught);}finally{working=false;}}
@@ -146,6 +143,14 @@
   <div class="workspace-surface" hidden={mode==='memory'}>
   {#if error||session.error}<div class="story-error" role="alert"><span>{error||session.error}</span><button class="text-action" onclick={()=>{void session.flush().then(()=>session.refresh()).then(()=>{error='';}).catch((caught)=>{error=describe(caught);});}}>Retry / refresh</button></div>{/if}
   {#if session.running}<div class="story-job" role="status"><span>{session.view?.stage==='narrating'?'Writing passage…':'Checking world changes…'} You can browse the world while this runs.</span><button class="secondary-button" onclick={()=>{if(session.id)void commands.cancelAuthoring(session.id).then(unwrap).then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});}}>Cancel</button></div>{/if}
+  {#if mode==='draft'&&session.value}
+    <fieldset class="passage-fields passage-toolbar" aria-label="Passage generation" disabled={blocked||session.view?.stage==='accepted'}>
+      {#if !wording}<label>Target words<input type="number" aria-label="Target words" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}
+      <button class="primary-button" disabled={!!generationHelp} title={generationHelp||undefined} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button>
+      <button class="text-action" onclick={onSettings}>LLM settings</button>
+      {#if generationHelp}<p class="field-help generation-help" role="status">{generationHelp}</p>{/if}
+    </fieldset>
+  {/if}
   <div class="story-scroll">
   {#if mode==='reader'&&reading}
     <article class="passage-reader">
@@ -157,8 +162,7 @@
     <div class="passage-composer">
       <fieldset class="passage-fields" disabled={blocked||session.view?.stage==='accepted'}>
         <label class="field">Passage title<input bind:value={session.value.plan.title} disabled={wording} oninput={()=>session.touch()} maxlength={200} /></label>
-        <label class="field">{wording?'Wording direction (for AI polish)':'Passage direction'}<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder={wording?'How should the wording change while keeping events intact?':'What happens in this passage, and where should it stop?'}></textarea></label>
-        <div class="passage-generate">{#if !wording}<label>Target words<input type="number" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}<button class="secondary-button" disabled={otherBusy||memoryRunning||!session.value.plan.direction.trim()} onclick={()=>{void start(false);}}>{wording?'Generate polish candidate':session.value.prose?'Generate new candidate':'Generate passage'}</button><button class="text-action" onclick={onSettings}>LLM settings</button></div>
+        <label class="field">{wording?'Wording direction (for AI polish)':'Passage direction (optional)'}<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder={wording?'How should the wording change while keeping events intact?':'Optional: what happens next, and where should it stop?'}></textarea>{#if !wording}<span class="field-help">Leave blank to let AI develop the next passage from the selected scene and chapter direction.</span>{/if}</label>
         {#if session.view?.narrationProvider.startsWith('Offline demo')}<p class="field-help">{session.view.narrationProvider}</p>{/if}
         <label class="field prose-field">Passage<textarea bind:value={session.value.prose} oninput={()=>session.touch()} rows={16} maxlength={100000} placeholder="Generate a passage or write it here."></textarea><span class="field-help">{wordCount} words</span></label>
       </fieldset>
