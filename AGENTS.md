@@ -12,6 +12,7 @@ Start with Gate 0: Windows Tauri/Svelte shell, a small map/inspector/image previ
 
 - The native backend owns canonical validation and project writes. Autosaved form drafts and AI proposals are distinct from accepted story facts.
 - AI world proposals require Apply; prose requires Accept passage. Edited prose invalidates extracted effects and checks.
+- Passage effects and continuity notes are individually edited, removed and approved in the draft. Native review keys bind each card to its complete contents, prose/plan, scoped source and proposed-node dependencies. Relevant edits invalidate approval; unrelated card edits preserve it. Require every included card's approval and native batch validation before publishing the passage atomically. Approval alone must never change the established world.
 - AI node authoring derives fields, capabilities and output contracts from the project schema. Keep provider clients/job state separate from node data; custom presets must use the same creation/revision/protection pipeline.
 - Accepted passage versions and world snapshots are immutable. Current author edits must not change historical snapshots.
 - Wording revision preserves events/snapshots and labels any evidence anchored to earlier wording. Latest-event replacement uses its recorded before-world and blocks intervening world edits rather than rolling them back. Superseded versions remain immutable; a fork omits alternate revision history except a required wording evidence anchor.

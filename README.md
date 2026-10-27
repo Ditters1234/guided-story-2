@@ -36,7 +36,7 @@ Start with a story idea and let an LLM propose settings, characters, places, pos
 - Create an independent story using **Fork after this passage**.
 - Generate optional character portraits and passage illustrations through ComfyUI.
 
-Valid manual edits and unfinished drafts autosave. AI world proposals require **Apply**; generated prose requires **Accept passage**. Each accepted passage retains its before/after world snapshots. Projects live in user-selected folders; connection settings remain separate.
+Valid manual edits and unfinished drafts autosave. AI world proposals require **Apply**. Passage world changes and continuity notes have individual editable approval cards; **Accept passage** publishes the reviewed set with its prose. Each accepted passage retains its before/after world snapshots. Projects live in user-selected folders; connection settings remain separate.
 
 ## Design and build documents
 

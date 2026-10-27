@@ -112,6 +112,7 @@ impl Project {
                 prose: base.prose,
                 effects_text,
                 close_chapter: base.close_chapter,
+                approved_effects: vec![],
             },
         )?;
         draft.revision = Some(revision);

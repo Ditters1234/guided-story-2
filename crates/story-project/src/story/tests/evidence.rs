@@ -98,7 +98,7 @@ fn stitched_quotes_report_all_fields_and_manual_repair_preserves_prose_until_acc
     p.save_passage(&candidate, version, edit).unwrap();
     p.validate_passage(&candidate, version + 1, &settings())
         .unwrap();
-    let checked = p.passage_view(&candidate, &settings()).unwrap();
+    let checked = p.approve_passage_for_test(&candidate, &settings()).unwrap();
     assert!(checked.can_accept);
     assert_eq!(checked.original_effects, original);
     assert_eq!(p.view().unwrap().world_ref, before.world_ref);
@@ -144,7 +144,7 @@ fn literal_ellipses_unicode_and_whitespace_quotes_remain_valid_without_auto_acce
         &settings(),
     )
     .unwrap();
-    let checked = p.passage_view(&candidate, &settings()).unwrap();
+    let checked = p.approve_passage_for_test(&candidate, &settings()).unwrap();
     assert!(checked.can_accept, "{}", checked.error);
     assert_eq!(p.view().unwrap().world_ref, before.world_ref);
     assert!(p.story_index().unwrap().passages.is_empty());

@@ -11,6 +11,8 @@ use std::{
 };
 mod revisions;
 pub use revisions::*;
+mod review;
+pub use review::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -47,6 +49,8 @@ pub struct PassageEdits {
     pub prose: String,
     pub effects_text: String,
     pub close_chapter: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approved_effects: Vec<String>,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -230,6 +234,7 @@ pub struct PassageSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassageView {
+    pub effects_review: EffectsReview,
     pub memory: MemoryContext,
     pub revision: Option<PassageRevisionView>,
     pub narration_provider: String,
@@ -312,6 +317,14 @@ pub(crate) fn story_hash<T: Serialize>(value: &T) -> Result<String, String> {
     ))
 }
 fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
+    if edits.approved_effects.len() > 92
+        || edits
+            .approved_effects
+            .iter()
+            .any(|key| key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("Invalid effect review approvals.".into());
+    }
     let p = &edits.plan;
     if p.chapter_title.chars().count() > 200 || p.title.chars().count() > 200 {
         return Err("Passage/chapter titles exceed 200 characters.".into());
@@ -610,7 +623,9 @@ impl Project {
             };
             d.attempt = None;
         }
-        if d.edits.close_chapter != edits.close_chapter {
+        if d.edits.close_chapter != edits.close_chapter
+            || d.edits.approved_effects != edits.approved_effects
+        {
             d.attempt = None;
         }
         if d.version > 0 {
@@ -834,9 +849,11 @@ impl Project {
                     return Err("Passage response exceeds its saved limit.".into());
                 }
                 if checking {
+                    d.edits.approved_effects.clear();
                     d.original_effects = text.clone();
                     d.edits.effects_text = text;
                 } else {
+                    d.edits.approved_effects.clear();
                     d.original_prose = text.clone();
                     d.edits.prose = text;
                     if d.revision
@@ -1006,6 +1023,23 @@ impl Project {
             story_hash(&(&d.edits.plan, &d.edits.prose, &d.edits.effects_text, fp))
                 .is_ok_and(|hash| hash == d.checked)
         });
+        let checked = d.stage == PassageStage::Ready && matching && !stale && d.error.is_empty();
+        let effects_review = if wording {
+            EffectsReview {
+                checked,
+                entries: vec![],
+            }
+        } else {
+            review::effect_review(
+                &d.edits,
+                prepared
+                    .as_ref()
+                    .map(|(ctx, _, _, fp, _)| (ctx, fp.as_str()))
+                    .ok(),
+                checked,
+            )?
+        };
+        let approved = effects_review.entries.iter().all(|entry| entry.approved);
         let memory = prepared
             .as_ref()
             .ok()
@@ -1017,6 +1051,7 @@ impl Project {
             .map(|(ctx, _, _, _, recent)| (ctx.nodes.into_iter().map(|n| n.name).collect(), recent))
             .unwrap_or_default();
         Ok(PassageView {
+            effects_review,
             memory,
             revision,
             narration_provider: d.narration_provider,
@@ -1028,7 +1063,7 @@ impl Project {
             error: d.error.clone(),
             stale,
             changes,
-            can_accept: d.stage == PassageStage::Ready && matching && !stale && d.error.is_empty(),
+            can_accept: checked && approved,
             suggested_chapter_end: suggested,
             context_nodes,
             recent_passages,
@@ -1058,7 +1093,18 @@ impl Project {
                     .map_or_else(|| id.into(), |r| r.passage_id.clone()),
             });
         }
-        if d.version != expected || !self.passage_view(id, settings)?.can_accept {
+        if d.version != expected {
+            return Err(
+                "The exact passage/effects/source must be checked before acceptance.".into(),
+            );
+        }
+        let review = self.passage_view(id, settings)?;
+        if !review.can_accept {
+            if review.effects_review.checked
+                && review.effects_review.entries.iter().any(|e| !e.approved)
+            {
+                return Err("Approve each included world change and continuity note before accepting this passage.".into());
+            }
             return Err(
                 "The exact passage/effects/source must be checked before acceptance.".into(),
             );

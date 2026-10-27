@@ -107,6 +107,7 @@ pub(super) fn accept_passage(p: &Project, changes: Vec<PassageEffect>) -> String
             })
             .unwrap(),
             close_chapter: false,
+            approved_effects: vec![],
         },
     )
     .unwrap();
@@ -115,6 +116,7 @@ pub(super) fn accept_passage(p: &Project, changes: Vec<PassageEffect>) -> String
         ..Default::default()
     };
     p.validate_passage(&draft, 1, &settings).unwrap();
+    p.approve_passage_for_test(&draft, &settings).unwrap();
     p.accept_passage(
         &draft,
         p.passage_view(&draft, &settings).unwrap().version,
@@ -360,6 +362,7 @@ fn media_metadata_does_not_invalidate_checked_passage_context() {
             prose: "The room grew quiet as rain touched the glass.".into(),
             effects_text: empty_effects(),
             close_chapter: false,
+            approved_effects: vec![],
         },
     )
     .unwrap();

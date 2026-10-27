@@ -330,6 +330,20 @@ export type EditorDraft_Serialize = {
 	world: World_Serialize,
 };
 
+export type EffectReviewEntry = {
+	kind: EffectReviewKind,
+	index: number,
+	key: string,
+	approved: boolean,
+};
+
+export type EffectReviewKind = "change" | "note";
+
+export type EffectsReview = {
+	checked: boolean,
+	entries: EffectReviewEntry[],
+};
+
 export type FieldDefinition = {
 	key: string,
 	label: string,
@@ -799,6 +813,7 @@ export type PassageEdits_Deserialize = {
 	prose: string,
 	effectsText: string,
 	closeChapter: boolean,
+	approvedEffects?: string[],
 };
 
 export type PassageEdits_Serialize = {
@@ -806,6 +821,7 @@ export type PassageEdits_Serialize = {
 	prose: string,
 	effectsText: string,
 	closeChapter: boolean,
+	approvedEffects?: string[],
 };
 
 export type PassageEffect = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
@@ -926,6 +942,7 @@ export type PassageVersions_Serialize = {
 export type PassageView = PassageView_Serialize | PassageView_Deserialize;
 
 export type PassageView_Deserialize = {
+	effectsReview: EffectsReview,
 	memory: MemoryContext_Deserialize,
 	revision?: PassageRevisionView_Deserialize | null,
 	narrationProvider: string,
@@ -946,6 +963,7 @@ export type PassageView_Deserialize = {
 };
 
 export type PassageView_Serialize = {
+	effectsReview: EffectsReview,
 	memory: MemoryContext_Serialize,
 	revision: PassageRevisionView_Serialize | null,
 	narrationProvider: string,

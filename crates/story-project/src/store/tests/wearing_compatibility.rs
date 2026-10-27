@@ -201,6 +201,7 @@ fn legacy_project_history_forks_backups_and_media_keep_original_records() {
             prose: "Nora waited in her work coat.".into(),
             effects_text: empty_effects(),
             close_chapter: false,
+            approved_effects: vec![],
         },
     )
     .unwrap();

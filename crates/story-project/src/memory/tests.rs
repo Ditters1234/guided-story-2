@@ -78,10 +78,12 @@ fn accept(p: &Project, text: &str, closed: bool, note: Option<&str>, thread: boo
         prose: text.into(),
         effects_text: serde_json::to_string(&effects).unwrap(),
         close_chapter: closed,
+        approved_effects: vec![],
     };
     let draft = id();
     p.save_passage(&draft, 0, edits).unwrap();
     p.validate_passage(&draft, 1, &settings()).unwrap();
+    p.approve_passage_for_test(&draft, &settings()).unwrap();
     p.accept_passage(
         &draft,
         p.passage_view(&draft, &settings()).unwrap().version,
@@ -251,6 +253,7 @@ fn older_notes_and_reviewed_summaries_are_retrieved_without_sending_the_whole_hi
             prose: String::new(),
             effects_text: empty_effects(),
             close_chapter: false,
+            approved_effects: vec![],
         },
     )
     .unwrap();
@@ -290,6 +293,7 @@ fn wording_changes_stale_summaries_and_checked_prose_without_reusing_obsolete_qu
         prose: "Someone knocked at the door.".into(),
         effects_text: empty_effects(),
         close_chapter: false,
+        approved_effects: vec![],
     };
     p.save_passage(&pending, 0, edits).unwrap();
     p.validate_passage(&pending, 1, &settings()).unwrap();
@@ -749,6 +753,7 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
             prose: "Mara waited beside the glasshouse window. ".repeat(500),
             effects_text: empty_effects(),
             close_chapter: false,
+            approved_effects: vec![],
         },
     )
     .unwrap();

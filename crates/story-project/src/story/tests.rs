@@ -1,6 +1,7 @@
 use super::*;
 use std::process::Command;
 mod evidence;
+mod review;
 mod revisions;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
@@ -84,12 +85,14 @@ fn edits(p: &Project, prose: &str) -> PassageEdits {
         prose: prose.into(),
         effects_text: empty_effects(),
         close_chapter: false,
+        approved_effects: vec![],
     }
 }
 fn ready(p: &Project, edits: PassageEdits) -> String {
     let rid = id();
     p.save_passage(&rid, 0, edits).unwrap();
     p.validate_passage(&rid, 1, &settings()).unwrap();
+    p.approve_passage_for_test(&rid, &settings()).unwrap();
     rid
 }
 fn accept(p: &Project, edits: PassageEdits) -> String {
