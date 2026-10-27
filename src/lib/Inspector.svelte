@@ -3,7 +3,9 @@
   import type { World } from './model';
   import PropertyInput from './PropertyInput.svelte';
   import NodeImage from './NodeImage.svelte';
-  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi }: {
+  import AiContextBindingEditor from './AiContextBindingEditor.svelte';
+  import type {AiContextBinding} from './bindings';
+  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onContext,onContextOpen }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
     imageStoryId:string|null;revision:number;onImage:(id:string)=>void;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
@@ -13,6 +15,7 @@
     onRemoveNode: (id: string) => void; onRemoveCapability: (id: string, capability: string) => void;
     onLink: (id: string) => void; onNewLink: (id: string) => void; onRemoveLink: (id: string) => void;
     onAi: (id:string)=>void;
+    onContext:(binding:AiContextBinding)=>void;onContextOpen:()=>void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
 </script>
@@ -38,6 +41,7 @@
       </div>
     {/if}
     {#if node}
+      <div class="linked-section"><div class="section-actions"><h3>AI context</h3>{#if editable}<button class="text-action" onclick={onContextOpen}>Manage / preview</button>{/if}</div><AiContextBindingEditor nodeId={node.id} binding={world.aiContext?.find(b=>b.nodeId===node!.id)} disabled={!editable} onChange={onContext}/></div>
       <div class="linked-section"><div class="section-actions"><h3>Connections</h3>{#if editable}<button class="text-action" onclick={() => onNewLink(node!.id)}>＋ Attach / link</button>{/if}</div>
         <p class="field-help">All incoming and outgoing links, including connections outside the visible map.</p>
         {#each world.edges.filter((e) => e.sourceId === node!.id || e.targetId === node!.id) as edge (edge.id)}

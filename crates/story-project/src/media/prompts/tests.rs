@@ -1,6 +1,84 @@
 use super::*;
 use crate::media::tests::{accept_passage, fixture, png};
 #[test]
+fn ai_context_is_captured_for_image_assistance_and_only_selected_content_stales_it() {
+    let (_dir, p) = fixture();
+    let mut current = p.view().unwrap();
+    let rule = crate::ai_context::tests::note(
+        &mut current.world,
+        "Image guidance",
+        "Use soft window light.",
+        AiContextRole::Instructions,
+        vec![TextPromptTask::ImagePrompt],
+    );
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let media = media(&p);
+    let image = ImageConnection::default();
+    let draft = proposal(&p, &media, &text(), &image);
+    let request = p.start_image_prompt(&draft, 1, &text(), &image).unwrap();
+    assert!(request.system.contains("Use soft window light."));
+    p.finish_image_prompt(&draft, Ok(request.demo), false, false)
+        .unwrap();
+    let mut current = p.view().unwrap();
+    current
+        .world
+        .nodes
+        .iter_mut()
+        .find(|n| n.id == rule)
+        .unwrap()
+        .visual_description = "Unselected visual text.".into();
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    assert!(!p.image_prompt_view(&draft, &text(), &image).unwrap().stale);
+    let mut current = p.view().unwrap();
+    current
+        .world
+        .nodes
+        .iter_mut()
+        .find(|n| n.id == rule)
+        .unwrap()
+        .description = "Use side lighting.".into();
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let view = p.image_prompt_view(&draft, &text(), &image).unwrap();
+    assert!(view.stale && !view.can_apply);
+}
+#[test]
+fn historical_image_assistance_uses_context_from_its_captured_passage_boundary() {
+    let (_dir, p) = fixture();
+    let passage = accept_passage(&p, vec![]);
+    let subject = p.view().unwrap().world.nodes[1].id.clone();
+    let media_id = id();
+    p.create_media(
+        &media_id,
+        MediaTarget {
+            node_id: None,
+            passage_id: Some(passage),
+            moment: ImageMoment::Before,
+            subject_ids: vec![subject],
+        },
+    )
+    .unwrap();
+    let mut current = p.view().unwrap();
+    crate::ai_context::tests::note(
+        &mut current.world,
+        "Future instructions",
+        "Future-only instruction text.",
+        AiContextRole::Instructions,
+        vec![TextPromptTask::ImagePrompt],
+    );
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let image = ImageConnection::default();
+    let draft = proposal(&p, &media_id, &text(), &image);
+    let request = p.start_image_prompt(&draft, 1, &text(), &image).unwrap();
+    assert!(
+        !request.system.contains("Future-only instruction")
+            && !request.user.contains("Future-only instruction")
+    );
+}
+#[test]
 fn image_prompt_assistance_uses_the_exact_override_and_preserves_captured_facts() {
     let (_dir, p) = fixture();
     let media = media(&p);

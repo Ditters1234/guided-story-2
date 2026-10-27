@@ -19,7 +19,7 @@ npm run desktop
 
 The desktop app reopens the last successfully opened story. With no saved choice, or if that folder cannot open, it shows **New story / Open story**. New stories start empty; the fictional Brasswater example is an optional checkbox during creation. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. `npm run desktop -- -- --project "C:\path\to\project"` opens that explicit folder instead of the remembered story.
 
-The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance, API and [editable AI prompt](PROMPTS.md) controls. **Settings → Prompts** edits the full system instructions for each text tool, with Save and Restore default. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
+The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance, API and [editable AI prompt](PROMPTS.md) controls. **Settings → Prompts** edits the base system instructions for each text tool, with Save and Restore default. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 
 `npm run verify` runs the frontend/native checks and tests plus the frontend production build. Individual checks remain available. `npm run bindings` regenerates checked-in frontend contracts from Rust.
 
@@ -37,6 +37,8 @@ Start with a story idea and let an LLM propose settings, characters, places, pos
 - Generate optional character portraits and passage illustrations through ComfyUI.
 
 Valid manual edits and unfinished drafts autosave. AI world proposals require **Apply**. Passage world changes and continuity notes have individual editable approval cards; **Accept passage** publishes the reviewed set with its prose. Each accepted passage retains its before/after world snapshots. Projects live in user-selected folders; connection settings remain separate.
+
+**AI context** lets any node supply story-wide instructions or reference facts to selected tools, with ordering, content-field selection and an assembled preview. Use a plain Note or a custom preset for narration preferences, world rules or other guidance. These bindings travel with the story and historical snapshots. See [story-wide context](AI_CONTEXT.md).
 
 ## Design and build documents
 

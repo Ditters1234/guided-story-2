@@ -18,6 +18,7 @@ export const commands = {
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
+	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
 	loadLlmConnection: () => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("load_llm_connection")),
@@ -125,6 +126,34 @@ export type AcceptedPassage_Serialize = {
 	afterWorld: RecordRef,
 	narrationSource: RecordRef | null,
 	sourceFingerprint: string,
+};
+
+export type AiContextBinding = {
+	nodeId: string,
+	enabled: boolean,
+	role: AiContextRole,
+	tasks: TextPromptTask[],
+	fields: AiContextField[],
+	order: number,
+};
+
+export type AiContextField = "description" | "visualDescription" | "components";
+
+export type AiContextPreview = {
+	sections: AiContextSection[],
+	system: string,
+	references: AiContextSection[],
+};
+
+export type AiContextRole = "instructions" | "reference";
+
+export type AiContextSection = {
+	nodeId: string,
+	name: string,
+	role: AiContextRole,
+	order: number,
+	fields: AiContextField[],
+	content: string,
 };
 
 export type ApiKeyUpdate = { kind: "keep" } | { kind: "replace"; value: string } | { kind: "clear" };
@@ -1252,6 +1281,7 @@ export type World_Deserialize = {
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition[],
 	relationTypes: RelationDefinition_Deserialize[],
+	aiContext?: AiContextBinding[],
 };
 
 export type World_Serialize = {
@@ -1260,6 +1290,7 @@ export type World_Serialize = {
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition[],
 	relationTypes: RelationDefinition_Serialize[],
+	aiContext?: AiContextBinding[],
 };
 
 /* Tauri Specta runtime */

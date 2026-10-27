@@ -1,3 +1,4 @@
+mod ai_context;
 mod authoring;
 mod connections;
 mod image_workflow;
@@ -13,6 +14,7 @@ mod story;
 mod story_effects;
 mod text_prompts;
 
+pub use ai_context::*;
 pub use authoring::*;
 pub use connections::*;
 pub use image_workflow::*;

@@ -37,6 +37,8 @@ pub enum ImagePromptStage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PromptSource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ai_context: Option<Vec<AiContextSection>>,
     contract: u32,
     media_id: String,
     target: MediaTarget,
@@ -225,7 +227,13 @@ impl Project {
                 }
                 Ok(value)
             };
+        let context_world: World = if d.target.passage_id.is_some() {
+            self.read_record("worlds", &d.source.world)?
+        } else {
+            self.view()?.world
+        };
         Ok(PromptSource {
+            ai_context: ai_context_capture(&context_world, TextPromptTask::ImagePrompt)?,
             contract: 1,
             media_id: media_id.into(),
             target: d.target,
@@ -452,7 +460,9 @@ impl Project {
         if text.structured_output != StructuredOutput::Schema {
             input["responseSchema"] = schema.clone();
         }
-        let system = text.system_prompt(TextPromptTask::ImagePrompt);
+        let mut system = text.system_prompt(TextPromptTask::ImagePrompt);
+        let included = source.ai_context.as_deref().unwrap_or_default();
+        append_ai_context(included, &mut system, &mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let extra = if text.structured_output == StructuredOutput::Schema {
             schema.to_string().len()
@@ -463,7 +473,7 @@ impl Project {
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
             > text.context_tokens as usize
         {
-            return Err("Captured shot facts and prompt exceed the LLM context budget. Keep the manual prompt or choose fewer subjects; no request was sent.".into());
+            return Err(format!("Captured shot facts and required AI context ({}) exceed the LLM context budget. Shorten included nodes, keep the manual prompt or choose fewer subjects; no required content was dropped and no request was sent.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
         }
         let demo = ImagePromptOutput {
             shot: if d.edits.direction.trim().is_empty() {

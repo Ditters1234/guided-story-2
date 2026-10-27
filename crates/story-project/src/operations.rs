@@ -112,6 +112,10 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                 }
             }
             world.nodes.retain(|n| n.id != id);
+            if world.ai_context.iter().any(|b| b.node_id == id) {
+                changes.push("Remove this node's story-wide AI context inclusion.".into());
+            }
+            world.ai_context.retain(|b| b.node_id != id);
             world
                 .edges
                 .retain(|e| e.source_id != id && e.target_id != id);

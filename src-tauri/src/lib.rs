@@ -234,6 +234,16 @@ fn save_workspace(
 fn preview_world_edit(world: World, edit: WorldEdit) -> Result<WorldEditPreview, String> {
     story_project::preview_world_edit(&world, edit)
 }
+#[tauri::command]
+#[specta::specta]
+fn preview_ai_context(
+    world: World,
+    task: story_project::TextPromptTask,
+    app: tauri::AppHandle,
+) -> Result<story_project::AiContextPreview, String> {
+    let connection = story_project::load_connection(&preferences_root(&app)?)?.settings;
+    story_project::preview_ai_context(&world, task, &connection)
+}
 
 fn preferences_root(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     #[cfg(debug_assertions)]
@@ -277,6 +287,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_draft,
             clear_matching_draft,
             preview_world_edit,
+            preview_ai_context,
             load_preferences,
             save_preferences,
             load_llm_connection,

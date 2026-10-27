@@ -56,6 +56,8 @@ pub struct MemoryNode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ChapterMemory {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ai_context: Option<Vec<AiContextSection>>,
     pub schema_version: u32,
     pub id: String,
     pub chapter_id: String,
@@ -136,6 +138,8 @@ struct MemoryAttempt {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct MemoryDraft {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ai_context: Option<Vec<AiContextSection>>,
     #[serde(default)]
     seeded_from_stale: bool,
     schema_version: u32,
@@ -282,6 +286,11 @@ impl Project {
         if title != draft.title || sources != draft.sources {
             return Err("Chapter text or closing state changed. Keep this draft and create memory from the current chapter.".into());
         }
+        if let Some(captured) = &draft.ai_context {
+            if captured != &resolve_ai_context(&self.view()?.world, TextPromptTask::Memory)? {
+                return Err("Included AI context changed after this memory request. Keep this draft and create a new memory candidate.".into());
+            }
+        }
         Ok(())
     }
     pub fn list_memory_drafts(&self) -> Result<Vec<MemoryDraftSummary>, String> {
@@ -337,6 +346,7 @@ impl Project {
             .is_some_and(|m| m.chapter_title != title || m.sources != sources);
         let output = previous.map(|m| m.output).unwrap_or_default();
         self.write_memory_draft(&MemoryDraft {
+            ai_context: None,
             seeded_from_stale,
             schema_version: 1,
             id: id.into(),
@@ -522,7 +532,9 @@ impl Project {
         if settings.structured_output != StructuredOutput::Schema {
             input["responseSchema"] = schema.clone();
         }
-        let system = settings.system_prompt(TextPromptTask::Memory);
+        let mut system = settings.system_prompt(TextPromptTask::Memory);
+        let included = resolve_ai_context(&self.view()?.world, TextPromptTask::Memory)?;
+        append_ai_context(&included, &mut system, &mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let output_tokens = settings.max_tokens.min(3072);
         let extra = if settings.structured_output == StructuredOutput::Schema {
@@ -533,10 +545,12 @@ impl Project {
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
             > settings.context_tokens as usize
         {
-            return Err("The chapter text and summary exceed this connection's context budget. Add manual memory points from source passages instead; no request was sent.".into());
+            return Err(format!("The chapter text, required AI context ({}) and summary exceed this connection's context budget. Shorten included nodes or add manual memory points; no required content was dropped and no request was sent.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
         }
         self.write_record("memory-draft-versions", &draft)?;
         draft.stage = MemoryStage::Running;
+        // Some(empty) also detects a later addition of mandatory context.
+        draft.ai_context = Some(included);
         draft.error.clear();
         draft.incomplete = false;
         draft.attempt = None;
@@ -654,6 +668,7 @@ impl Project {
             index = self.read_record("stories", &attempt.index)?;
         } else {
             let record = ChapterMemory {
+                ai_context: draft.ai_context.clone(),
                 schema_version: 1,
                 id: id.into(),
                 chapter_id: draft.chapter_id.clone(),

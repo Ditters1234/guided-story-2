@@ -1,5 +1,7 @@
 <script lang="ts">
   import BackupDialog from './lib/BackupDialog.svelte';
+  import AiContextDialog from './lib/AiContextDialog.svelte';
+  import {setContextBinding} from './lib/ai-context';
   import { onMount, type Snippet } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -46,6 +48,9 @@
   let backupMode=$state<'export'|'restore'|null>(null),backupWorking=$state(false);
   const appearance = new AppearanceSettings();
   let showSettings = $state(false);
+  let showContext=$state(false);
+  function changeContextWorld(next:World){if(project&&!busy&&!historyWorld){world=next;scheduleSave();}}
+  async function openContext(){if(!project||busy||historyWorld)return;try{await storyPanel?.flushDraft();await flush();showContext=true;}catch(caught){error=describe(caught);}}
   let settingsSection=$state<'appearance'|'llm'|'images'|'prompts'>('appearance');
   let promptTask=$state<TextPromptTask>('passage');
   let settingsDialog=$state<{flushSettings:()=>Promise<void>}>();
@@ -375,7 +380,7 @@
 
 <svelte:head><title>{project?.title ?? 'Open a story'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit || !!backupMode}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || showContext || !!structuralEdit || !!backupMode}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
     <div class="header-actions"><details class="add-menu project-menu"><summary>Project</summary><div><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;void openProject();}}>Open project…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;showNewProject();}}>New project…</button><button disabled={!desktop||busy||!project} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='export';}}>Export backup…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='restore';}}>Restore backup…</button></div></details><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
@@ -421,9 +426,10 @@
               <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{/if}
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning||imagePromptRunning||imagePromptRetained} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
+            {#if project&&surface==='world'}<button class="text-action" disabled={busy||!!historyWorld} onclick={()=>{void openContext();}}>AI context</button>{/if}
           </div></div>
           <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
-          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onPanels={registerStoryPanels} onSettings={(section='llm',task='passage')=>{void storyPanel?.flushDraft().then(()=>{promptTask=task;settingsSection=section;showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onContext={()=>{void openContext();}} onPanels={registerStoryPanels} onSettings={(section='llm',task='passage')=>{void storyPanel?.flushDraft().then(()=>{promptTask=task;settingsSection=section;showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
@@ -431,7 +437,7 @@
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
         <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
           onAi={openAi} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
-          onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
+          onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
         {/if}
       </Pane>
@@ -442,6 +448,7 @@
 </div>
 
 {#if backupMode}<BackupDialog mode={backupMode} {project} onBeforeAction={prepareBackup} onOpen={openRestored} onClose={()=>{backupMode=null;}} onWorking={value=>{backupWorking=value;}}/>{/if}
+{#if showContext&&project}<AiContextDialog {world} onChange={changeContextWorld} onClose={async()=>{await flush();showContext=false;}}/>{/if}
 
 {#if showSettings}<SettingsDialog initialSection={settingsSection} initialPromptTask={promptTask} bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
 {#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} preferredMediaId={preferredImageId} otherTextBusy={aiRunning||passageRunning||imagePromptRunning||imagePromptRetained} onPromptRun={promptRun} onLlmSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='llm';showSettings=true;}} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}

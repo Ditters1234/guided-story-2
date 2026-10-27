@@ -1,5 +1,6 @@
 use super::*;
 use std::process::Command;
+mod ai_context;
 mod evidence;
 mod link_review;
 mod prompts;

@@ -21,7 +21,7 @@
   }
 </script>
 <form id="prompt-settings-form" class="prompt-settings" onsubmit={event=>{event.preventDefault();void flushPrompts().catch(()=>{});}}>
-  <p class="field-help">Edit the full system instructions used by each AI tool. These defaults apply to all stories on this device. Story direction, selected context and output schemas are supplied separately.</p>
+  <p class="field-help">Edit each AI tool's base instructions for this device. Story direction, included nodes and output schemas are supplied separately. Story AI context previews the assembled instructions and reference facts.</p>
   {#if error}<div class="settings-error" role="alert"><span>{error}</span><button type="button" class="text-action" disabled={working} onclick={()=>{void load();}}>Reload saved prompts</button></div>{/if}
   {#if !desktop}<p class="field-help">Prompt settings are available in the desktop app.</p>{:else if !saved&&!error}<p class="field-help">Loading prompts…</p>{/if}
   <fieldset class="prompt-settings-fields" disabled={!saved||working}>

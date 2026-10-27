@@ -35,6 +35,12 @@
       "components": [
         "core.thread"
       ]
+    },
+    {
+      "id": "core.note",
+      "name": "Note",
+      "description": "General notes, instructions, rules or background information.",
+      "components": []
     }
   ],
   "componentTypes": [

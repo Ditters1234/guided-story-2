@@ -407,6 +407,7 @@ pub(crate) fn scene_world(world: &World, plan: &PassagePlan) -> Result<World, St
         );
     }
     let mut context = world.clone();
+    context.ai_context.clear();
     context.nodes.retain(|n| ids.contains(&n.id));
     context
         .edges
@@ -676,7 +677,7 @@ impl Project {
             .map(|ch| json!({"id":ch.id,"title":ch.title,"plan":ch.plan,"closed":ch.closed}));
         let memory = self.memory_context(index, plan, &context, memory_budget)?;
         let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"recentPassages":recent,"earlierMemory":memory});
-        let fingerprint = story_hash(&(
+        let mut fingerprint = story_hash(&(
             "passage-source-v4-optional-direction",
             &input,
             &context.node_types,
@@ -684,6 +685,9 @@ impl Project {
             &context.relation_types,
             settings,
         ))?;
+        if let Some(included) = story_ai_context_stamp(world)? {
+            fingerprint = story_hash(&(&fingerprint, included))?;
+        }
         Ok((context, input, fingerprint, ids))
     }
     pub fn start_passage(
@@ -733,13 +737,16 @@ impl Project {
         } else {
             TextPromptTask::Passage
         };
-        let system = settings.system_prompt(task);
+        let mut system = settings.system_prompt(task);
         if checking {
             input["prose"] = json!(d.edits.prose);
             input["nodeTypes"] = json!(context.node_types);
             input["capabilities"] = json!(context.component_types);
             input["relationships"] = json!(context.relation_types);
         }
+        let source_world_data: World = self.read_record("worlds", &source_world)?;
+        let included = resolve_ai_context(&source_world_data, task)?;
+        append_ai_context(&included, &mut system, &mut input);
         let schema = checking.then(effects_schema);
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
@@ -773,7 +780,7 @@ impl Project {
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
             > settings.context_tokens as usize
         {
-            return Err("Required scene context and output exceed the configured budget. Narrow references or shorten the passage target.".into());
+            return Err(format!("Required scene context and output exceed the configured budget. Included AI context: {}. Shorten included nodes, narrow references or shorten the passage target; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
         }
         self.archive_passage(&d)?;
         d.source = Some(PassageSource {

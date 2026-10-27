@@ -251,6 +251,15 @@ impl Project {
                 continue;
             }
             let Some(mut record) = record else { continue };
+            if let Some(captured) = &record.ai_context {
+                if resolve_ai_context(&fork.view()?.world, TextPromptTask::Memory)
+                    .ok()
+                    .as_ref()
+                    != Some(captured)
+                {
+                    continue;
+                }
+            }
             let Ok((title, sources)) = memory_sources(kept, &chapter.id) else {
                 continue;
             };

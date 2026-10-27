@@ -116,6 +116,8 @@ pub struct World {
     pub node_types: Vec<NodeTypeDefinition>,
     pub component_types: Vec<ComponentDefinition>,
     pub relation_types: Vec<RelationDefinition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ai_context: Vec<crate::AiContextBinding>,
 }
 
 /// Original field order/values for verifying immutable commit receipts. Never
@@ -128,6 +130,8 @@ pub(crate) struct StoredWorld {
     node_types: Vec<NodeTypeDefinition>,
     component_types: Vec<ComponentDefinition>,
     relation_types: Vec<RelationDefinition>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    ai_context: Vec<crate::AiContextBinding>,
 }
 
 // Upgrade the in-memory interpretation only. Checksums are verified against the
@@ -141,6 +145,7 @@ impl<'de> Deserialize<'de> for World {
             node_types: data.node_types,
             component_types: data.component_types,
             relation_types: data.relation_types,
+            ai_context: data.ai_context,
         };
         world
             .upgrade_legacy_wearing()
@@ -255,6 +260,7 @@ impl World {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        crate::ai_context::validate_ai_context(self)?;
         // Extensions use their own IDs rather than weakening built-in behavior.
         let builtins = Self::default();
         for definition in &builtins.component_types {

@@ -274,6 +274,7 @@ pub fn prepare_authoring(
         }
     }
     let mut context = world.clone();
+    context.ai_context.clear();
     context.nodes.retain(|n| context_ids.contains(&n.id));
     context
         .edges
@@ -295,7 +296,7 @@ pub fn prepare_authoring(
         context.relation_types.retain(|d| relations.contains(&d.id));
     }
     let response_schema = output_schema(&context, request);
-    let system = settings.system_prompt(TextPromptTask::World);
+    let mut system = settings.system_prompt(TextPromptTask::World);
     // Include reusable type definitions; no unselected world records or implicit map expansion.
     let mut input = json!({"request":request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/350).clamp(1,20)}});
     if request.mode == AuthoringMode::Create && request.bundle {
@@ -303,6 +304,8 @@ pub fn prepare_authoring(
             input["clothingExample"] = example;
         }
     }
+    let included = resolve_ai_context(world, TextPromptTask::World)?;
+    append_ai_context(&included, &mut system, &mut input);
     let schema_bytes = if settings.structured_output == StructuredOutput::Schema {
         response_schema.to_string().len()
     } else {
@@ -312,7 +315,7 @@ pub fn prepare_authoring(
     let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
     let estimated_input_tokens = ((system.len() + user.len() + schema_bytes) / 3 + 256) as u32;
     if estimated_input_tokens + settings.max_tokens > settings.context_tokens {
-        return Err("Required context and output exceed the configured token budget. Narrow references/schema or increase the configured context allowance.".into());
+        return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
         "world-authoring-v4",
@@ -885,6 +888,7 @@ impl Project {
             .map(|p| p.context.clone())
             .unwrap_or_else(|_| {
                 let mut context = source.clone();
+                context.ai_context.clear();
                 context.nodes.retain(|n| {
                     record.request.target_ids.contains(&n.id)
                         || record.request.context_ids.contains(&n.id)

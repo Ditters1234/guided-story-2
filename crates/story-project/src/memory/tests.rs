@@ -1,5 +1,64 @@
 use super::*;
 #[test]
+fn ai_context_changes_stale_pending_memory_and_future_context_is_not_copied_into_earlier_forks() {
+    let (dir, p) = fixture();
+    let passage = accept(
+        &p,
+        "Mara discovered the key beneath the window.",
+        true,
+        None,
+        false,
+    );
+    let chapter = p.story_index().unwrap().chapters[0].id.clone();
+    let mut current = p.view().unwrap();
+    let rule = crate::ai_context::tests::note(
+        &mut current.world,
+        "Memory guidance",
+        "Keep concise historical points.",
+        AiContextRole::Instructions,
+        vec![TextPromptTask::Memory],
+    );
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let draft = id();
+    p.create_memory_draft(&draft, &chapter).unwrap();
+    let prepared = p
+        .start_memory(&draft, 1, p.view().unwrap().revision, &settings())
+        .unwrap();
+    assert!(prepared.system.contains("Keep concise historical points."));
+    let mut current = p.view().unwrap();
+    current
+        .world
+        .nodes
+        .iter_mut()
+        .find(|n| n.id == rule)
+        .unwrap()
+        .description = "Prefer consequential historical points.".into();
+    p.commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    p.finish_memory(&draft, Ok(prepared.demo), false, false)
+        .unwrap();
+    let view = p.memory_view(&draft).unwrap();
+    assert!(view.stale && !view.can_apply);
+    assert!(!view.original_output.is_empty());
+    let new = id();
+    p.create_memory_draft(&new, &chapter).unwrap();
+    let prepared = p
+        .start_memory(&new, 1, p.view().unwrap().revision, &settings())
+        .unwrap();
+    p.finish_memory(&new, Ok(prepared.demo), false, false)
+        .unwrap();
+    apply(&p, &new);
+    assert_eq!(p.story_index().unwrap().memories.len(), 1);
+    let parent = dir.path().join("forks");
+    std::fs::create_dir(&parent).unwrap();
+    let fork = p
+        .fork_after_passage(&passage, &parent, "Earlier branch".into())
+        .unwrap();
+    assert!(fork.story_index().unwrap().memories.is_empty());
+    assert!(fork.view().unwrap().world.ai_context.is_empty());
+}
+#[test]
 fn chapter_memory_uses_the_exact_editable_system_prompt() {
     let (_dir, p) = fixture();
     accept(
