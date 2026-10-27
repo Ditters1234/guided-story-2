@@ -20,6 +20,8 @@ The settings gear contains Appearance, Custom themes, LLM and Images. Existing d
 
 After generating, the footer should say **Draft not accepted · check world changes first.** Choose **Check world changes with AI** beside the disabled Accept button, review the result, then **Accept passage**. Checking alone must leave the established story unchanged. Editing checked prose should disable Accept again. For a deliberate unchanged world, choose **Use no world changes** and **Validate my effects** in the right pane before accepting.
 
+If evidence validation fails, inspect the listed fields such as `changes[0].evidence`. Each must copy a continuous 8–600 character quote from the current passage. AI-added ellipses that skip or join text are invalid; use a shorter unchanged sentence or clause. Literal ellipses already present in the prose are allowed. Correct the indicated JSON fields and **Validate my effects**, or request a new world-change check. The saved passage should remain intact throughout.
+
 ## Your LLM
 
 In **Settings → LLM**, select the compatible API provider, enter the base URL and optional key, then **Test connection**. Select a returned model and save. A single returned model is selected automatically. Testing fetches models without generating text. Approximately 30B/Qwen models are the initial target; adjust token budgets and API compatibility to your server. Unsupported sampling/thinking parameters produce an explicit error; the app does not silently retry another transport.

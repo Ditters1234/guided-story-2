@@ -26,13 +26,15 @@ fn alias(id: &str) -> bool {
                 .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
     })
 }
-fn evidence(prose: &str, quote: &str) -> Result<(), String> {
+fn evidence(normalized_prose: &str, quote: &str) -> Result<(), String> {
     let quote = quote.split_whitespace().collect::<Vec<_>>().join(" ");
-    let prose = prose.split_whitespace().collect::<Vec<_>>().join(" ");
-    if quote.chars().count() < 8 || quote.chars().count() > 600 || !prose.contains(&quote) {
+    let count = quote.chars().count();
+    if !(8..=600).contains(&count) {
+        return Err(format!("quote has {count} characters; expected 8–600."));
+    }
+    if !normalized_prose.contains(&quote) {
         return Err(
-            "Each effect/note needs an exact 8–600 character evidence quote from this prose."
-                .into(),
+            "quote does not appear as one continuous excerpt in the current passage.".into(),
         );
     }
     Ok(())
@@ -67,17 +69,37 @@ pub(crate) fn preview_passage_effects(
     if effects.changes.len() > 80 || effects.notes.len() > 12 {
         return Err("Too many proposed effects or continuity notes.".into());
     }
+    // Report every bad quote before allocating IDs or calculating world changes.
+    let normalized_prose = prose.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut quote_errors = vec![];
+    for (index, change) in effects.changes.iter().enumerate() {
+        let quote = match change {
+            PassageEffect::PutNode { evidence, .. }
+            | PassageEffect::PutLink { evidence, .. }
+            | PassageEffect::RemoveLink { evidence, .. } => evidence,
+        };
+        if let Err(reason) = evidence(&normalized_prose, quote) {
+            quote_errors.push(format!("changes[{index}].evidence: {reason}"));
+        }
+    }
+    for (index, note) in effects.notes.iter().enumerate() {
+        if let Err(reason) = evidence(&normalized_prose, &note.evidence) {
+            quote_errors.push(format!("notes[{index}].evidence: {reason}"));
+        }
+    }
+    if !quote_errors.is_empty() {
+        return Err(format!("Evidence quotes need correction:\n{}\nCopy one continuous excerpt per field, keeping its words, capitalization and punctuation. Do not insert ... or … to skip text or join separate excerpts. Whitespace differences are allowed. Edit these fields and validate again, or request a new world-change check; your passage is retained.", quote_errors.join("\n")));
+    }
     let scoped: BTreeSet<_> = context.nodes.iter().map(|n| n.id.clone()).collect();
     let mut allowed = scoped.clone();
     let mut seen = BTreeSet::new();
     let mut new_count = 0;
     for change in &effects.changes {
-        let (id, quote) = match change {
-            PassageEffect::PutNode { node, evidence } => (node.id.as_str(), evidence),
-            PassageEffect::PutLink { link, evidence } => (link.id.as_str(), evidence),
-            PassageEffect::RemoveLink { id, evidence } => (id.as_str(), evidence),
+        let id = match change {
+            PassageEffect::PutNode { node, .. } => node.id.as_str(),
+            PassageEffect::PutLink { link, .. } => link.id.as_str(),
+            PassageEffect::RemoveLink { id, .. } => id.as_str(),
         };
-        evidence(prose, quote)?;
         if !seen.insert(id.to_string()) {
             return Err("Duplicate effect record ID; combine its changes in one effect.".into());
         }
@@ -263,16 +285,16 @@ pub(crate) fn preview_passage_effects(
         {
             return Err("Invalid continuity note or out-of-context subject.".into());
         }
-        evidence(prose, &note.evidence)?;
     }
     world.validate()?;
     Ok((world, labels))
 }
 pub(crate) fn effects_schema() -> Value {
+    let quote = json!({"type":"string","minLength":8,"maxLength":600,"description":"Copy one continuous excerpt verbatim from the current supplied prose, preserving words, capitalization and punctuation. No paraphrase, inserted ellipses, joined excerpts or quotes from earlier passages."});
     let node = json!({"type":"object","properties":{"id":{"type":"string"},"typeId":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"visualDescription":{"type":"string"},"components":{"type":"object"}},"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
     let link = json!({"type":"object","properties":{"id":{"type":"string"},"typeId":{"type":"string"},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string"}},"required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false});
     json!({"type":"object","properties":{"changes":{"type":"array","maxItems":80,"items":{"anyOf":[
-        {"type":"object","properties":{"kind":{"const":"putNode"},"node":node,"evidence":{"type":"string"}},"required":["kind","node","evidence"],"additionalProperties":false},
-        {"type":"object","properties":{"kind":{"const":"putLink"},"link":link,"evidence":{"type":"string"}},"required":["kind","link","evidence"],"additionalProperties":false},
-        {"type":"object","properties":{"kind":{"const":"removeLink"},"id":{"type":"string"},"evidence":{"type":"string"}},"required":["kind","id","evidence"],"additionalProperties":false}]}},"notes":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string"},"evidence":{"type":"string"},"nodeIds":{"type":"array","items":{"type":"string"}}},"required":["text","evidence","nodeIds"],"additionalProperties":false}},"suggestChapterEnd":{"type":"boolean"}},"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false})
+        {"type":"object","properties":{"kind":{"const":"putNode"},"node":node,"evidence":quote},"required":["kind","node","evidence"],"additionalProperties":false},
+        {"type":"object","properties":{"kind":{"const":"putLink"},"link":link,"evidence":quote},"required":["kind","link","evidence"],"additionalProperties":false},
+        {"type":"object","properties":{"kind":{"const":"removeLink"},"id":{"type":"string"},"evidence":quote},"required":["kind","id","evidence"],"additionalProperties":false}]}},"notes":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string"},"evidence":quote,"nodeIds":{"type":"array","items":{"type":"string"}}},"required":["text","evidence","nodeIds"],"additionalProperties":false}},"suggestChapterEnd":{"type":"boolean"}},"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false})
 }

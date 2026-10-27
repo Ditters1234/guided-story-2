@@ -133,7 +133,7 @@
           {#if session.view?.stale}<p class="story-warning">Source world/history or LLM settings changed. Recheck before accepting.</p>{/if}
           {#if session.view?.error}<p class="story-warning" role="alert">{session.view.error}</p>{/if}
           <div class="effects-actions"><button class="text-action" onclick={()=>{session.value!.effectsText='{"changes":[],"notes":[],"suggestChapterEnd":false}';session.touch();}}>Use no world changes</button></div>
-          <details class="passage-effects" open={!!session.view?.error}><summary>Review / edit effects JSON</summary><textarea aria-label="Passage effects JSON" bind:value={session.value.effectsText} oninput={()=>session.touch()} rows={10} maxlength={500000} spellcheck={false}></textarea></details>
+          <details class="passage-effects" open={!!session.view?.error}><summary>Review / edit effects JSON</summary><p class="field-help">Each evidence field must copy one continuous 8–600 character excerpt from this passage. Keep its words and punctuation; do not insert ellipses to join excerpts.</p><textarea aria-label="Passage effects JSON" bind:value={session.value.effectsText} oninput={()=>session.touch()} rows={10} maxlength={500000} spellcheck={false}></textarea></details>
           <button class="secondary-button" onclick={()=>{void validate();}}>Validate my effects</button>
           {#if session.view?.changes.length}<div class="passage-changes"><h3>Changes on acceptance</h3><ul>{#each session.view.changes as change}<li>{change}</li>{/each}</ul></div>{:else}<p class="field-help">No world changes in the current effects draft.</p>{/if}
           {#if session.view?.suggestedChapterEnd}<p class="field-help">The AI suggests ending this chapter.</p>{/if}
