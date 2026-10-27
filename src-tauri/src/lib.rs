@@ -31,6 +31,17 @@ fn with_project<T>(
     action(guard.as_ref().ok_or("Open or create a project first.")?)
 }
 
+fn remember_opened_project(app: &tauri::AppHandle, mut view: ProjectView) -> ProjectView {
+    if let Err(error) = preferences_root(app)
+        .and_then(|root| story_project::remember_project(&root, &view.folder_path))
+    {
+        view.warnings.push(format!(
+            "Story opened, but its folder could not be remembered for next launch: {error}"
+        ));
+    }
+    view
+}
+
 #[tauri::command]
 #[specta::specta]
 fn create_project(
@@ -40,6 +51,7 @@ fn create_project(
     request_id: String,
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
 ) -> Result<ProjectView, String> {
     let _idle = idle_guard(&jobs)?;
     let parent = Path::new(&parent_path)
@@ -57,7 +69,7 @@ fn create_project(
     let project = Project::create(&root, title, world, request_id)?;
     let view = project.view()?;
     *guard = Some(project);
-    Ok(view)
+    Ok(remember_opened_project(&app, view))
 }
 
 #[tauri::command]
@@ -66,6 +78,7 @@ fn open_project(
     folder_path: String,
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
 ) -> Result<ProjectView, String> {
     let _idle = idle_guard(&jobs)?;
     let path = Path::new(&folder_path)
@@ -77,7 +90,9 @@ fn open_project(
         .map_err(|_| "The project session needs to be reopened.")?;
     if let Some(current) = guard.as_ref() {
         if Path::new(&current.folder_path()) == path {
-            return current.view();
+            return current
+                .view()
+                .map(|view| remember_opened_project(&app, view));
         }
     }
     let project = Project::open(&path)?;
@@ -94,7 +109,7 @@ fn open_project(
         ));
     }
     *guard = Some(project);
-    Ok(view)
+    Ok(remember_opened_project(&app, view))
 }
 
 #[tauri::command]
@@ -102,12 +117,28 @@ fn open_project(
 fn startup_project(
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
 ) -> Result<Option<ProjectView>, String> {
     let arguments: Vec<String> = std::env::args().collect();
-    if let Some(pair) = arguments.windows(2).find(|pair| pair[0] == "--project") {
-        return open_project(pair[1].clone(), state, jobs).map(Some);
-    }
-    Ok(None)
+    let explicit = arguments
+        .iter()
+        .position(|arg| arg == "--project")
+        .map(|i| {
+            arguments
+                .get(i + 1)
+                .map(String::as_str)
+                .ok_or("Choose a project folder after --project.")
+        })
+        .transpose()?;
+    let path =
+        story_project::startup_project_path(&preferences_root(&app)?, explicit).map_err(|e| {
+            format!("Could not load the last-story setting: {e} Choose Open story or New story.")
+        })?;
+    path.map(|path| {
+        open_project(path, state, jobs, app)
+            .map_err(|e| format!("Could not reopen the story: {e} Choose Open story or New story."))
+    })
+    .transpose()
 }
 
 #[tauri::command]
@@ -116,6 +147,7 @@ fn recover_project(
     folder_path: String,
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
 ) -> Result<ProjectView, String> {
     let _idle = idle_guard(&jobs)?;
     let mut guard = state
@@ -142,7 +174,7 @@ fn recover_project(
         ));
     }
     *guard = Some(project);
-    Ok(view)
+    Ok(remember_opened_project(&app, view))
 }
 
 #[tauri::command]

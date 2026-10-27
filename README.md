@@ -17,7 +17,7 @@ npm ci
 npm run desktop
 ```
 
-The opening world is a fictional example. Create a project to save/edit it, or start with an empty world. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. Existing project folders can also be opened with `npm run desktop -- -- --project "C:\path\to\project"`.
+The desktop app reopens the last successfully opened story. With no saved choice, or if that folder cannot open, it shows **New story / Open story**. New stories start empty; the fictional Brasswater example is an optional checkbox during creation. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. `npm run desktop -- -- --project "C:\path\to\project"` opens that explicit folder instead of the remembered story.
 
 The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance and API controls. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 

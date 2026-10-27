@@ -24,8 +24,8 @@
   import icon from './assets/app-icon.svg';
   import type { ApplyAuthoringResult_Serialize, AuthoringRequest, CommitResult_Serialize, WorldEdit,PassageAcceptance_Serialize } from './lib/bindings';
 
-  const initialWorld = exampleWorld();
-  const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [...initialWorld.nodes.filter((n) => n.components["core.place"] || n.components["core.character"]).map((n) => n.id)], selectedId: initialWorld.nodes.find((n) => n.components["core.character"])!.id, positions: {} });
+  const initialWorld = emptyWorld();
+  const initialWorkspace = (): Workspace => ({ version: 0, expandedIds: [], selectedId: null, positions: {} });
   let project = $state<ProjectView | null>(null);
   let imageTarget=$state<MediaTarget|null>(null),imageWorlds=$state<{before:World;after:World}|null>(null);
   let imageDialog=$state<{flushDraft:()=>Promise<void>}>();
@@ -40,8 +40,9 @@
   let search = $state('');
   let error = $state('');
   let layoutError = $state('');
-  let status = $state('Example world');
-  let busy = $state(false);
+  let status = $state(desktop?'Opening last story…':'No story open');
+  let starting = $state(desktop);
+  let busy = $state(desktop);
   let backupMode=$state<'export'|'restore'|null>(null),backupWorking=$state(false);
   const appearance = new AppearanceSettings();
   let showSettings = $state(false);
@@ -352,7 +353,7 @@
     media.addEventListener('change', changeMode);
     void appearance.load();
     const aiPoll=setInterval(()=>{if(imagePromptRunId&&project&&(imagePromptRunning||imagePromptRetained)){const id=imagePromptRunId;void commands.getImagePrompt(project.storyId,id).then(unwrap).then(view=>{if(imagePromptRunId===id){imagePromptRunning=view.stage==='running';imagePromptRetained=view.retained;}}).catch(caught=>{error=describe(caught);});}if(aiRunning&&aiRunId&&project&&!showAi){void commands.getAuthoring(project.storyId,aiRunId).then(unwrap).then((view)=>{aiRunning=view.status==='running';}).catch((caught)=>{error=describe(caught);});}},1000);
-    if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); });
+    if (desktop) void commands.startupProject().then(unwrap).then(async (saved) => { if (saved) await adopt(saved); }).catch((caught) => { error = describe(caught); }).finally(()=>{starting=false;busy=false;if(!project)status='No story open';});
     if (desktop) void getCurrentWindow().onCloseRequested(async (event) => {
       if(backupWorking){event.preventDefault();return;}
       try { await aiDialog?.flushDraft();await storyPanel?.flushDraft();await imageDialog?.flushDraft();await settingsDialog?.flushSettings();unwrap(await commands.closeAuthoring()); } catch(caught) { event.preventDefault();error=describe(caught);return; }
@@ -371,7 +372,7 @@
   });
 </script>
 
-<svelte:head><title>{project?.title ?? 'World workspace'} · Guided Story 2</title></svelte:head>
+<svelte:head><title>{project?.title ?? 'Open a story'} · Guided Story 2</title></svelte:head>
 
 <div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || !!structuralEdit || !!backupMode}>
   <header class="app-header">
@@ -383,6 +384,14 @@
   {#if error}<div class="error-banner" role="alert"><span>{error}</span><div>{#if recoveryPath}<button onclick={recoverProject} disabled={busy}>Recover previous valid save</button>{:else if project}<button onclick={() => { void flush().catch(() => {}); }}>Retry save</button>{/if}<button class="icon-button" aria-label="Dismiss message" onclick={() => { error = ''; }}>×</button></div></div>{/if}
   {#if historyWorld&&surface==='world'}<div class="historical-world-banner"><span>{historyLabel} · world snapshot · read only</span><button class="secondary-button" onclick={()=>showHistory(null,'')}>Current world</button></div>{/if}
   <main class="main-workspace">
+    {#if !project}
+      <section class="project-start" aria-label="Open or create a story">
+        {#if starting}<p role="status">Opening last story…</p>{:else}
+          <h1>Open a story</h1>
+          <div class="project-start-actions"><button class="primary-button" disabled={!desktop||busy} onclick={showNewProject}>New story</button><button class="secondary-button" disabled={!desktop||busy} onclick={()=>{void openProject();}}>Open story…</button></div>
+        {/if}
+      </section>
+    {:else}
     <PaneGroup direction="horizontal">
       <Pane defaultSize={20} minSize={15} maxSize={30}>
         {#if surface==='story'}{#if storyContents}{@render storyContents()}{/if}{:else}
@@ -409,7 +418,7 @@
               {#each world.nodeTypes as type}<button disabled={busy||!!historyWorld} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
               <button disabled={busy||!!historyWorld} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
-            </div></details>{:else if !project}<button class="secondary-button" disabled={!desktop} onclick={() => { newTitle = 'Brasswater House'; useExample = true; showCreate = true; }}>Save example as a project ↗</button>{/if}
+            </div></details>{/if}
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning||imagePromptRunning||imagePromptRetained} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
           </div></div>
           <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
@@ -426,8 +435,9 @@
         {/if}
       </Pane>
     </PaneGroup>
+    {/if}
   </main>
-  <footer class="status-bar">{#if !imageTarget&&(imagePromptRunning||imagePromptRetained)}<button class="prompt-activity secondary-button" onclick={reopenPrompt}>{imagePromptRetained?'Prompt reply · save pending':'Image prompt · preparing…'}</button>{/if}<span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || 'Explore freely. Nothing is saved until you create a project.'}</span><span>{project ? `Revision ${project.revision}` : 'JSON project format · v1'}</span></footer>
+  <footer class="status-bar">{#if !imageTarget&&(imagePromptRunning||imagePromptRetained)}<button class="prompt-activity secondary-button" onclick={reopenPrompt}>{imagePromptRetained?'Prompt reply · save pending':'Image prompt · preparing…'}</button>{/if}<span class="status-text" aria-live="polite"><span class:unsaved={status.includes('failed') || status.includes('attention')} class="live-dot"></span>{status}</span><span class="project-path" title={project?.folderPath}>{layoutError || project?.folderPath || ''}</span>{#if project}<span>Revision {project.revision}</span>{/if}</footer>
 </div>
 
 {#if backupMode}<BackupDialog mode={backupMode} {project} onBeforeAction={prepareBackup} onOpen={openRestored} onClose={()=>{backupMode=null;}} onWorking={value=>{backupWorking=value;}}/>{/if}

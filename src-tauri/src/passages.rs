@@ -268,6 +268,7 @@ pub(crate) fn fork_after_passage(
     title: String,
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
 ) -> Result<ProjectView, String> {
     let _idle = idle_guard(&jobs)?;
     let mut guard = state.0.lock().map_err(|_| "The project needs reopening.")?;
@@ -276,5 +277,5 @@ pub(crate) fn fork_after_passage(
     let fork = source.fork_after_passage(&id, std::path::Path::new(&parent_path), title)?;
     let view = fork.view()?;
     *guard = Some(fork);
-    Ok(view)
+    Ok(super::remember_opened_project(&app, view))
 }

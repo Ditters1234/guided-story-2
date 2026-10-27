@@ -4,7 +4,9 @@
 
 Double-click **Guided Story 2.exe** in this folder. This Windows build includes the interface; Node, Rust and the development server are not needed to run it. Windows and the Microsoft Edge WebView2 runtime are required. This is a development testing build, without an installer or automatic updates. `BUILD.json` identifies the source revision and executable checksum.
 
-The opening map is a read-only fictional example. Choose **Project → New project**, give your story a name and choose a parent folder. New stories start empty unless you select the example. Each story has its own portable folder. Choose **Project → Open project** to reopen it later. Keep your working stories outside this testing-build folder so you can replace the executable independently.
+The app reopens the last story you successfully opened or created. On first launch, choose **New story** or **Open story**. New stories start empty unless you select the optional Brasswater example. Give a new story a name and choose a parent folder; each story has its own portable folder. **Project → New project / Open project** remain available while working. Keep your working stories outside this testing-build folder so you can replace the executable independently.
+
+The first launch after updating from an older build has no remembered story yet: open yours once. Close and relaunch to check that it returns. The folder choice is stored with device settings, outside story projects. If the folder was moved/deleted, is locked, or cannot be read, an error and the New/Open choices should appear without loading example data or overwriting the saved choice. Canceling the folder picker should leave those choices available. An explicit `--project` launch overrides the remembered folder.
 
 The settings gear contains Appearance, Custom themes, LLM and Images. Existing device settings are preserved. Appearance and API settings stay separate from story folders. The offline demo provider lets you test proposal review without an LLM; its output is deterministic sample data, not a quality demonstration.
 
