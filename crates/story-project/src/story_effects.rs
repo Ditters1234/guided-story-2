@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specta::Type;
 use std::collections::{BTreeMap, BTreeSet};
+mod diagnostics;
+pub(crate) use diagnostics::effect_record_issues;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
@@ -89,6 +91,21 @@ pub(crate) fn preview_passage_effects(
     }
     if !quote_errors.is_empty() {
         return Err(format!("Evidence quotes need correction:\n{}\nCopy one continuous excerpt per field, keeping its words, capitalization and punctuation. Do not insert ... or … to skip text or join separate excerpts. Whitespace differences are allowed. Edit these fields and validate again, or request a new world-change check; your passage is retained.", quote_errors.join("\n")));
+    }
+    let record_errors = effect_record_issues(source, context, effects)
+        .into_iter()
+        .enumerate()
+        .flat_map(|(i, issues)| {
+            issues
+                .into_iter()
+                .map(move |issue| format!("changes[{i}]: {issue}"))
+        })
+        .collect::<Vec<_>>();
+    if !record_errors.is_empty() {
+        return Err(format!(
+            "Proposed changes need correction:\n{}",
+            record_errors.join("\n")
+        ));
     }
     let scoped: BTreeSet<_> = context.nodes.iter().map(|n| n.id.clone()).collect();
     let mut allowed = scoped.clone();

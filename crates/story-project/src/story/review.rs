@@ -14,6 +14,7 @@ pub struct EffectReviewEntry {
     pub index: u32,
     pub key: String,
     pub approved: bool,
+    pub issues: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -64,6 +65,7 @@ pub(super) fn effect_review(
     edits: &PassageEdits,
     prepared: Option<(&World, &str)>,
     checked: bool,
+    issues: &[Vec<String>],
 ) -> Result<EffectsReview, String> {
     let Some((world, source)) = prepared else {
         return Ok(EffectsReview {
@@ -125,6 +127,7 @@ pub(super) fn effect_review(
             index: index as u32,
             key,
             approved,
+            issues: issues.get(index).cloned().unwrap_or_default(),
         });
     }
     for (index, note) in effects.notes.iter().enumerate() {
@@ -143,6 +146,7 @@ pub(super) fn effect_review(
             index: index as u32,
             key,
             approved,
+            issues: vec![],
         });
     }
     Ok(EffectsReview { checked, entries })

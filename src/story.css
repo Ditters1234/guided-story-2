@@ -101,5 +101,6 @@
 .image-settings-error{white-space:pre-wrap}
 .node-symbol .saved-image{width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .connection-fields{border:0;margin:0;padding:0;min-width:0}
+.effect-card:has(.effect-card-issues){border-color:var(--danger-border)}.effect-card-issues,.effect-needs-correction{color:var(--danger)}.effect-card-issues{font-size:.85rem;overflow-wrap:anywhere}.effect-card-issues p{margin:8px 0}.effect-needs-correction{font-size:.75rem;white-space:nowrap}
 .image-prompt-tools{border-top:1px solid var(--border);padding-top:12px}.image-prompt-tools>summary{margin-bottom:12px}.image-prompt-fields{border:0;padding:0;margin:0;min-width:0}.image-prompt-history{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.prompt-activity{font-size:.8rem;padding:4px 8px;max-width:15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .backup-dialog{width:min(680px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;display:flex;flex-direction:column}.backup-dialog:not([open]){display:none}.backup-body{padding:18px 24px;min-height:0;overflow:auto}.backup-path{overflow-wrap:anywhere;font-size:.85rem;color:var(--muted)}.project-menu{z-index:40}

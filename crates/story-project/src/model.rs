@@ -167,7 +167,7 @@ pub fn validate_name(name: &str) -> Result<(), String> {
     }
     Ok(())
 }
-fn capability(node: &WorldNode, id: &str) -> bool {
+pub(crate) fn capability(node: &WorldNode, id: &str) -> bool {
     node.components.contains_key(id)
         || (id == "core.holder" && node.components.contains_key("core.container"))
 }

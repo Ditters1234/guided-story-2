@@ -335,6 +335,7 @@ export type EffectReviewEntry = {
 	index: number,
 	key: string,
 	approved: boolean,
+	issues: string[],
 };
 
 export type EffectReviewKind = "change" | "note";

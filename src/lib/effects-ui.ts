@@ -41,6 +41,9 @@ export function proposedNodes(world:World,effects:PassageEffects):WorldNode[]{
   return [...nodes.values()];
 }
 export const nodeName=(nodes:WorldNode[],id:string)=>nodes.find(n=>n.id===id)?.name||'Missing node';
+export function connectionIdentity(world:World,link:WorldEdge):string {
+  return /^new:[A-Za-z0-9_-]{1,60}$/.test(link.id)?'new':world.edges.some(e=>e.id===link.id)?link.id:'missing';
+}
 export function linkLabel(world:World,nodes:WorldNode[],edge:WorldEdge):string {
   return `${nodeName(nodes,edge.sourceId)} → ${world.relationTypes.find(r=>r.id===edge.typeId)?.label??'Unknown relationship'} → ${nodeName(nodes,edge.targetId)}`;
 }

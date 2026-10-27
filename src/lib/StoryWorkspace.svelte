@@ -57,7 +57,7 @@
     return hasProse?'Draft not accepted · check world changes first.':'Draft · not accepted.';
   });
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
-  function reviewMessage(message:string){return proposedEffects&&message.startsWith('Evidence quotes need correction:')?'Correct the source quotes on the marked proposal cards, then validate the changes.':message;}
+  function reviewMessage(message:string){if(proposedEffects&&message.startsWith('Evidence quotes need correction:'))return 'Correct the source quotes on the marked proposal cards, then validate the changes.';return proposedEffects&&message.startsWith('Proposed changes need correction:')?'Correct the marked proposal cards, then validate the changes. Approvals alone do not resolve invalid connections.':message;}
   function editEffects(next:PassageEffects,invalidated:string[]){if(!session.value)return;session.value.effectsText=JSON.stringify(next,null,2);session.value.approvedEffects=(session.value.approvedEffects??[]).filter(k=>!invalidated.includes(k));session.touch();}
   function approveEffects(keys:string[]){if(!session.value||session.dirty||session.saving)return;const valid=new Set(reviewEntries.map(e=>e.key));session.value.approvedEffects=[...new Set(keys)].filter(k=>valid.has(k));session.touch();}
   function showReview(){document.querySelector('.story-details .effects-review')?.scrollIntoView({block:'start'});}

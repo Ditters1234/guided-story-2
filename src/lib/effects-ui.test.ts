@@ -1,9 +1,16 @@
 import {describe,it,expect} from 'vitest';
 import type {PassageEffects,PassageEffect} from './bindings';
 import {emptyWorld,exampleWorld,makeNode} from './model';
-import {parseEffects,evidenceIssue,passageQuotes,removalPlan,removeProposals,nodeDiff,proposedNodes,effectTitle} from './effects-ui';
+import {parseEffects,evidenceIssue,passageQuotes,removalPlan,removeProposals,nodeDiff,proposedNodes,effectTitle,connectionIdentity} from './effects-ui';
 const none=():PassageEffects=>({changes:[],notes:[],suggestChapterEnd:false});
 describe('structured passage effects',()=>{
+  it('distinguishes a new connection from an update or a missing reference, without guessing from endpoints',()=>{
+    const world=exampleWorld(),old=world.edges.find(e=>e.typeId==='core.present-at')!,newLink={...old,id:'new:movement'};
+    expect(connectionIdentity(world,old)).toBe(old.id);expect(connectionIdentity(world,newLink)).toBe('new');
+    expect(connectionIdentity(world,{...old,id:crypto.randomUUID()})).toBe('missing');
+    expect(connectionIdentity(world,{...old,id:'new:bad label'})).toBe('missing');
+    expect(world.edges.find(e=>e.id===old.id)).toEqual(old);
+  });
   it('keeps malformed shapes out of card controls without losing their raw text',()=>{
     for(const text of ['{unfinished',JSON.stringify({changes:[{kind:'putNode',node:{},evidence:'quote'}],notes:[],suggestChapterEnd:false}),JSON.stringify({...none(),notes:[{text:'x',evidence:'x',nodeIds:null}]}),JSON.stringify({...none(),changes:[{kind:'unsupported',evidence:'quote'}]})])expect(parseEffects(text)).toBeNull();
     const w=exampleWorld(),e={...none(),changes:[{kind:'putNode' as const,node:w.nodes[0],evidence:'Source quotation.'}]};expect(parseEffects(JSON.stringify(e))).toEqual(e);
