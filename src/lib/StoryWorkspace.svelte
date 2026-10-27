@@ -34,7 +34,19 @@
   const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
   const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
+  const hasProse=$derived(!!session.value?.prose.trim());
   const generationHelp=$derived(otherBusy?'Finish the other AI request before generating a passage.':memoryRunning?'Finish chapter memory generation first.':wording&&!session.value?.plan.direction.trim()?'Add wording direction before generating a polish candidate.':'');
+  const acceptanceHint=$derived.by(()=>{
+    if(session.view?.stage==='accepted')return 'Passage accepted.';
+    if(session.running)return session.view?.stage==='checking'?'Draft not accepted · checking world changes…':'Draft not accepted · generating candidate…';
+    if(session.error)return 'Draft not saved · retry before accepting.';
+    if(session.saving||session.dirty)return 'Saving draft · not accepted.';
+    if(session.readyToAccept)return wording?'Wording validated · review, then accept.':'World changes checked · review, then Accept passage.';
+    if(session.view?.error)return 'Draft not accepted · review the error, then recheck.';
+    if(session.view?.stale)return 'Draft not accepted · source changed; check again.';
+    if(wording)return 'Draft not accepted · validate wording first.';
+    return hasProse?'Draft not accepted · check world changes first.':'Draft · not accepted.';
+  });
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
   $effect(()=>{onRun(session.running||memoryRunning);});
   $effect(()=>{const revision=project.revision;if(loaded)untrack(()=>{void refreshIndex().then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});});void revision;});
@@ -120,7 +132,7 @@
         <section class="effects-review"><h3>World changes</h3>
           {#if session.view?.stale}<p class="story-warning">Source world/history or LLM settings changed. Recheck before accepting.</p>{/if}
           {#if session.view?.error}<p class="story-warning" role="alert">{session.view.error}</p>{/if}
-          <div class="effects-actions"><button class="secondary-button" disabled={otherBusy||memoryRunning} onclick={()=>{void start(true);}}>Check world changes with AI</button><button class="text-action" onclick={()=>{session.value!.effectsText='{"changes":[],"notes":[],"suggestChapterEnd":false}';session.touch();}}>Use no world changes</button></div>
+          <div class="effects-actions"><button class="text-action" onclick={()=>{session.value!.effectsText='{"changes":[],"notes":[],"suggestChapterEnd":false}';session.touch();}}>Use no world changes</button></div>
           <details class="passage-effects" open={!!session.view?.error}><summary>Review / edit effects JSON</summary><textarea aria-label="Passage effects JSON" bind:value={session.value.effectsText} oninput={()=>session.touch()} rows={10} maxlength={500000} spellcheck={false}></textarea></details>
           <button class="secondary-button" onclick={()=>{void validate();}}>Validate my effects</button>
           {#if session.view?.changes.length}<div class="passage-changes"><h3>Changes on acceptance</h3><ul>{#each session.view.changes as change}<li>{change}</li>{/each}</ul></div>{:else}<p class="field-help">No world changes in the current effects draft.</p>{/if}
@@ -170,6 +182,12 @@
     </div>
   {:else}<p class="story-loading">Loading story…</p>{/if}
   </div>
-  {#if mode==='draft'}<footer class="composer-footer"><span aria-live="polite">{session.error?'Draft not saved':session.saving?'Saving draft…':session.dirty?'Unsaved draft':session.running?'Request running':session.readyToAccept?'Checked · ready for review':'Draft saved'}</span><button class="primary-button" disabled={blocked||!session.readyToAccept} onclick={()=>{void accept();}}>{wording?'Accept wording only':replacing?'Accept replacement':'Accept passage'}</button></footer>{/if}
+  {#if mode==='draft'}<footer class="composer-footer">
+    <span id="passage-acceptance-status" aria-live="polite">{acceptanceHint}</span>
+    <div class="composer-actions">
+      {#if !wording&&hasProse&&!session.readyToAccept&&session.view?.stage!=='accepted'}<button class="secondary-button" disabled={blocked||otherBusy||memoryRunning} onclick={()=>{void start(true);}}>Check world changes with AI</button>{/if}
+      <button class="primary-button" aria-describedby="passage-acceptance-status" disabled={blocked||!session.readyToAccept} onclick={()=>{void accept();}}>{wording?'Accept wording only':replacing?'Accept replacement':'Accept passage'}</button>
+    </div>
+  </footer>{/if}
   </div>
 </section>
