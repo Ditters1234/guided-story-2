@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { AuthoringRequest,NodeCandidate,PropertyValue } from './bindings';
+  import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
   import PropertyInput from './PropertyInput.svelte';
   import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes } from './authoring-ui';
-  let {candidate,schema,request,onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;onChange:(value:NodeCandidate)=>void}=$props();
+  let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
   const node=$derived(candidate.nodes.find((n)=>n.id===selected)??candidate.nodes[0]);
-  const references=$derived([...schema.nodes.filter((n)=>!candidate.nodes.some((c)=>c.id===n.id)),...candidate.nodes]);
+  const references=$derived([...new Map([...existingNodes,...schema.nodes,...candidate.nodes].map(n=>[n.id,n])).values()]);
   const allowedTypes=$derived(candidateNodeTypes(schema,request));
   const canAddGarment=$derived(allowedTypes.some(t=>t.id===wornItemType(schema)));
   const allowed=(id:string,componentId:string|null,key:string)=>request.mode==='create'||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);

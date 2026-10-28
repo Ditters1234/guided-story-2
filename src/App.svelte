@@ -91,7 +91,7 @@
   function openAi(targetId?:string){
     if(!project||busy||historyWorld||passageRunning||imagePromptRunning||imagePromptRetained)return;
     if(aiRunning){showAi=true;return;}
-    if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId);aiRunId=null;}
+    if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId,workspace.selectedId);aiRunId=null;}
     showAi=true;
   }
   async function beforeAiAction(){await flush();if(!project)throw Error('Open a project first.');return structuredClone($state.snapshot(project));}
@@ -456,7 +456,7 @@
 
 {#if showSettings}<SettingsDialog initialSection={settingsSection} initialPromptTask={promptTask} bind:this={settingsDialog} settings={appearance} {systemDark} onClose={()=>{void closeSettings();}} />{/if}
 {#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} preferredMediaId={preferredImageId} otherTextBusy={aiRunning||passageRunning||imagePromptRunning||imagePromptRetained} onPromptRun={promptRun} onLlmSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='llm';showSettings=true;}} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}
-{#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={(section='llm')=>{showAi=false;promptTask='world';settingsSection=section;showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
+{#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} focusId={workspace.selectedId} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={(section='llm')=>{showAi=false;promptTask='world';settingsSection=section;showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
 {#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 

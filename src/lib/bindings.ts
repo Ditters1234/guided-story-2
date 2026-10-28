@@ -230,6 +230,7 @@ export type AuthoringView_Deserialize = {
 	estimatedInputTokens: number,
 	createdNodeIds: string[],
 	appliedRevision?: number | null,
+	existingContext?: ExistingAuthoringContext_Deserialize | null,
 };
 
 export type AuthoringView_Serialize = {
@@ -249,6 +250,7 @@ export type AuthoringView_Serialize = {
 	estimatedInputTokens: number,
 	createdNodeIds: string[],
 	appliedRevision: number | null,
+	existingContext?: ExistingAuthoringContext_Serialize,
 };
 
 export type BackupReport = {
@@ -382,6 +384,49 @@ export type EffectReviewKind = "change" | "note";
 export type EffectsReview = {
 	checked: boolean,
 	entries: EffectReviewEntry[],
+};
+
+export type ExistingAuthoringContext = ExistingAuthoringContext_Serialize | ExistingAuthoringContext_Deserialize;
+
+export type ExistingAuthoringContext_Deserialize = {
+	catalog: ExistingNodeSummary_Deserialize[],
+	detailedNodeIds: string[],
+	totalNodes: number,
+	omittedNodes: number,
+	omittedDetails: number,
+	omittedLinks: number,
+};
+
+export type ExistingAuthoringContext_Serialize = {
+	catalog: ExistingNodeSummary_Serialize[],
+	detailedNodeIds: string[],
+	totalNodes: number,
+	omittedNodes: number,
+	omittedDetails: number,
+	omittedLinks: number,
+};
+
+export type ExistingNodeSummary = ExistingNodeSummary_Serialize | ExistingNodeSummary_Deserialize;
+
+export type ExistingNodeSummary_Deserialize = {
+	id: string,
+	name: string,
+	typeId: string,
+	capabilities: string[],
+	placement?: ExistingPlacement | null,
+};
+
+export type ExistingNodeSummary_Serialize = {
+	id: string,
+	name: string,
+	typeId: string,
+	capabilities: string[],
+	placement?: ExistingPlacement,
+};
+
+export type ExistingPlacement = {
+	typeId: string,
+	targetId: string,
 };
 
 export type FieldDefinition = {

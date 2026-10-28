@@ -8,6 +8,8 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
 };
+mod existing_context;
+pub use existing_context::*;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +91,8 @@ struct AuthoringRecord {
     applied_revision: Option<u32>,
     apply_attempt: Option<ApplyAttempt>,
     incomplete: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    existing_context: Option<ExistingAuthoringContext>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -119,6 +123,8 @@ pub struct AuthoringView {
     pub estimated_input_tokens: u32,
     pub created_node_ids: Vec<String>,
     pub applied_revision: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub existing_context: Option<ExistingAuthoringContext>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -134,6 +140,7 @@ pub struct PreparedAuthoring {
     pub fingerprint: String,
     pub estimated_input_tokens: u32,
     pub context: World,
+    pub existing_context: Option<ExistingAuthoringContext>,
 }
 
 fn hash<T: Serialize>(value: &T) -> Result<String, String> {
@@ -226,7 +233,7 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
         },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false}));
     }
     json!({"type":"object","$defs":{"components":{"type":"object","properties":component_properties,"additionalProperties":false}},"properties":{
-        "nodes":{"type":"array","minItems":1,"maxItems":20,"items":{"anyOf":choices}},
+        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group){0}else{1},"maxItems":20,"items":{"anyOf":choices}},
         "edges":{"type":"array","maxItems":80,"items":{"type":"object","properties":{
             "id":{"type":"string"},"typeId":{"type":"string","enum":world.relation_types.iter().map(|r|&r.id).collect::<Vec<_>>()},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string","maxLength":16000}
         },"required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false}}
@@ -375,6 +382,26 @@ pub fn prepare_authoring(
         input["responseSchema"] = response_schema.clone();
         0
     };
+    let mut existing_context = None;
+    if request.mode == AuthoringMode::Create
+        && request.creation_scope == Some(CreationScope::Group)
+        && !world.nodes.is_empty()
+    {
+        let required_tokens =
+            ((system.len() + input.to_string().len() + schema_bytes) / 3 + 256) as u32;
+        if required_tokens.saturating_add(settings.max_tokens) > settings.context_tokens {
+            return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
+        }
+        let available = (settings
+            .context_tokens
+            .saturating_sub(settings.max_tokens)
+            .saturating_sub(256) as usize)
+            .saturating_mul(3)
+            .saturating_sub(system.len() + input.to_string().len() + schema_bytes + 32);
+        let (selection, payload) = existing_context::group_context(world, request, available)?;
+        input["existingWorld"] = payload;
+        existing_context = Some(selection);
+    }
     let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
     let estimated_input_tokens = ((system.len() + user.len() + schema_bytes) / 3 + 256) as u32;
     if estimated_input_tokens + settings.max_tokens > settings.context_tokens {
@@ -394,6 +421,7 @@ pub fn prepare_authoring(
         fingerprint,
         estimated_input_tokens,
         context,
+        existing_context,
     })
 }
 fn clothing_example(world: &World) -> Option<Value> {
@@ -476,6 +504,12 @@ fn candidate_world(
 ) -> Result<(World, Vec<String>), String> {
     let candidate: NodeCandidate = serde_json::from_str(&record.candidate_text)
         .map_err(|e| format!("Candidate JSON needs editing: {e}"))?;
+    if candidate.nodes.is_empty()
+        && record.request.creation_scope == Some(CreationScope::Group)
+        && candidate.edges.is_empty()
+    {
+        return Ok((source.clone(), vec![]));
+    }
     if candidate.nodes.is_empty() || candidate.nodes.len() > 20 || candidate.edges.len() > 80 {
         return Err("A proposal needs 1–20 nodes and at most 80 links.".into());
     }
@@ -486,6 +520,12 @@ fn candidate_world(
         .iter()
         .chain(&request.target_ids)
         .cloned()
+        .chain(
+            record
+                .existing_context
+                .iter()
+                .flat_map(|c| c.catalog.iter().map(|n| n.id.clone())),
+        )
         .chain(candidate.nodes.iter().map(|n| n.id.clone()))
         .collect();
     let mut seen = BTreeSet::new();
@@ -831,6 +871,7 @@ impl Project {
         record.allocations.clear();
         record.apply_attempt = None;
         record.incomplete = false;
+        record.existing_context = None;
         self.write_authoring(&record)
     }
     pub fn interrupt_authoring(&self) -> Result<(), String> {
@@ -871,6 +912,7 @@ impl Project {
                 return Err("Proposal limit reached or draft version changed.".into());
             }
             AuthoringRecord {
+                existing_context: None,
                 created_at: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .map_err(|_| "System clock is unavailable.")?
@@ -914,6 +956,7 @@ impl Project {
         }
         let prepared = prepare_authoring(&view.world, &record.request, settings)?;
         record.source_fingerprint = prepared.fingerprint.clone();
+        record.existing_context = prepared.existing_context.clone();
         record.source_world_ref = Some(view.world_ref);
         record.status = AuthoringStatus::Running;
         record.version += 1;
@@ -1032,8 +1075,11 @@ impl Project {
                 context
             });
         let stale = !record.source_fingerprint.is_empty()
-            && prepare_authoring(&current.world, &record.request, settings)
-                .map_or(true, |p| p.fingerprint != record.source_fingerprint);
+            && (prepare_authoring(&current.world, &record.request, settings)
+                .map_or(true, |p| p.fingerprint != record.source_fingerprint)
+                || prepared
+                    .as_ref()
+                    .map_or(true, |p| p.existing_context != record.existing_context));
         let changes = if record.status == AuthoringStatus::Review {
             match candidate_world(&source, &mut record) {
                 Ok((_, changes)) => changes,
@@ -1061,9 +1107,47 @@ impl Project {
         } else {
             vec![]
         };
-        let warnings = serde_json::from_str::<NodeCandidate>(&record.candidate_text)
+        let mut warnings = serde_json::from_str::<NodeCandidate>(&record.candidate_text)
             .map(|c| proposal_warnings(&c, &record.request))
             .unwrap_or_default();
+        if record.request.creation_scope == Some(CreationScope::Group) {
+            if let Ok(candidate) = serde_json::from_str::<NodeCandidate>(&record.candidate_text) {
+                if candidate.nodes.is_empty() {
+                    warnings.push("No new nodes proposed. Adjust the request or add a proposed node manually if you want additions.".into());
+                }
+                for node in &candidate.nodes {
+                    let key = node
+                        .name
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .to_lowercase();
+                    let count = source
+                        .nodes
+                        .iter()
+                        .filter(|n| {
+                            n.name
+                                .split_whitespace()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                                .to_lowercase()
+                                == key
+                        })
+                        .count();
+                    if count > 0 {
+                        warnings.push(format!("“{}” already exists in this story ({count} matching name(s)). Reuse the existing record, or keep this addition if another record is intentional.",node.name));
+                    }
+                }
+            }
+        }
+        let existing_context = if record.status == AuthoringStatus::Draft {
+            prepared
+                .as_ref()
+                .ok()
+                .and_then(|p| p.existing_context.clone())
+        } else {
+            record.existing_context.clone()
+        };
         Ok(AuthoringView {
             id: record.id,
             story_id: record.story_id,
@@ -1077,6 +1161,7 @@ impl Project {
             stale,
             changes,
             warnings,
+            existing_context,
             context,
             estimated_input_tokens: prepared.map(|p| p.estimated_input_tokens).unwrap_or(0),
             created_node_ids,
@@ -1110,7 +1195,9 @@ impl Project {
         }
         let current = self.view()?;
         let prepared = prepare_authoring(&current.world, &record.request, settings)?;
-        if prepared.fingerprint != record.source_fingerprint {
+        if prepared.fingerprint != record.source_fingerprint
+            || prepared.existing_context != record.existing_context
+        {
             return Err("The proposal source changed. Create a new candidate from the latest world/settings.".into());
         }
         let (world, changes) = candidate_world(&current.world, &mut record)?;

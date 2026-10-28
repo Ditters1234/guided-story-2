@@ -99,7 +99,13 @@ fn item_groups_attach_to_selected_existing_nodes_without_expanding_or_replacing_
         .start_authoring(&key, 1, before.revision, &settings())
         .unwrap();
     assert_eq!(prepared.context.nodes, vec![owner.clone()]);
-    assert!(!prepared.user.contains("Old Observatory"));
+    assert!(prepared
+        .existing_context
+        .as_ref()
+        .unwrap()
+        .catalog
+        .iter()
+        .any(|n| n.name == "Old Observatory"));
     let a = proposed_node(&world, "core.item", "new:lantern", "Brass lantern");
     let b = proposed_node(&world, "core.item", "new:blanket", "Wool blanket");
     let valid = NodeCandidate {

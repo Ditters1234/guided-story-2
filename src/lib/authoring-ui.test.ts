@@ -2,6 +2,12 @@ import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
 import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes } from './authoring-ui';
 describe('shared AI node editor',()=>{
+  it('starts a new group with the current node as a full-detail reference without changing revision scope',()=>{
+    const world=exampleWorld(),focus=world.nodes[3].id,before=structuredClone(world);
+    expect(newAuthoringRequest(world,undefined,focus)).toMatchObject({creationScope:'group',contextIds:[focus]});
+    expect(newAuthoringRequest(world,undefined,'missing').contextIds).toEqual([]);
+    expect(newAuthoringRequest(world,focus,world.nodes[0].id)).toMatchObject({mode:'revise',targetIds:[focus],contextIds:[]});expect(world).toEqual(before);
+  });
   it('offers empty descriptions and missing optional custom text fields without requiring placeholder content',()=>{
     const world=emptyWorld();world.componentTypes.push({id:'custom.voice',name:'Voice',description:'',fields:[{key:'voice',label:'Voice',kind:'text',required:false,defaultValue:''}]});
     const node=makeNode(world,'core.note','Narration style');node.components['custom.voice']={};world.nodes.push(node);

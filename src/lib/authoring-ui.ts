@@ -8,9 +8,9 @@ export function editableFields(world:World,ids:string[]):(EditableField&{label:s
     ...Object.keys(node.components).flatMap((id)=>{const definition=world.componentTypes.find((d)=>d.id===id);return (definition?.fields??[]).map((field)=>({nodeId:node.id,componentId:id,key:field.key,label:(definition?.name??id)+' / '+field.label}));}),
   ]);
 }
-export function newAuthoringRequest(world:World,targetId?:string):AuthoringRequest{
+export function newAuthoringRequest(world:World,targetId?:string,focusId?:string|null):AuthoringRequest{
   return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
-    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,targetIds:[],contextIds:[],fields:[]};
+    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,targetIds:[],contextIds:focusId&&world.nodes.some(n=>n.id===focusId)?[focusId]:[],fields:[]};
 }
 export function creationChoice(request:AuthoringRequest):string{return request.typeId??(request.creationScope==='group'?'@group':'@world');}
 export function changeCreationType(world:World,request:AuthoringRequest,choice:string|null):AuthoringRequest{
