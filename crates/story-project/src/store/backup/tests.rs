@@ -190,6 +190,8 @@ fn enriched(p: &Project, dir: &Path) -> (String, String, String) {
             direction: "A fictional courtyard".into(),
             type_id: Some("core.place".into()),
             bundle: false,
+            creation_scope: None,
+            group_type_id: None,
             target_ids: vec![],
             context_ids: vec![],
             fields: vec![],

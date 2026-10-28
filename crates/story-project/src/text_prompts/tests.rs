@@ -157,6 +157,8 @@ fn world_generation_uses_the_exact_override_and_still_carries_schema_and_scoped_
         direction: "A fictional observatory.".into(),
         type_id: Some("core.place".into()),
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![],
         context_ids: vec![],
         fields: vec![],

@@ -1,18 +1,31 @@
 import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
-import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability } from './authoring-ui';
+import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes } from './authoring-ui';
 describe('shared AI node editor',()=>{
   it('offers empty descriptions and missing optional custom text fields without requiring placeholder content',()=>{
     const world=emptyWorld();world.componentTypes.push({id:'custom.voice',name:'Voice',description:'',fields:[{key:'voice',label:'Voice',kind:'text',required:false,defaultValue:''}]});
     const node=makeNode(world,'core.note','Narration style');node.components['custom.voice']={};world.nodes.push(node);
     const request=newAuthoringRequest(world,node.id);expect(request.direction).toBe('');expect(request.fields).toEqual(expect.arrayContaining([{nodeId:node.id,componentId:null,key:'description'},{nodeId:node.id,componentId:null,key:'visualDescription'},{nodeId:node.id,componentId:'custom.voice',key:'voice'}]));expect(request.fields.some(f=>f.componentId===null&&f.key==='name')).toBe(false);expect(node.description).toBe('');expect(node.components['custom.voice']).toEqual({});
   });
-  it('starts a new world as a mixed story idea and enables possessions for character presets',()=>{
-    const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.typeId).toBeNull();expect(request.bundle).toBe(true);
-    const populated=exampleWorld(),single=newAuthoringRequest(populated);expect(single.bundle).toBe(false);
+  it('defaults empty stories to world building and populated stories to groups, with distinct typed-node controls',()=>{
+    const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.typeId).toBeNull();expect(request.bundle).toBe(true);expect(creationChoice(request)).toBe('@world');
+    const populated=exampleWorld(),group=newAuthoringRequest(populated);expect(group.bundle).toBe(true);expect(group.typeId).toBeNull();expect(creationChoice(group)).toBe('@group');
     world.nodeTypes.push({id:'custom.person',name:'Settler',description:'',components:['core.character','core.holder']});
-    for(const type of ['core.character','custom.person'])expect(changeCreationType(world,single,type).bundle).toBe(true);
-    expect(changeCreationType(world,single,null).bundle).toBe(true);expect(request.direction).toBe('');
+    for(const type of ['core.character','custom.person'])expect(changeCreationType(world,group,type)).toMatchObject({bundle:true,creationScope:null,groupTypeId:null});
+    expect(changeCreationType(world,group,'core.item')).toMatchObject({bundle:false,creationScope:null,typeId:'core.item'});
+    expect(changeCreationType(world,group,null).creationScope).toBe('world');expect(request.direction).toBe('');
+  });
+  it('preserves direction and explicit references while resetting scope-specific choices on mode changes',()=>{
+    const world=exampleWorld(),group={...newAuthoringRequest(world),groupTypeId:'core.item',direction:'A travel kit.',contextIds:[world.nodes[0].id]},before=structuredClone(group);
+    const building=changeCreationType(world,group,'@world');expect(building).toMatchObject({creationScope:'world',groupTypeId:null,typeId:null,bundle:true,direction:group.direction,contextIds:group.contextIds});
+    const typed=changeCreationType(world,building,'core.place');expect(typed).toMatchObject({creationScope:null,groupTypeId:null,bundle:false});
+    expect(changeCreationType(world,typed,'@group')).toMatchObject({creationScope:'group',groupTypeId:null,typeId:null,bundle:true});expect(group).toEqual(before);
+    const legacy={...group,creationScope:undefined,groupTypeId:undefined};expect(creationChoice(legacy)).toBe('@world');expect(legacy.creationScope).toBeUndefined();
+  });
+  it('limits candidate additions by any saved group preset without hiding existing references',()=>{
+    const world=exampleWorld();world.nodeTypes.push({id:'custom.supply',name:'Supply',description:'',components:['core.item']});
+    const request={...newAuthoringRequest(world),groupTypeId:'custom.supply'};expect(candidateNodeTypes(world,request).map(t=>t.id)).toEqual(['custom.supply']);
+    expect(candidateNodeTypes(world,{...request,groupTypeId:null})).toEqual(world.nodeTypes);expect(world.nodes).toHaveLength(8);
   });
   it('adds a separate wearable item with one wear placement without changing the world',()=>{
     const world=emptyWorld(),before=structuredClone(world),person=makeNode(world,'core.character','Nora Hale','new:person');const input={nodes:[person],edges:[]};

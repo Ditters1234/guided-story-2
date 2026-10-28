@@ -181,6 +181,8 @@ export type AuthoringRequest_Deserialize = {
 	direction: string,
 	typeId?: string | null,
 	bundle: boolean,
+	creationScope?: CreationScope | null,
+	groupTypeId?: string | null,
 	targetIds: string[],
 	contextIds: string[],
 	fields: EditableField_Deserialize[],
@@ -191,6 +193,8 @@ export type AuthoringRequest_Serialize = {
 	direction: string,
 	typeId: string | null,
 	bundle: boolean,
+	creationScope?: CreationScope,
+	groupTypeId?: string,
 	targetIds: string[],
 	contextIds: string[],
 	fields: EditableField_Serialize[],
@@ -318,6 +322,8 @@ export type ContinuityNote = {
 	evidence: string,
 	nodeIds: string[],
 };
+
+export type CreationScope = "world" | "group";
 
 export type EarlierPassageVersion = EarlierPassageVersion_Serialize | EarlierPassageVersion_Deserialize;
 

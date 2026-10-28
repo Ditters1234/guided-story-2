@@ -9,10 +9,15 @@ export function editableFields(world:World,ids:string[]):(EditableField&{label:s
   ]);
 }
 export function newAuthoringRequest(world:World,targetId?:string):AuthoringRequest{
-  return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
-    {mode:'create',direction:'',typeId:world.nodes.length?world.nodeTypes[0]?.id??null:null,bundle:!world.nodes.length,targetIds:[],contextIds:[],fields:[]};
+  return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
+    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,targetIds:[],contextIds:[],fields:[]};
 }
-export function changeCreationType(world:World,request:AuthoringRequest,typeId:string|null):AuthoringRequest{return {...request,typeId,bundle:!typeId||!!world.nodeTypes.find(d=>d.id===typeId)?.components.includes('core.character')||request.bundle};}
+export function creationChoice(request:AuthoringRequest):string{return request.typeId??(request.creationScope==='group'?'@group':'@world');}
+export function changeCreationType(world:World,request:AuthoringRequest,choice:string|null):AuthoringRequest{
+  if(!choice||choice==='@world'||choice==='@group')return {...request,typeId:null,bundle:true,creationScope:choice==='@group'?'group':'world',groupTypeId:null};
+  return {...request,typeId:choice,bundle:!!world.nodeTypes.find(d=>d.id===choice)?.components.includes('core.character'),creationScope:null,groupTypeId:null};
+}
+export function candidateNodeTypes(world:World,request:AuthoringRequest){return request.creationScope==='group'&&request.groupTypeId?world.nodeTypes.filter(t=>t.id===request.groupTypeId):world.nodeTypes;}
 export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeId:string,componentId:string):NodeCandidate{
   const definition=world.componentTypes.find(d=>d.id===componentId);
   if(!definition)throw Error('Choose a capability from this project.');

@@ -1,5 +1,6 @@
 use super::*;
 mod blank_nodes;
+mod creation_scopes;
 mod deletion;
 mod quality_probe;
 fn id() -> String {
@@ -28,6 +29,8 @@ fn request() -> AuthoringRequest {
         direction: "An old glasshouse".into(),
         type_id: Some("core.place".into()),
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![],
         context_ids: vec![],
         fields: vec![],
@@ -147,6 +150,8 @@ fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() 
     let single = AuthoringRequest {
         type_id: Some("core.character".into()),
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         ..request()
     };
     assert!(proposal_warnings(&candidate, &single).is_empty());
@@ -161,6 +166,8 @@ fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_pr
         mode: AuthoringMode::Revise,
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {
@@ -259,6 +266,8 @@ fn custom_capability_fields_use_the_same_generation_and_protection_rules() {
         direction: "Rain before evening".into(),
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {
@@ -287,6 +296,8 @@ fn protected_fields_and_unexposed_references_cannot_be_smuggled_into_a_candidate
         direction: "More lush".into(),
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {
@@ -318,6 +329,8 @@ fn source_edits_stale_a_proposal_while_unrelated_world_edits_are_preserved() {
         direction: "More lush".into(),
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {
@@ -391,6 +404,8 @@ fn revisions_keep_custom_target_schema_but_exclude_unrelated_catalogue_and_dupli
         direction: "Change only the room's description".into(),
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {

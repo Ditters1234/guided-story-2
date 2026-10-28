@@ -234,6 +234,8 @@ fn mandatory_content_blocks_over_budget_instead_of_truncating_and_does_not_grant
         direction: "An observatory.".into(),
         type_id: Some("core.place".into()),
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![],
         context_ids: vec![],
         fields: vec![],

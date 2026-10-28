@@ -15,6 +15,7 @@ Design pass: October 25, 2026. This document records the target design for a fre
 - Let the user submit a story idea and have the LLM fill in initial story settings and world records, followed by user revision before prose generation.
 - Keep both manual edits and AI authoring tools available throughout the story, including creation of individual records and related groups such as a place populated with items.
 - Connected creation is general, not limited to locations: a single character can be created together with their worn outfit, carried possessions and nested container contents.
+- Separate Build a world from an idea from Create a connected group. Groups can request a small mixed bundle or restrict additions to a saved node type, such as items, while linking to explicitly selected existing records. Both use the same proposal review/Apply flow.
 - Support explicit anatomical descriptions for adult characters, including breasts and genital anatomy, as optional persistent appearance details available to image preparation.
 - Provide AI reroll options for existing characters, items, locations and other supported records, including targeted fields and connected groups.
 - Retain a world-state record for every accepted scene/passage, with chapter-based table of contents and backward/forward navigation through written material.

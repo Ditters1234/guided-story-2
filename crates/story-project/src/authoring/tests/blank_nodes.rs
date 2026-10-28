@@ -31,6 +31,8 @@ fn revise(node: &WorldNode) -> AuthoringRequest {
         direction: String::new(),
         type_id: None,
         bundle: false,
+        creation_scope: None,
+        group_type_id: None,
         target_ids: vec![node.id.clone()],
         context_ids: vec![],
         fields: vec![EditableField {

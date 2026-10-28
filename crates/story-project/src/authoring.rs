@@ -15,6 +15,12 @@ pub enum AuthoringMode {
     Create,
     Revise,
 }
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum CreationScope {
+    World,
+    Group,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EditableField {
@@ -29,6 +35,10 @@ pub struct AuthoringRequest {
     pub direction: String,
     pub type_id: Option<String>,
     pub bundle: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creation_scope: Option<CreationScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_type_id: Option<String>,
     pub target_ids: Vec<String>,
     pub context_ids: Vec<String>,
     pub fields: Vec<EditableField>,
@@ -195,6 +205,8 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
                     .nodes
                     .iter()
                     .any(|n| request.target_ids.contains(&n.id) && n.type_id == d.id)
+            } else if let Some(type_id) = &request.group_type_id {
+                &d.id == type_id
             } else {
                 request.bundle || request.type_id.as_ref() == Some(&d.id)
             }
@@ -248,6 +260,8 @@ pub fn prepare_authoring(
             || targets.len() != request.target_ids.len()
             || request.fields.is_empty()
             || request.bundle
+            || request.creation_scope.is_some()
+            || request.group_type_id.is_some()
         {
             return Err("Select existing nodes and the fields AI may change.".into());
         }
@@ -264,6 +278,17 @@ pub fn prepare_authoring(
     } else {
         if !request.target_ids.is_empty() || !request.fields.is_empty() {
             return Err("Creation cannot rewrite existing nodes.".into());
+        }
+        if (request.creation_scope.is_some() && (request.type_id.is_some() || !request.bundle))
+            || (request.group_type_id.is_some()
+                && request.creation_scope != Some(CreationScope::Group))
+        {
+            return Err("Choose world building, a group, or a typed node without mixing their scope controls.".into());
+        }
+        if let Some(id) = &request.group_type_id {
+            if !world.node_types.iter().any(|d| &d.id == id) {
+                return Err("Choose a saved node type for this group.".into());
+            }
         }
         if let Some(id) = &request.type_id {
             if !world.node_types.iter().any(|d| &d.id == id) {
@@ -303,7 +328,25 @@ pub fn prepare_authoring(
     }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
     let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/350).clamp(1,20)}});
-    if request.mode == AuthoringMode::Create && request.bundle {
+    if request.mode == AuthoringMode::Create {
+        input["creationIntent"] = json!(if request.type_id.is_some() {
+            "node"
+        } else if request.creation_scope == Some(CreationScope::Group) {
+            "group"
+        } else {
+            "world"
+        });
+        input["allowedNewTypeIds"] = json!(request.group_type_id.as_ref().map(|id| vec![id]));
+    }
+    let character_root = request
+        .type_id
+        .as_ref()
+        .and_then(|id| context.node_types.iter().find(|d| &d.id == id))
+        .is_some_and(|d| d.components.iter().any(|id| id == "core.character"));
+    if request.mode == AuthoringMode::Create
+        && request.bundle
+        && (input["creationIntent"] == "world" || character_root)
+    {
         if let Some(example) = clothing_example(&context) {
             input["clothingExample"] = example;
         }
@@ -405,7 +448,13 @@ fn proposal_warnings(candidate: &NodeCandidate, request: &AuthoringRequest) -> V
     if request.mode != AuthoringMode::Create || !request.bundle {
         return vec![];
     }
-    candidate.nodes.iter().filter(|n|n.components.contains_key("core.character")).filter(|n|!candidate.edges.iter().any(|e|e.type_id=="core.worn-by"&&e.target_id==n.id)).map(|n|format!("{} has no linked worn items. Add outfit items before Apply, or keep this if intentional. Clothing written only in a character description is not an item-based outfit.",n.name)).collect()
+    candidate.nodes.iter().filter(|n|n.components.contains_key("core.character")).filter(|n|!candidate.edges.iter().any(|e|e.type_id=="core.worn-by"&&e.target_id==n.id)).map(|n|{
+        if request.group_type_id.is_some() {
+            format!("{} has no linked worn items. Add separate clothing in an item group afterward, or use a mixed-type group. Keep this if intentional.",n.name)
+        }else{
+            format!("{} has no linked worn items. Add outfit items before Apply, or keep this if intentional. Clothing written only in a character description is not an item-based outfit.",n.name)
+        }
+    }).collect()
 }
 fn alias(id: &str) -> bool {
     id.strip_prefix("new:").is_some_and(|s| {
@@ -464,6 +513,19 @@ fn candidate_world(
             return Err("Duplicate proposal node ID.".into());
         }
         if create {
+            if request
+                .group_type_id
+                .as_ref()
+                .is_some_and(|id| id != &node.type_id)
+            {
+                let label = source
+                    .node_types
+                    .iter()
+                    .find(|t| Some(&t.id) == request.group_type_id.as_ref())
+                    .map(|t| t.name.as_str())
+                    .unwrap_or("selected");
+                return Err(format!("This group permits only {label} nodes. Remove other node types or start a mixed-type group."));
+            }
             if !alias(&node.id) {
                 return Err("New nodes need unique new:<label> IDs.".into());
             }
@@ -754,6 +816,8 @@ impl Project {
             direction: String::new(),
             type_id: None,
             bundle: false,
+            creation_scope: None,
+            group_type_id: None,
             target_ids: vec![],
             context_ids: vec![],
             fields: vec![],
@@ -1074,6 +1138,58 @@ impl Project {
 }
 
 pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<String, String> {
+    if request.mode == AuthoringMode::Create && request.creation_scope == Some(CreationScope::Group)
+    {
+        let preset = world
+            .node_types
+            .iter()
+            .find(|d| {
+                request.group_type_id.as_ref().map_or_else(
+                    || d.components.iter().any(|id| id == "core.item"),
+                    |id| id == &d.id,
+                )
+            })
+            .or_else(|| world.node_types.first())
+            .ok_or("No node preset is available.")?;
+        let nodes = (1..=2)
+            .map(|n| WorldNode {
+                id: format!("new:group-{n}"),
+                type_id: preset.id.clone(),
+                name: format!("Demo {} {n}", preset.name),
+                description: format!("Offline group example: {}", request.direction),
+                visual_description: String::new(),
+                components: preset
+                    .components
+                    .iter()
+                    .map(|id| {
+                        let fields = world
+                            .component_types
+                            .iter()
+                            .find(|d| &d.id == id)
+                            .map(|d| {
+                                d.fields
+                                    .iter()
+                                    .map(|f| (f.key.clone(), f.default_value.clone()))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        (id.clone(), fields)
+                    })
+                    .collect(),
+            })
+            .collect();
+        return serde_json::to_string_pretty(&NodeCandidate {
+            nodes,
+            edges: vec![WorldEdge {
+                id: "new:group-link".into(),
+                type_id: "core.related".into(),
+                source_id: "new:group-1".into(),
+                target_id: "new:group-2".into(),
+                description: String::new(),
+            }],
+        })
+        .map_err(|e| e.to_string());
+    }
     let nodes = if request.mode == AuthoringMode::Create {
         let preset = world
             .node_types
