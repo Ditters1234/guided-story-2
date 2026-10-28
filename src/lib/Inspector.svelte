@@ -41,7 +41,7 @@
       </div>
     {/if}
     {#if node}
-      <div class="linked-section"><div class="section-actions"><h3>AI context</h3>{#if editable}<button class="text-action" onclick={onContextOpen}>Manage / preview</button>{/if}</div><AiContextBindingEditor nodeId={node.id} binding={world.aiContext?.find(b=>b.nodeId===node!.id)} disabled={!editable} onChange={onContext}/></div>
+      <div class="linked-section"><div class="section-actions"><h3>AI context</h3>{#if editable}<button class="text-action" onclick={onContextOpen}>Manage / preview</button>{/if}</div><AiContextBindingEditor nodeId={node.id} {world} binding={world.aiContext?.find(b=>b.nodeId===node!.id)} disabled={!editable} onChange={onContext}/></div>
       <div class="linked-section"><div class="section-actions"><h3>Connections</h3>{#if editable}<button class="text-action" onclick={() => onNewLink(node!.id)}>＋ Attach / link</button>{/if}</div>
         <p class="field-help">All incoming and outgoing links, including connections outside the visible map.</p>
         {#each world.edges.filter((e) => e.sourceId === node!.id || e.targetId === node!.id) as edge (edge.id)}

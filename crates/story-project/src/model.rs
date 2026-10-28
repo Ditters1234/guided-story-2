@@ -71,6 +71,7 @@ pub struct NodeTypeDefinition {
 #[serde(rename_all = "camelCase")]
 pub enum FieldKind {
     Text,
+    LongText,
     Number,
     Boolean,
     NodeRef,
@@ -178,7 +179,9 @@ pub(crate) fn capability(node: &WorldNode, id: &str) -> bool {
 }
 fn field_matches(value: &PropertyValue, kind: &FieldKind, ids: &BTreeSet<String>) -> bool {
     match kind {
-        FieldKind::Text => value.as_str().is_some_and(|s| s.chars().count() <= 16000),
+        FieldKind::Text | FieldKind::LongText => {
+            value.as_str().is_some_and(|s| s.chars().count() <= 16000)
+        }
         FieldKind::Number => value
             .as_f64()
             .is_some_and(|n| n.is_finite() && n.abs() <= 9_007_199_254_740_991.0),
@@ -264,6 +267,13 @@ impl World {
         // Extensions use their own IDs rather than weakening built-in behavior.
         let builtins = Self::default();
         for definition in &builtins.component_types {
+            // Later optional presets are installed only by an explicit author
+            // action. Legacy snapshots retain their exact schema/receipt hashes.
+            if definition.id == "core.narration-style"
+                && !self.component_types.iter().any(|d| d.id == definition.id)
+            {
+                continue;
+            }
             if !self.component_types.contains(definition) {
                 return Err("A built-in capability definition is missing or changed. Add a custom capability instead.".into());
             }

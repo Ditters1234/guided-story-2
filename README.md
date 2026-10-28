@@ -40,6 +40,8 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 
 **AI context** lets any node supply story-wide instructions or reference facts to selected tools, with ordering, content-field selection and an assembled preview. Use a plain Note or a custom preset for narration preferences, world rules or other guidance. These bindings travel with the story and historical snapshots. See [story-wide context](AI_CONTEXT.md).
 
+**Narration style** is a standard Add node preset with narrative person, tense and multiline instructions. Its creation shortcuts include it for passage writing and wording edits; its reusable capability, AI tools and context controls are shared with other world nodes.
+
 ## Design and build documents
 
 - [Product design](DESIGN_REVIEW.md): confirmed decisions, authoring flows, records, media and history.

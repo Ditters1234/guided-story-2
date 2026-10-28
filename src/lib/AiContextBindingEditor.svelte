@@ -1,8 +1,9 @@
 <script lang="ts">
   import type {AiContextBinding,AiContextField,TextPromptTask} from './bindings';
   import {aiContextTasks,defaultContextBinding} from './ai-context';
-  let {nodeId,binding,disabled=false,onChange}:{nodeId:string;binding?:AiContextBinding;disabled?:boolean;onChange:(value:AiContextBinding)=>void}=$props();
-  function edit(patch:Partial<AiContextBinding>){onChange({...binding??defaultContextBinding(nodeId),...patch});}
+  import type {World} from './model';
+  let {nodeId,binding,world,disabled=false,onChange}:{nodeId:string;binding?:AiContextBinding;world?:World;disabled?:boolean;onChange:(value:AiContextBinding)=>void}=$props();
+  function edit(patch:Partial<AiContextBinding>){onChange({...binding??defaultContextBinding(nodeId,0,world),...patch});}
   function task(id:TextPromptTask){if(binding)edit({tasks:binding.tasks.includes(id)?binding.tasks.filter(t=>t!==id):[...binding.tasks,id]});}
   function field(id:AiContextField){if(binding)edit({fields:binding.fields.includes(id)?binding.fields.filter(f=>f!==id):[...binding.fields,id]});}
 </script>

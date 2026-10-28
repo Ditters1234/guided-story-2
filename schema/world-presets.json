@@ -41,6 +41,12 @@
       "name": "Note",
       "description": "General notes, instructions, rules or background information.",
       "components": []
+    },
+    {
+      "id": "core.narration-style",
+      "name": "Narration style",
+      "description": "Instructions for narrative person, tense and prose style.",
+      "components": ["core.narration-style"]
     }
   ],
   "componentTypes": [
@@ -122,6 +128,16 @@
           "required": true,
           "defaultValue": false
         }
+      ]
+    },
+    {
+      "id": "core.narration-style",
+      "name": "Narration style",
+      "description": "Reusable prose guidance. Include as instructions for passage writing and wording edits.",
+      "fields": [
+        {"key": "person", "label": "Narrative person", "kind": "text", "required": false, "defaultValue": "Third person"},
+        {"key": "tense", "label": "Narrative tense", "kind": "text", "required": false, "defaultValue": "Past tense"},
+        {"key": "instructions", "label": "Narration instructions", "kind": "longText", "required": false, "defaultValue": ""}
       ]
     }
   ],

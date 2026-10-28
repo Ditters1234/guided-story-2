@@ -173,7 +173,7 @@ pub fn authoring_fields(world: &World, targets: &[String]) -> Vec<EditableField>
 }
 fn field_schema(kind: &FieldKind) -> Value {
     match kind {
-        FieldKind::Text => json!({"type":"string","maxLength":16000}),
+        FieldKind::Text | FieldKind::LongText => json!({"type":"string","maxLength":16000}),
         FieldKind::Number => json!({"type":"number"}),
         FieldKind::Boolean => json!({"type":"boolean"}),
         FieldKind::NodeRef => json!({"type":["string","null"]}),
@@ -1127,7 +1127,7 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                         .iter()
                         .find(|d| &d.id == component)
                         .and_then(|d| d.fields.iter().find(|f| f.key == field.key))
-                        .is_some_and(|f| f.kind == FieldKind::Text);
+                        .is_some_and(|f| matches!(f.kind, FieldKind::Text | FieldKind::LongText));
                     if text_field {
                         if let Some(values) = node.components.get_mut(component) {
                             values.insert(

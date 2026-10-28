@@ -1,7 +1,28 @@
 import {describe,it,expect} from 'vitest';
-import {exampleWorld,emptyWorld,makeNode} from './model';
-import {defaultContextBinding,setContextBinding,removeContextBinding,addContextNote} from './ai-context';
+import {exampleWorld,emptyWorld,makeNode,availableNodeTypes} from './model';
+import {defaultContextBinding,setContextBinding,removeContextBinding,addContextNote,addNarrationStyle} from './ai-context';
+import {editableFields} from './authoring-ui';
 describe('story-wide node context',()=>{
+  it('offers narration in older stories and explicitly adds its reusable fields and writing-only inclusion',()=>{
+    const world=exampleWorld();world.nodeTypes=world.nodeTypes.filter(t=>t.id!=='core.narration-style');world.componentTypes=world.componentTypes.filter(t=>t.id!=='core.narration-style');
+    const before=structuredClone(world);expect(availableNodeTypes(world).some(t=>t.id==='core.narration-style')).toBe(true);expect(world).toEqual(before);
+    const first=addNarrationStyle(world,'10000000-0000-4000-8000-000000000031');
+    expect(first.node.components['core.narration-style']).toEqual({person:'Third person',tense:'Past tense',instructions:''});
+    expect(first.world.aiContext?.[0]).toMatchObject({nodeId:first.node.id,role:'instructions',tasks:['passage','wording'],fields:['description','components'],enabled:true});
+    expect(first.world.edges).toEqual(before.edges);expect(first.world.nodes.slice(0,-1)).toEqual(before.nodes);expect(world).toEqual(before);
+    expect(editableFields(first.world,[first.node.id]).some(f=>f.componentId==='core.narration-style'&&f.key==='instructions')).toBe(true);
+    expect(first.world.componentTypes.find(d=>d.id==='core.narration-style')?.fields.find(f=>f.key==='instructions')?.kind).toBe('longText');
+    const second=addNarrationStyle(first.world,'10000000-0000-4000-8000-000000000032');
+    expect(second.world.nodeTypes.filter(t=>t.id==='core.narration-style')).toHaveLength(1);expect(second.world.componentTypes.filter(t=>t.id==='core.narration-style')).toHaveLength(1);expect(second.world.aiContext).toHaveLength(2);
+  });
+  it('uses narration inclusion defaults for any node with the capability while preserving explicit inclusion changes',()=>{
+    const initial=addNarrationStyle(emptyWorld()),node=initial.node;
+    const custom={...node,typeId:'custom.guidance'};const world={...initial.world,nodes:[custom],nodeTypes:[...initial.world.nodeTypes,{id:'custom.guidance',name:'Guidance',description:'',components:['core.narration-style']}]};
+    const removed=removeContextBinding(world,node.id);expect(removed.aiContext).toEqual([]);expect(removed.nodes[0]).toEqual(custom);
+    expect(defaultContextBinding(node.id,20,removed)).toMatchObject({role:'instructions',tasks:['passage','wording'],order:20});
+    const configured=setContextBinding(removed,{...defaultContextBinding(node.id,20,removed),enabled:false,role:'reference',tasks:['world'],fields:['components']});
+    expect(configured.aiContext?.[0]).toMatchObject({enabled:false,role:'reference',tasks:['world']});expect(configured.nodes).toEqual(removed.nodes);
+  });
   it('includes arbitrary custom nodes without changing physical links or expanding connected records',()=>{
     const world=exampleWorld(),node=makeNode(world,'core.note','Rules'),before=structuredClone(world);world.nodes.push(node);
     const binding={...defaultContextBinding(node.id),role:'instructions' as const,tasks:['passage' as const],order:-10};

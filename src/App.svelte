@@ -1,7 +1,7 @@
 <script lang="ts">
   import BackupDialog from './lib/BackupDialog.svelte';
   import AiContextDialog from './lib/AiContextDialog.svelte';
-  import {setContextBinding} from './lib/ai-context';
+  import {setContextBinding,addNarrationStyle} from './lib/ai-context';
   import { onMount, type Snippet } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -20,7 +20,7 @@
   import { newAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
-  import { exampleWorld, emptyWorld, makeNode, type ProjectView, type Workspace, type World } from './lib/model';
+  import { exampleWorld, emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
   import icon from './assets/app-icon.svg';
@@ -281,6 +281,10 @@
   }
   function addRecord(typeId: string) {
     if (!project || busy || historyWorld) return;
+    if(typeId==='core.narration-style'){
+      const added=addNarrationStyle(world);world=added.world;workspace={...workspace,selectedId:added.node.id};scheduleSave();persistLayout();return;
+    }
+    world=withBuiltinNodeType(world,typeId);
     const preset = world.nodeTypes.find((d) => d.id === typeId);
     if (!preset) return;
     const node = makeNode(world, typeId, 'New ' + preset.name.toLowerCase());
@@ -421,7 +425,7 @@
         <section class="map-panel" aria-label={surface==='story'?'Story authoring workspace':'World authoring workspace'}>
           <div class="map-toolbar">{#if project}<div class="workspace-tabs" aria-label="Workspace"><button aria-pressed={surface==='world'} onclick={()=>{void switchSurface('world');}}>World</button><button aria-pressed={surface==='story'} onclick={()=>{void switchSurface('story');}}>Story{passageRunning?' · working…':''}</button></div>{/if}<div class="map-tools">
             {#if project&&surface==='world'}<details class="add-menu"><summary>＋ Add node</summary><div>
-              {#each world.nodeTypes as type}<button disabled={busy||!!historyWorld} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
+              {#each availableNodeTypes(world) as type}<button disabled={busy||!!historyWorld||(type.id==='core.narration-style'&&(world.aiContext?.length??0)>=32)} title={type.id==='core.narration-style'&&(world.aiContext?.length??0)>=32?'Remove an AI context inclusion before adding another.':undefined} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
               <button disabled={busy||!!historyWorld} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{/if}

@@ -386,7 +386,7 @@ export type FieldDefinition = {
 	defaultValue: PropertyValue,
 };
 
-export type FieldKind = "text" | "number" | "boolean" | "nodeRef" | "nodeRefs";
+export type FieldKind = "text" | "longText" | "number" | "boolean" | "nodeRef" | "nodeRefs";
 
 export type ImageConnection = ImageConnection_Serialize | ImageConnection_Deserialize;
 

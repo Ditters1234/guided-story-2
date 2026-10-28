@@ -1,4 +1,5 @@
 use super::*;
+mod narration;
 #[test]
 fn bound_nodes_roundtrip_through_reopen_receipts_and_backup_restore() {
     let dir = tempfile::tempdir().unwrap();

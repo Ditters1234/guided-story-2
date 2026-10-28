@@ -47,6 +47,7 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
         ("core.character", "Nora Hale"),
         ("core.item", "Field coat"),
         ("core.note", "Narration style"),
+        ("core.narration-style", "Narration style"),
         ("custom.guidance", "World rules"),
     ] {
         let dir = tempfile::tempdir().unwrap();
@@ -98,6 +99,13 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
         .unwrap();
         let before = project.view().unwrap();
         let mut req = revise(&node);
+        if kind == "core.narration-style" {
+            req.fields.push(EditableField {
+                node_id: node.id.clone(),
+                component_id: Some("core.narration-style".into()),
+                key: "instructions".into(),
+            });
+        }
         if kind == "custom.guidance" {
             req.fields.push(EditableField {
                 node_id: node.id.clone(),
@@ -157,6 +165,19 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
         assert_eq!(after.nodes[0].visual_description, "");
         assert_eq!(after.ai_context, world.ai_context);
         assert_eq!(after.nodes[1], world.nodes[1]);
+        if kind == "core.narration-style" {
+            assert!(
+                matches!(&after.nodes[0].components["core.narration-style"]["instructions"],PropertyValue::Text(value) if !value.is_empty())
+            );
+            assert_eq!(
+                after.nodes[0].components["core.narration-style"]["person"],
+                node.components["core.narration-style"]["person"]
+            );
+            assert_eq!(
+                after.nodes[0].components["core.narration-style"]["tense"],
+                node.components["core.narration-style"]["tense"]
+            );
+        }
         if kind == "custom.guidance" {
             assert!(
                 matches!(&after.nodes[0].components["custom.voice"]["voice"],PropertyValue::Text(value) if !value.is_empty())
