@@ -5,6 +5,7 @@
   import { commands,unwrap } from './native';
   import { editableFields,fieldId,newAuthoringRequest,parseCandidateForEditor,changeCreationType } from './authoring-ui';
   import CandidateEditor from './CandidateEditor.svelte';
+  import DeleteDraftButton from './DeleteDraftButton.svelte';
   let {project,world,initialId,initialRequest,onBeforeAction,onApply,onClose,onSettings,onRun}:{project:ProjectView;world:World;initialId:string|null;initialRequest:AuthoringRequest;onBeforeAction:()=>Promise<ProjectView>;onApply:(result:ApplyAuthoringResult_Serialize)=>Promise<void>;onClose:()=>void;onSettings:(section?:'llm'|'prompts')=>void;onRun:(id:string,running:boolean)=>void}=$props();
   let dialog:HTMLDialogElement;
   let currentId=$state(untrack(()=>initialId??crypto.randomUUID()));
@@ -22,6 +23,15 @@
   $effect(()=>{dialog?.showModal();});
   function describe(caught:unknown){return caught instanceof Error?caught.message:String(caught);}
   async function list(){saved=unwrap(await commands.listAuthoring(project.storyId));}
+  async function deleteDraft(id:string,expected:number){
+    working=true;error='';
+    try{
+      await flushDraft();
+      unwrap(await commands.deleteAuthoringDraft(project.storyId,id,id===currentId?version:expected));
+      if(id===currentId){clearTimeout(timer);clearTimeout(poll);pending=null;savedEdits=edits;loaded=false;onRun(id,false);onClose();}
+      else await list();
+    }catch(caught){error=describe(caught);try{await list();}catch{}}finally{working=false;}
+  }
   function report(){onRun(currentId,view?.status==='running');}
   async function refresh(){view=unwrap(await commands.getAuthoring(project.storyId,currentId));version=view.version;report();if(view.status==='running'){poll=setTimeout(()=>{void refresh().catch((caught)=>{error=describe(caught);});},800);}else{request=structuredClone($state.snapshot(view.request));candidateText=view.candidateText;await list();}}
   function touch(){if(!loaded||!['draft','review'].includes(status))return;edits++;saveStatus='Unsaved proposal';clearTimeout(timer);timer=setTimeout(()=>{void flushDraft().catch(()=>{});},350);}
@@ -52,7 +62,7 @@
   <header class="settings-heading"><h2 id="ai-title">AI world tools</h2><button class="icon-button" aria-label="Close AI world tools" onclick={()=>{void close();}}>×</button></header>
   <div class="ai-body">
     <div class="proposal-toolbar">
-      <details class="saved-proposals"><summary>Saved proposals ({saved.length})</summary>{#each saved as entry}<button class:active={entry.id===currentId} onclick={()=>{void openSaved(entry.id);}} disabled={working||status==='running'}><span>{entry.direction||'Saved AI draft'}</span><small>{entry.status}</small></button>{/each}</details>
+      <details class="saved-proposals"><summary>Saved proposals ({saved.length})</summary>{#each saved as entry (entry.id)}{@const title=(entry.id===currentId?request.direction:entry.direction)||'Saved AI draft'}<div class="saved-draft-row"><button class:active={entry.id===currentId} onclick={()=>{void openSaved(entry.id);}} disabled={working||status==='running'}><span>{title}</span><small>{entry.id===currentId?status:entry.status}</small></button>{#if entry.id!==currentId&&!['running','applied'].includes(entry.status)}<DeleteDraftButton {title} disabled={working||!loaded||status==='running'} onDelete={()=>deleteDraft(entry.id,entry.version)}/>{/if}</div>{/each}</details>
       <button class="text-action" disabled={!loaded||working||status==='running'} onclick={()=>{void newDraft(newAuthoringRequest(world));}}>New creation</button>
     </div>
     {#if error}<div class="settings-error" role="alert">{error}<button class="quiet-button" onclick={()=>{void flushDraft().then(refresh).catch((caught)=>{error=describe(caught);});}}>Retry / refresh</button></div>{/if}
@@ -80,6 +90,7 @@
     {/if}
   </div>
   <footer class="settings-footer"><div><span class="field-help" aria-live="polite">{saveStatus}</span><button class="text-action" disabled={status==='running'||working} onclick={()=>{void close('llm');}}>LLM settings</button><button class="text-action" disabled={status==='running'||working} onclick={()=>{void close('prompts');}}>Prompts</button></div><div class="ai-footer-actions">
+    {#if !['running','applied'].includes(status)}<DeleteDraftButton title={request.direction||'Saved AI draft'} disabled={working||!loaded} onDelete={()=>deleteDraft(currentId,version)}/>{/if}
     {#if status==='draft'}<button class="primary-button" disabled={working||!loaded||(request.mode==='create'&&!request.direction.trim())||(request.mode==='revise'&&!request.fields.length)} onclick={()=>{void generate();}}>{working?'Starting…':request.mode==='revise'?'Generate details':'Generate proposal'}</button>
     {:else if status!=='running'}<button class="secondary-button" disabled={working} onclick={()=>{void newDraft();}}>New candidate / reroll</button>{#if status==='review'}<button class="primary-button" disabled={working||!!view?.error||!!view?.stale||!view?.changes.length} onclick={()=>{void apply();}}>{working?'Applying…':'Apply proposal'}</button>{/if}{/if}
   </div></footer>

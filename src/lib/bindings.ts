@@ -27,6 +27,7 @@ export const commands = {
 	savePromptTemplates: (expectedVersion: number, overrides: Partial<{ [key in TextPromptTask]: string }>) => typedError<PromptSettingsView, string>(__TAURI_INVOKE("save_prompt_templates", { expectedVersion, overrides })),
 	testLlmConnection: () => typedError<ConnectionTest, string>(__TAURI_INVOKE("test_llm_connection")),
 	listAuthoring: (storyId: string) => typedError<AuthoringSummary[], string>(__TAURI_INVOKE("list_authoring", { storyId })),
+	deleteAuthoringDraft: (storyId: string, id: string, expectedVersion: number) => typedError<null, string>(__TAURI_INVOKE("delete_authoring_draft", { storyId, id, expectedVersion })),
 	getAuthoring: (storyId: string, id: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("get_authoring", { storyId, id })),
 	saveAuthoringDraft: (storyId: string, id: string, expectedVersion: number, request: AuthoringRequest_Deserialize) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("save_authoring_draft", { storyId, id, expectedVersion, request })),
 	saveAuthoringCandidate: (storyId: string, id: string, expectedVersion: number, text: string) => typedError<AuthoringView_Serialize, string>(__TAURI_INVOKE("save_authoring_candidate", { storyId, id, expectedVersion, text })),
@@ -37,6 +38,7 @@ export const commands = {
 	loadStory: (storyId: string) => typedError<StoryIndex_Serialize, string>(__TAURI_INVOKE("load_story", { storyId })),
 	nextPassagePlan: (storyId: string) => typedError<PassagePlan_Serialize, string>(__TAURI_INVOKE("next_passage_plan", { storyId })),
 	listPassageDrafts: (storyId: string) => typedError<PassageSummary_Serialize[], string>(__TAURI_INVOKE("list_passage_drafts", { storyId })),
+	deletePassageDraft: (storyId: string, id: string, expectedVersion: number) => typedError<null, string>(__TAURI_INVOKE("delete_passage_draft", { storyId, id, expectedVersion })),
 	getPassageDraft: (storyId: string, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("get_passage_draft", { storyId, id })),
 	savePassageDraft: (storyId: string, id: string, expectedVersion: number, edits: PassageEdits_Deserialize) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("save_passage_draft", { storyId, id, expectedVersion, edits })),
 	startPassageJob: (storyId: string, id: string, expectedVersion: number, expectedRevision: number, checking: boolean) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("start_passage_job", { storyId, id, expectedVersion, expectedRevision, checking })),
@@ -939,7 +941,7 @@ export type PassageRevisionView_Serialize = {
 	world: World_Serialize,
 };
 
-export type PassageStage = "draft" | "narrating" | "needsCheck" | "checking" | "ready" | "failed" | "interrupted" | "cancelled" | "accepted";
+export type PassageStage = "draft" | "narrating" | "needsCheck" | "checking" | "ready" | "failed" | "interrupted" | "cancelled" | "accepted" | "discarded";
 
 export type PassageSummary = PassageSummary_Serialize | PassageSummary_Deserialize;
 

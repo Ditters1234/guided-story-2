@@ -17,9 +17,9 @@
 .proposal-toolbar>.text-action { flex-shrink: 0; padding: 10px 0; }
 .saved-proposals { flex: 1; min-width: 0; }
 .saved-proposals[open] { max-height: 200px; overflow-y: auto; }
-.saved-proposals>button { display: flex; width: 100%; text-align: left; justify-content: space-between; gap: 15px; padding: 10px; font-size: 0.85rem; color: var(--ink); background: var(--surface-alt); border-radius: 4px; margin: 4px 0; }
-.saved-proposals>button.active { background: var(--selection); }
-.saved-proposals>button>span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-proposals .saved-draft-row>button:first-child { display: flex; width: 100%; min-width: 0; text-align: left; justify-content: space-between; gap: 15px; padding: 10px; font-size: 0.85rem; color: var(--ink); background: var(--surface-alt); border-radius: 4px; margin: 4px 0; }
+.saved-proposals .saved-draft-row>button.active { background: var(--selection); }
+.saved-proposals .saved-draft-row>button>span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .saved-proposals small { color: var(--muted); }
 .editable-field-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 22px; max-height: 230px; overflow-y: auto; }
 .editable-field-list label, .reference-picker label { display: flex; align-items: center; gap: 9px; font-size: 0.85rem; color: var(--ink); }

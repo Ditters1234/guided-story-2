@@ -64,6 +64,7 @@ pub enum PassageStage {
     Interrupted,
     Cancelled,
     Accepted,
+    Discarded,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -502,6 +503,13 @@ impl Project {
         crate::store::atomic_write(&self.passage_path(&draft.id)?, &bytes)
     }
     fn read_passage_draft(&self, id: &str) -> Result<PassageDraft, String> {
+        let draft = self.read_passage_draft_record(id)?;
+        if draft.stage == PassageStage::Discarded {
+            return Err("This passage draft was deleted.".into());
+        }
+        Ok(draft)
+    }
+    fn read_passage_draft_record(&self, id: &str) -> Result<PassageDraft, String> {
         let mut d: PassageDraft =
             serde_json::from_slice(&crate::store::read_bytes(&self.passage_path(id)?)?)
                 .map_err(|e| format!("Invalid passage draft; it was kept: {e}"))?;
@@ -541,8 +549,8 @@ impl Project {
                 if accepted.contains(id) {
                     continue;
                 }
-                let d = self.read_passage_draft(id)?;
-                if d.stage == PassageStage::Accepted {
+                let d = self.read_passage_draft_record(id)?;
+                if matches!(d.stage, PassageStage::Accepted | PassageStage::Discarded) {
                     continue;
                 }
                 list.push(PassageSummary {
@@ -564,6 +572,48 @@ impl Project {
                 .then_with(|| b.id.cmp(&a.id))
         });
         Ok(list)
+    }
+    pub fn delete_passage_draft(&self, id: &str, expected: u32) -> Result<(), String> {
+        let mut draft = self.read_passage_draft_record(id)?;
+        if draft.stage == PassageStage::Discarded && draft.version.checked_sub(1) == Some(expected)
+        {
+            return Ok(());
+        }
+        if matches!(
+            draft.stage,
+            PassageStage::Narrating
+                | PassageStage::Checking
+                | PassageStage::Accepted
+                | PassageStage::Discarded
+        ) {
+            return Err("Only stopped, unaccepted passage drafts can be deleted.".into());
+        }
+        if draft.version != expected {
+            return Err("This passage draft changed. Reload before deleting it.".into());
+        }
+        draft.stage = PassageStage::Discarded;
+        draft.version += 1;
+        draft.edits = PassageEdits {
+            plan: PassagePlan::default(),
+            prose: String::new(),
+            effects_text: empty_effects(),
+            close_chapter: false,
+            approved_effects: vec![],
+        };
+        draft.source = None;
+        draft.narration_source = None;
+        draft.checked.clear();
+        draft.error.clear();
+        draft.original_prose.clear();
+        draft.original_effects.clear();
+        draft.narration_provider.clear();
+        draft.effects_provider.clear();
+        draft.allocations.clear();
+        draft.attempt = None;
+        draft.revision = None;
+        draft.cloned_from = None;
+        draft.incomplete = false;
+        self.write_passage_draft(&draft)
     }
     pub fn save_passage(&self, id: &str, expected: u32, edits: PassageEdits) -> Result<(), String> {
         validate_edits(&edits)?;
@@ -1254,7 +1304,7 @@ impl Project {
                 if accepted.contains(id) {
                     return Ok(());
                 }
-                let mut d = self.read_passage_draft(id)?;
+                let mut d = self.read_passage_draft_record(id)?;
                 if matches!(d.stage, PassageStage::Narrating | PassageStage::Checking) {
                     d.stage = PassageStage::Interrupted;
                     d.checked.clear();

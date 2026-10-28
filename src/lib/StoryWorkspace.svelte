@@ -8,6 +8,7 @@
   import EffectsReviewEditor from './EffectsReviewEditor.svelte';
   import ChapterMemoryEditor from './ChapterMemoryEditor.svelte';
   import PassageImages from './PassageImages.svelte';
+  import DeleteDraftButton from './DeleteDraftButton.svelte';
   import type {ProjectView,World} from './model';
   import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize,PassageEffects,TextPromptTask} from './bindings';
   let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onImage,onHistory,onRun,onFork,onSettings,onPanels,onContext=()=>{}}:{
@@ -66,6 +67,17 @@
   $effect(()=>{const revision=project.revision;if(loaded)untrack(()=>{void refreshIndex().then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});});void revision;});
   export async function flushDraft(){await session.flush();await memoryPanel?.flushDraft();}
   async function refreshIndex(){index=unwrap(await commands.loadStory(project.storyId));drafts=unwrap(await commands.listPassageDrafts(project.storyId));}
+  async function deleteDraft(draft:PassageSummary){
+    working=true;error='';
+    try{
+      await session.flush();
+      const current=session.id===draft.id;
+      unwrap(await commands.deletePassageDraft(project.storyId,draft.id,current?session.view!.version:draft.version));
+      if(current){session.clear();reading=null;mode='draft';onHistory(null,'');}
+      await refreshIndex();
+      if(current){if(drafts.length)await openDraft(drafts[0].id);else if(index.passages.length)await read(index.passages.at(-1)!.id);}
+    }catch(caught){error=describe(caught);try{await refreshIndex();}catch{}}finally{working=false;}
+  }
   async function openDraft(id:string){working=true;try{await session.open(id);reading=null;mode='draft';onHistory(null,'');error='';}catch(caught){error=describe(caught);}finally{working=false;}}
   async function fresh(usePlan?:PassagePlan){working=true;try{
     await session.flush();await onBeforeAction();const plan=usePlan?structuredClone(usePlan):scenePlan(world,unwrap(await commands.nextPassagePlan(project.storyId)),selectedId,session.value?.plan);
@@ -106,7 +118,7 @@
       </details>{:else}<p class="field-help">No accepted passages yet.</p>{/each}
     </nav>
     {#if index.passages.length}<button class="secondary-button chapter-memory-link" aria-pressed={mode==='memory'} disabled={working} onclick={()=>{void openMemory();}}>Chapter memory{memoryRunning?' · working…':''}</button>{/if}
-    {#if drafts.length}<section class="story-drafts"><h2>Drafts</h2>{#each drafts as draft}{@const current=session.id===draft.id}<button class:active={mode==='draft'&&current} disabled={blocked} onclick={()=>{void openDraft(draft.id);}}><span>{(current?session.value?.plan.title:draft.title)||'Untitled passage'}</span><small>{draft.revisionKind==='wording'?'Wording · ':draft.revisionKind==='events'?'Replace events · ':''}{(current?session.view?.stage??draft.stage:draft.stage).replace('needsCheck','needs review').replace('ready','checked')}</small></button>{/each}</section>{/if}
+    {#if drafts.length}<section class="story-drafts"><h2>Drafts</h2>{#each drafts as draft (draft.id)}{@const current=session.id===draft.id}{@const title=(current?session.value?.plan.title:draft.title)||'Untitled passage'}<div class="saved-draft-row"><button class:active={mode==='draft'&&current} disabled={blocked} onclick={()=>{void openDraft(draft.id);}}><span>{title}</span><small>{draft.revisionKind==='wording'?'Wording · ':draft.revisionKind==='events'?'Replace events · ':''}{(current?session.view?.stage??draft.stage:draft.stage).replace('needsCheck','needs review').replace('ready','checked')}</small></button><DeleteDraftButton {title} disabled={blocked||['narrating','checking'].includes(draft.stage)} onDelete={()=>deleteDraft(draft)}/></div>{/each}</section>{/if}
   </aside>
 {/snippet}
 
@@ -161,7 +173,7 @@
       {#if session.view.memory.coverage.olderPassages>0}{@const coverage=session.view.memory.coverage}<p>{coverage.selectedPoints} earlier memory points · {coverage.currentSummaries}/{coverage.closedChapters} completed chapters have current summaries.</p><p>{coverage.unrepresentedPassages} older passages have no current summary or accepted notes. {coverage.omittedPoints} available points omitted by scope/size limits.</p>{#if coverage.staleSummaries||coverage.unavailableSummaries}<p>{coverage.staleSummaries} stale and {coverage.unavailableSummaries} unavailable summaries excluded.</p>{/if}{#each session.view.memory.points as point}<button class="text-action memory-source-link" disabled={working} onclick={()=>{void read(point.passageId);}}>{point.text}<small>{point.reason}</small></button>{/each}{/if}
     </details>{/if}
     {#if session.view?.originalProse||session.view?.originalEffects}<details class="original-passage-output"><summary>Original model output</summary>{#if session.view.originalProse}<pre>{session.view.originalProse}</pre>{/if}{#if session.view.originalEffects}<pre>{session.view.originalEffects}</pre>{/if}</details>{/if}
-  {:else}<p class="story-loading">Loading story…</p>{/if}
+  {:else}<p class="story-loading">{loaded?'Choose a passage or write the next one.':'Loading story…'}</p>{/if}
   </aside>
 {/snippet}
 
@@ -196,7 +208,7 @@
       </fieldset>
       {#if session.view?.revision}<details class="prose-review" open={session.readyToAccept}><summary>Review text changes</summary><p class="field-help">Removed text is struck through; additions are underlined.</p><div class="prose-diff">{#each textChanges as change}{#if change.kind==='removed'}<del>{change.text}</del>{:else if change.kind==='added'}<ins>{change.text}</ins>{:else}{change.text}{/if}{/each}</div></details>{/if}
     </div>
-  {:else}<p class="story-loading">Loading story…</p>{/if}
+  {:else}<p class="story-loading">{loaded?'Choose a passage or write the next one.':'Loading story…'}</p>{/if}
   </div>
   {#if mode==='draft'}<footer class="composer-footer">
     <span id="passage-acceptance-status" aria-live="polite">{acceptanceHint}</span>

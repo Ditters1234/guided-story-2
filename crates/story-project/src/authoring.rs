@@ -657,6 +657,13 @@ impl Project {
         crate::store::atomic_write(&self.authoring_path(&record.id)?, &bytes)
     }
     fn read_authoring(&self, id: &str) -> Result<AuthoringRecord, String> {
+        let record = self.read_authoring_record(id)?;
+        if record.status == AuthoringStatus::Discarded {
+            return Err("This AI draft was deleted.".into());
+        }
+        Ok(record)
+    }
+    fn read_authoring_record(&self, id: &str) -> Result<AuthoringRecord, String> {
         let mut record: AuthoringRecord =
             serde_json::from_slice(&crate::store::read_bytes(&self.authoring_path(id)?)?)
                 .map_err(|e| format!("Invalid proposal file: {e}. It has been preserved."))?;
@@ -693,7 +700,11 @@ impl Project {
                     .and_then(|s| s.to_str())
                     .ok_or("Invalid proposal filename.")?
                     .to_string();
-                entries.push(self.read_authoring(&id)?);
+                let record = self.read_authoring_record(&id)?;
+                if record.status == AuthoringStatus::Discarded {
+                    continue;
+                }
+                entries.push(record);
                 if entries.len() > 200 {
                     return Err(
                         "This prototype supports at most 200 saved AI proposals per story.".into(),
@@ -717,6 +728,46 @@ impl Project {
                 provider_label: r.provider_label,
             })
             .collect())
+    }
+    pub fn delete_authoring_draft(&self, id: &str, expected: u32) -> Result<(), String> {
+        let mut record = self.read_authoring_record(id)?;
+        if record.status == AuthoringStatus::Discarded
+            && record.version.checked_sub(1) == Some(expected)
+        {
+            return Ok(());
+        }
+        if matches!(
+            record.status,
+            AuthoringStatus::Running | AuthoringStatus::Applied | AuthoringStatus::Discarded
+        ) {
+            return Err("Only stopped, unapplied AI drafts can be deleted.".into());
+        }
+        if record.version != expected {
+            return Err("This AI draft changed. Reload before deleting it.".into());
+        }
+        // One atomic replacement removes draft contents and retains an ID/version
+        // tombstone so delayed saves and retries cannot recreate deleted work.
+        record.status = AuthoringStatus::Discarded;
+        record.version += 1;
+        record.request = AuthoringRequest {
+            mode: AuthoringMode::Create,
+            direction: String::new(),
+            type_id: None,
+            bundle: false,
+            target_ids: vec![],
+            context_ids: vec![],
+            fields: vec![],
+        };
+        record.source_world_ref = None;
+        record.source_fingerprint.clear();
+        record.provider_label.clear();
+        record.raw_response.clear();
+        record.candidate_text.clear();
+        record.error.clear();
+        record.allocations.clear();
+        record.apply_attempt = None;
+        record.incomplete = false;
+        self.write_authoring(&record)
     }
     pub fn interrupt_authoring(&self) -> Result<(), String> {
         for summary in self.authoring_list()? {

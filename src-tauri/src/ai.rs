@@ -94,6 +94,35 @@ pub(crate) fn check_story(project: &Project, story_id: &str) -> Result<(), Strin
     }
     Ok(())
 }
+pub(crate) fn delete_text_draft(
+    app: &tauri::AppHandle,
+    story_id: &str,
+    id: &str,
+    action: impl FnOnce(&Project) -> Result<(), String>,
+) -> Result<(), String> {
+    let jobs = app.state::<AuthoringJobs>();
+    let active = jobs
+        .active
+        .lock()
+        .map_err(|_| "Text jobs need reopening.")?;
+    if active.as_ref().is_some_and(|run| run.id == id)
+        || jobs
+            .unwritten
+            .lock()
+            .map_err(|_| "Text jobs need reopening.")?
+            .contains_key(id)
+    {
+        return Err(
+            "Stop generation and save its retained result before deleting this draft.".into(),
+        );
+    }
+    let result = with_project(&app.state::<AppState>(), |p| {
+        check_story(p, story_id)?;
+        action(p)
+    });
+    drop(active);
+    result
+}
 pub(crate) fn connection(app: &tauri::AppHandle) -> Result<LlmConnection, String> {
     Ok(load_connection(&preferences_root(app)?)?.settings)
 }
@@ -252,6 +281,18 @@ pub(crate) fn list_authoring(
     with_project(&state, |p| {
         check_story(p, &story_id)?;
         p.authoring_list()
+    })
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn delete_authoring_draft(
+    story_id: String,
+    id: String,
+    expected_version: u32,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    delete_text_draft(&app, &story_id, &id, |p| {
+        p.delete_authoring_draft(&id, expected_version)
     })
 }
 fn view(app: &tauri::AppHandle, story_id: &str, id: &str) -> Result<AuthoringView, String> {

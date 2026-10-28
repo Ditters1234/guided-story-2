@@ -22,7 +22,7 @@ The candidate editor lists each proposed character's **Worn items**. **Add worn 
 
 **New candidate / reroll** starts a separate saved draft with the same direction and scope. It retains the previous candidate, including manual edits. **New creation** starts a fresh creation request from any review. The saved-proposals list reopens older work. Revision of existing relationships continues through the manual connection tools; AI relationship transfers are not part of this slice.
 
-This prototype retains up to 200 proposals per story. A proposal cleanup/archive interface is still pending.
+Use **Delete draft** beside an entry in **Saved proposals**, or in the current draft's footer, then confirm. This removes an unapplied draft/candidate without changing world records or other proposals. A running request must finish or stop first; applied proposals remain protected. Deleting the current proposal closes its panel without creating a replacement. The 200-proposal limit counts remaining proposals, excluding deleted drafts. Small deletion markers prevent delayed saves/retries from recreating the deleted ID.
 
 ## Settings and API behavior
 

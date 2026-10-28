@@ -32,4 +32,12 @@ describe('passage draft queue',()=>{
     api.clone.mockResolvedValue(ok(candidate));session.value!.prose='Manual candidate retained before reroll.';session.touch();await session.reroll();
     expect(api.save.mock.calls[0][3].prose).toBe('Manual candidate retained before reroll.');expect(api.clone.mock.calls[0].slice(0,3)).toEqual(['story',view().id,2]);expect(session.view?.revision?.kind).toBe('wording');expect(session.value!.prose).toBe('');
   });
+  it('clears a deleted draft without allowing a queued autosave or refresh to restore it',async()=>{
+    const session=new PassageSession('story');await session.open(view().id);
+    let finish!:(v:ReturnType<typeof ok>)=>void;api.get.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+    const refreshing=session.refresh();await Promise.resolve();await Promise.resolve();
+    session.value!.prose='Pending typing';session.touch();session.clear();
+    finish(ok(view()));await refreshing;await vi.advanceTimersByTimeAsync(500);await session.flush();
+    expect(session.id).toBeNull();expect(session.value).toBeNull();expect(session.view).toBeNull();expect(session.dirty).toBe(false);expect(api.save).not.toHaveBeenCalled();
+  });
 });

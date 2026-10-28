@@ -83,6 +83,18 @@ pub(crate) fn get_passage_draft(
 }
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn delete_passage_draft(
+    story_id: String,
+    id: String,
+    expected_version: u32,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    delete_text_draft(&app, &story_id, &id, |p| {
+        p.delete_passage_draft(&id, expected_version)
+    })
+}
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn save_passage_draft(
     story_id: String,
     id: String,
