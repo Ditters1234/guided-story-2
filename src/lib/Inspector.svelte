@@ -26,7 +26,7 @@
     <div class="record-heading"><span class="eyebrow">{record.detail}</span><h2>{record.name || 'Unnamed record'}</h2>
       {#if record.parentId}<button class="parent-link" onclick={() => onSelect(record!.parentId!)}>{record.relation} {records.find((r) => r.id === record!.parentId)?.name ?? 'Unknown record'} ↗</button>{/if}
     </div>
-    {#if editable}<button class="secondary-button record-ai-action" onclick={()=>onAi(record!.id)}>Revise / reroll with AI…</button>{/if}
+    {#if editable}<button class="secondary-button record-ai-action" onclick={()=>onAi(record!.id)}>Generate / revise with AI…</button>{/if}
     {#if imageStoryId}<details class="node-image" open={record.kind==='character'}><summary>Image</summary><div class="portrait-preview"><NodeImage storyId={imageStoryId} nodeId={record.id} {world} {revision} {historical}/></div>{#if editable}<button class="secondary-button" onclick={()=>onImage(record!.id)}>Generate / choose image…</button>{/if}</details>{/if}
     <label class="field">Name<input value={record.name} disabled={!editable} oninput={(e) => onEdit('name', e.currentTarget.value)} maxlength={200} /></label>
     <label class="field">Story notes<textarea value={record.description} disabled={!editable} oninput={(e) => onEdit('description', e.currentTarget.value)} rows={5} maxlength={16000}></textarea></label>

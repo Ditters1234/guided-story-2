@@ -228,7 +228,7 @@ pub fn prepare_authoring(
     world.validate()?;
     bounded_request(request)?;
     settings.ready()?;
-    if request.direction.trim().is_empty() {
+    if request.mode == AuthoringMode::Create && request.direction.trim().is_empty() {
         return Err("Describe what you want to create or change.".into());
     }
     let targets: BTreeSet<_> = request.target_ids.iter().cloned().collect();
@@ -297,14 +297,34 @@ pub fn prepare_authoring(
     }
     let response_schema = output_schema(&context, request);
     let mut system = settings.system_prompt(TextPromptTask::World);
+    let mut effective_request = request.clone();
+    if request.mode == AuthoringMode::Revise && request.direction.trim().is_empty() {
+        effective_request.direction="Develop the checked fields from each node's name, type, existing facts and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, capabilities and links unchanged. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
+    }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
-    let mut input = json!({"request":request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/350).clamp(1,20)}});
+    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/350).clamp(1,20)}});
     if request.mode == AuthoringMode::Create && request.bundle {
         if let Some(example) = clothing_example(&context) {
             input["clothingExample"] = example;
         }
     }
-    let included = resolve_ai_context(world, TextPromptTask::World)?;
+    let mut context_source = world.clone();
+    if request.mode == AuthoringMode::Revise {
+        let bindings = world
+            .ai_context
+            .iter()
+            .filter(|b| targets.contains(&b.node_id))
+            .collect::<Vec<_>>();
+        if !bindings.is_empty() {
+            input["targetContextBindings"] = json!(bindings);
+        }
+        // A target is supplied in records as editable source, including when its
+        // required context body is blank. It must not govern its own rewrite.
+        context_source
+            .ai_context
+            .retain(|b| !targets.contains(&b.node_id));
+    }
+    let included = resolve_ai_context(&context_source, TextPromptTask::World)?;
     append_ai_context(&included, &mut system, &mut input);
     let schema_bytes = if settings.structured_output == StructuredOutput::Schema {
         response_schema.to_string().len()
@@ -1044,15 +1064,25 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
             .cloned()
             .collect();
         for node in &mut nodes {
+            let direction = if request.direction.trim().is_empty() {
+                format!("Develop {}", node.name)
+            } else {
+                request.direction.clone()
+            };
             for field in request.fields.iter().filter(|f| f.node_id == node.id) {
                 if let Some(component) = &field.component_id {
-                    if let Some(value) = node
-                        .components
-                        .get_mut(component)
-                        .and_then(|p| p.get_mut(&field.key))
-                    {
-                        if let PropertyValue::Text(text) = value {
-                            *text = format!("Demo variation: {}", request.direction);
+                    let text_field = world
+                        .component_types
+                        .iter()
+                        .find(|d| &d.id == component)
+                        .and_then(|d| d.fields.iter().find(|f| f.key == field.key))
+                        .is_some_and(|f| f.kind == FieldKind::Text);
+                    if text_field {
+                        if let Some(values) = node.components.get_mut(component) {
+                            values.insert(
+                                field.key.clone(),
+                                PropertyValue::Text(format!("Demo variation: {direction}")),
+                            );
                         }
                     }
                 } else {
@@ -1063,12 +1093,9 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                                 .take(200)
                                 .collect()
                         }
-                        "description" => {
-                            node.description = format!("Demo variation: {}", request.direction)
-                        }
+                        "description" => node.description = format!("Demo variation: {direction}"),
                         "visualDescription" => {
-                            node.visual_description =
-                                format!("Demo visual variation: {}", request.direction)
+                            node.visual_description = format!("Demo visual variation: {direction}")
                         }
                         _ => (),
                     }

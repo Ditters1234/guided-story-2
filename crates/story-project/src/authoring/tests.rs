@@ -1,4 +1,5 @@
 use super::*;
+mod blank_nodes;
 mod quality_probe;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()

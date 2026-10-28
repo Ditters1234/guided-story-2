@@ -2,6 +2,11 @@ import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
 import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability } from './authoring-ui';
 describe('shared AI node editor',()=>{
+  it('offers empty descriptions and missing optional custom text fields without requiring placeholder content',()=>{
+    const world=emptyWorld();world.componentTypes.push({id:'custom.voice',name:'Voice',description:'',fields:[{key:'voice',label:'Voice',kind:'text',required:false,defaultValue:''}]});
+    const node=makeNode(world,'core.note','Narration style');node.components['custom.voice']={};world.nodes.push(node);
+    const request=newAuthoringRequest(world,node.id);expect(request.direction).toBe('');expect(request.fields).toEqual(expect.arrayContaining([{nodeId:node.id,componentId:null,key:'description'},{nodeId:node.id,componentId:null,key:'visualDescription'},{nodeId:node.id,componentId:'custom.voice',key:'voice'}]));expect(request.fields.some(f=>f.componentId===null&&f.key==='name')).toBe(false);expect(node.description).toBe('');expect(node.components['custom.voice']).toEqual({});
+  });
   it('starts a new world as a mixed story idea and enables possessions for character presets',()=>{
     const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.typeId).toBeNull();expect(request.bundle).toBe(true);
     const populated=exampleWorld(),single=newAuthoringRequest(populated);expect(single.bundle).toBe(false);
