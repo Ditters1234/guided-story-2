@@ -80,6 +80,7 @@ pub(crate) fn note(
         components: Default::default(),
     });
     world.ai_context.push(AiContextBinding {
+        image_preparation: false,
         node_id: id.clone(),
         enabled: true,
         role,

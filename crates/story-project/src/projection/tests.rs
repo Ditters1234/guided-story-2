@@ -282,6 +282,7 @@ fn custom_visual_fields_and_garment_details_reach_actual_media_facts_and_stalene
         .create_media(
             &media_id,
             MediaTarget {
+                guidance_source: None,
                 node_id: Some(person_id),
                 passage_id: None,
                 moment: ImageMoment::After,

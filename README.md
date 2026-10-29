@@ -42,6 +42,8 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 
 **Narration style** is a standard Add node preset with narrative person, tense and multiline instructions. Its creation shortcuts include it for passage writing and wording edits; its reusable capability, AI tools and context controls are shared with other world nodes.
 
+**Visual style** adds medium, rendering, palette, lighting, composition and image instructions. Creation includes it for direct image preparation and optional AI prompt assistance. Any node can supply image guidance through AI context. The image editor previews the captured guidance and assembled prompt; historical shots default to their saved passage state. See [image guidance](MEDIA.md#image-guidance).
+
 **Composable node presets** bundle optional profile, appearance, personality, goals, voice and state extensions. Places, items and threads also have structured details. The shared inspector uses expandable sections; **Manage extensions** adds/removes extensions or changes a preset through native review. **Define extension** and **Define a custom node type** support typed fields, choices, reference filters and story/image/planning use. Clothing remains linked inventory, and structured visible fields reach image preparation.
 
 This revision uses **story format 2**. Start a new story folder; older prototype stories are preserved but are not migrated. App appearance, API settings and credentials remain separate and retain their existing formats.
@@ -57,7 +59,7 @@ This revision uses **story format 2**. Start a new story folder; older prototype
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
 
-The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note and Event presets. Rich typed relationships and [Event/source citations](SOURCES.md) use the shared tools. Presets are available without populating empty stories. Visual style/direct-image bindings and situated knowledge remain later slices.
+The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note, Event and Visual style presets. Rich typed relationships, [Event/source citations](SOURCES.md) and image guidance use the shared tools. Presets are available without populating empty stories. Situated knowledge remains a later slice.
 
 ## Technical direction
 

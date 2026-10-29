@@ -227,14 +227,15 @@ impl Project {
                 }
                 Ok(value)
             };
-        let context_world: World = if d.target.passage_id.is_some() {
-            self.read_record("worlds", &d.source.world)?
-        } else {
-            self.view()?.world
-        };
+        if !self.image_guidance_current(&d.target, &d.source)? {
+            return Err(
+                "Image guidance changed. Refresh it before requesting prompt assistance.".into(),
+            );
+        }
+        let (_, context_world) = self.image_context_world(&d.target, &d.source)?;
         Ok(PromptSource {
             ai_context: ai_context_capture(&context_world, TextPromptTask::ImagePrompt)?,
-            contract: 1,
+            contract: 2,
             media_id: media_id.into(),
             target: d.target,
             source: d.source,
@@ -456,6 +457,21 @@ impl Project {
             .map(|f| json!({"name":f.name,"appearance":f.appearance,"wornItems":f.outfit}))
             .collect::<Vec<_>>();
         let mut input = json!({"kind":if source.target.node_id.is_some(){"node image"}else{"passage illustration"},"boundary":source.target.moment,"subjects":subjects,"frame":{"width":source.width,"height":source.height},"workflowFamily":source.family,"negativeSupported":source.negative_supported,"existingPrompt":source.prompt,"existingNegative":source.negative,"direction":d.edits.direction});
+        let prepared = image_preparation(
+            &source.source,
+            &ImageWorkflowRequest {
+                prompt: source.prompt.clone(),
+                ..Default::default()
+            },
+        );
+        if !prepared.error.is_empty() {
+            return Err(prepared.error);
+        }
+        input["nativeImageGuidanceNodes"] = json!(prepared
+            .sections
+            .iter()
+            .map(|s| &s.name)
+            .collect::<Vec<_>>());
         let schema = schema(source.negative_supported);
         if text.structured_output != StructuredOutput::Schema {
             input["responseSchema"] = schema.clone();

@@ -117,6 +117,14 @@
       "components": [
         "detail.event"
       ]
+    },
+    {
+      "id": "core.visual-style",
+      "name": "Visual style",
+      "description": "Image medium, rendering, palette, lighting and composition guidance. Presentation does not change source facts.",
+      "components": [
+        "detail.visual-style"
+      ]
     }
   ],
   "componentTypes": [
@@ -1312,6 +1320,97 @@
             "help": "Established consequences or relevance. Desired future payoffs belong in planning fields.",
             "uses": [
               "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.visual-style",
+      "name": "Visual style",
+      "description": "Author guidance for image presentation; separate from physical appearance. Include it explicitly for image generation or prompt assistance.",
+      "fields": [
+        {
+          "key": "medium",
+          "label": "Medium",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "For example photography, watercolor or ink.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "rendering",
+          "label": "Rendering",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Surface treatment, linework and rendering approach.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "palette",
+          "label": "Palette",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Color or tonal choices for the image.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "lighting",
+          "label": "Lighting",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Presentation lighting; do not invent story events or change source conditions.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "composition",
+          "label": "Composition",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Framing and compositional guidance, preserving the selected subjects.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "instructions",
+          "label": "Image instructions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": "Preserve the subjects’ established appearance, worn items and visible state. Rendering guidance does not change story facts.",
+          "metadata": {
+            "help": "Rendering guidance, without redesigning anatomy, clothing or established facts.",
+            "uses": [
+              "planning"
             ],
             "stability": "stable"
           }

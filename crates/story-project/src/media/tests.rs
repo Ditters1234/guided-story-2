@@ -64,6 +64,7 @@ pub(super) fn fixture() -> (tempfile::TempDir, Project) {
 }
 fn target(p: &Project) -> MediaTarget {
     MediaTarget {
+        guidance_source: None,
         node_id: Some(p.view().unwrap().world.nodes[1].id.clone()),
         passage_id: None,
         moment: ImageMoment::After,
@@ -199,6 +200,7 @@ fn capture_uses_historical_outfit_and_never_copies_private_notes() {
         }],
     );
     let shot = |moment| MediaTarget {
+        guidance_source: None,
         node_id: None,
         passage_id: Some(passage.clone()),
         moment,
@@ -396,6 +398,7 @@ fn forks_copy_retained_media_without_future_outfits_or_source_folder_dependency(
     p.accept_media(&portrait, 1).unwrap();
     let first = accept_passage(&p, vec![]);
     let first_target = MediaTarget {
+        guidance_source: None,
         node_id: None,
         passage_id: Some(first.clone()),
         moment: ImageMoment::After,
@@ -413,6 +416,7 @@ fn forks_copy_retained_media_without_future_outfits_or_source_folder_dependency(
     let future_illustration = ready(
         &p,
         MediaTarget {
+            guidance_source: None,
             node_id: None,
             passage_id: Some(second),
             moment: ImageMoment::After,
@@ -520,6 +524,7 @@ fn wording_revision_keeps_old_illustration_and_fork_excludes_its_superseded_sour
     let key = ready(
         &p,
         MediaTarget {
+            guidance_source: None,
             node_id: None,
             passage_id: Some(passage.clone()),
             moment: ImageMoment::After,

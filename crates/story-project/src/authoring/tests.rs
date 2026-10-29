@@ -118,6 +118,7 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
         .create_media(
             &id(),
             MediaTarget {
+                guidance_source: None,
                 node_id: Some(person.clone()),
                 passage_id: None,
                 moment: ImageMoment::After,

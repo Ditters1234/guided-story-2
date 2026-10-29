@@ -11,9 +11,11 @@ use std::{
     path::Path,
 };
 mod client;
+mod guidance;
 mod prompts;
 mod settings;
 pub use client::*;
+pub use guidance::*;
 pub use prompts::*;
 pub use settings::*;
 const MAX_IMAGE: usize = 8 * 1024 * 1024;
@@ -34,6 +36,8 @@ pub struct MediaTarget {
     pub passage_id: Option<String>,
     pub moment: ImageMoment,
     pub subject_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guidance_source: Option<ImageGuidanceSource>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -50,6 +54,8 @@ pub struct MediaSource {
     pub world: RecordRef,
     pub passage: Option<RecordRef>,
     pub facts: Vec<ShotFact>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_context: Option<ImageContextCapture>,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +135,10 @@ pub struct MediaEntry {
 pub struct MediaView {
     pub draft: MediaDraft,
     pub stale: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub guidance_stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation: Option<ImagePreparationPreview>,
 }
 
 fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
@@ -307,6 +317,7 @@ impl Project {
         if d.id != id || d.schema_version != 1 || d.story_id != self.view()?.story_id {
             return Err("Image candidate belongs to another story/version.".into());
         }
+        self.validate_image_capture(&d.target, &d.source)?;
         if self.story_index()?.media.contains_key(id) && d.stage != MediaStage::Accepted {
             d.stage = MediaStage::Accepted;
             d.version += 1;
@@ -315,6 +326,11 @@ impl Project {
         Ok(d)
     }
     fn resolve_media(&self, target: &MediaTarget) -> Result<MediaSource, String> {
+        let mut source = self.resolve_media_facts(target)?;
+        source.image_context = self.capture_image_context(target, &source)?;
+        Ok(source)
+    }
+    fn resolve_media_facts(&self, target: &MediaTarget) -> Result<MediaSource, String> {
         if target.node_id.is_some() == target.passage_id.is_some() || target.subject_ids.len() > 4 {
             return Err(
                 "Choose a world node or accepted passage and up to four image subjects.".into(),
@@ -359,13 +375,14 @@ impl Project {
             })
             .collect::<Result<Vec<_>, String>>()?;
         Ok(MediaSource {
+            image_context: None,
             world: world_ref,
             passage,
             facts,
         })
     }
     fn media_applicable(&self, target: &MediaTarget, source: &MediaSource) -> bool {
-        self.resolve_media(target)
+        self.resolve_media_facts(target)
             .is_ok_and(|current| current.passage == source.passage && current.facts == source.facts)
     }
     pub fn create_media(&self, id: &str, target: MediaTarget) -> Result<MediaView, String> {
@@ -437,7 +454,16 @@ impl Project {
     pub fn media_view(&self, id: &str) -> Result<MediaView, String> {
         let draft = self.media_draft(id)?;
         let stale = !self.media_applicable(&draft.target, &draft.source);
-        Ok(MediaView { draft, stale })
+        let guidance_stale = self
+            .image_guidance_current(&draft.target, &draft.source)
+            .map_or(true, |current| !current);
+        let preparation = Some(image_preparation(&draft.source, &draft.request));
+        Ok(MediaView {
+            draft,
+            stale,
+            guidance_stale,
+            preparation,
+        })
     }
     pub fn save_media_request(
         &self,
@@ -479,12 +505,21 @@ impl Project {
         if !self.media_applicable(&d.target, &d.source) {
             return Err("The source appearance or passage changed. Create a new image candidate; the old one was kept.".into());
         }
+        if !self.image_guidance_current(&d.target, &d.source)? {
+            return Err("Image guidance changed. Refresh guidance or create a new shot; your manual prompt and controls are retained.".into());
+        }
+        let preview = image_preparation(&d.source, &d.request);
+        if !preview.error.is_empty() {
+            return Err(preview.error);
+        }
+        let mut effective_request = d.request.clone();
+        effective_request.prompt = preview.prompt;
         settings.validate()?;
         Ok(MediaSubmission {
             endpoint: settings.base_url.clone(),
             timeout_seconds: settings.timeout_seconds,
             profile: settings.profile.clone(),
-            graph: settings.profile.prepare(&d.request)?,
+            graph: settings.profile.prepare(&effective_request)?,
             prompt_id: None,
         })
     }
@@ -684,6 +719,7 @@ impl Project {
             return Err("Invalid accepted image metadata.".into());
         }
         validate_file(&asset.image)?;
+        self.validate_image_capture(&asset.target, &asset.source)?;
         Ok(asset)
     }
     pub fn media_preview(&self, id: &str, accepted: bool) -> Result<Vec<u8>, String> {
@@ -984,6 +1020,12 @@ impl Project {
                     continue;
                 }
                 asset.source.passage = Some(replacement.clone());
+            }
+            if let Some(context) = &mut asset.source.image_context {
+                let Some(reference) = worlds.get(&context.world.sha256) else {
+                    continue;
+                };
+                context.world = reference.clone();
             }
             asset.source.world = world.clone();
             let bytes = self.read_image_bytes(&asset.image)?;

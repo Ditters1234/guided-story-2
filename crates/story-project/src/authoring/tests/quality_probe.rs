@@ -93,6 +93,7 @@ async fn named_people_and_item_outfits_from_a_homestead_idea() {
             .create_media(
                 &id(),
                 MediaTarget {
+                    guidance_source: None,
                     node_id: Some(person.id.clone()),
                     passage_id: None,
                     moment: ImageMoment::After,

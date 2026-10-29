@@ -284,6 +284,40 @@ fn references(
     }
     Ok(())
 }
+fn validate_captured_image_context(root: &Path, value: &Value) -> Result<(), String> {
+    match value {
+        Value::Object(map) => {
+            if let (Some(target), Some(source)) = (map.get("target"), map.get("source")) {
+                if source.get("facts").is_some() && source.get("world").is_some() {
+                    let target: MediaTarget =
+                        serde_json::from_value(target.clone()).map_err(|e| e.to_string())?;
+                    let source: MediaSource =
+                        serde_json::from_value(source.clone()).map_err(|e| e.to_string())?;
+                    crate::media::validate_image_guidance_boundary(&target, &source)?;
+                }
+            }
+            for (key, value) in map {
+                if key == "imageContext" && !value.is_null() {
+                    let context: ImageContextCapture =
+                        serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                    validate_id(&context.world.id)?;
+                    crate::media::validate_image_context_capture(&context, |r| {
+                        decode(&read(root, &format!("worlds/{}.json", r.id))?)
+                    })?;
+                } else if key != "graph" && key != "workflow" {
+                    validate_captured_image_context(root, value)?;
+                }
+            }
+        }
+        Value::Array(values) => {
+            for value in values {
+                validate_captured_image_context(root, value)?;
+            }
+        }
+        _ => (),
+    }
+    Ok(())
+}
 fn audit(root: &Path, entries: &[Entry]) -> Result<(Manifest, Head), String> {
     let head: Head = decode(&read(root, "head.json")?)?;
     if head.schema_version != SCHEMA {
@@ -436,6 +470,7 @@ fn audit(root: &Path, entries: &[Entry]) -> Result<(Manifest, Head), String> {
                 _ => {}
             }
         }
+        validate_captured_image_context(root, &value)?;
         references(&value, "", &mut refs, &mut images)?;
     }
     let any_records: BTreeSet<_> = records.iter().map(|r| (r.1.clone(), r.2.clone())).collect();

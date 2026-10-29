@@ -748,7 +748,7 @@ impl Project {
         let memory = self.memory_context(index, plan, &context, memory_budget)?;
         let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
         let mut fingerprint = story_hash(&(
-            "passage-source-v7-event-sources",
+            "passage-source-v8-prose-field-scope",
             &input,
             &context.node_types,
             &context.component_types,
@@ -809,11 +809,12 @@ impl Project {
             TextPromptTask::Passage
         };
         let mut system = settings.system_prompt(task);
+        let effect_schema_context = prose_effect_schema(&context);
         if checking {
             input["prose"] = json!(d.edits.prose);
-            input["nodeTypes"] = json!(context.node_types);
-            input["capabilities"] = json!(context.component_types);
-            input["relationships"] = json!(context.relation_types);
+            input["nodeTypes"] = json!(effect_schema_context.node_types);
+            input["capabilities"] = json!(effect_schema_context.component_types);
+            input["relationships"] = json!(effect_schema_context.relation_types);
         }
         let source_world_data: World = self.read_record("worlds", &source_world)?;
         let included = resolve_ai_context(&source_world_data, task)?;
@@ -830,7 +831,7 @@ impl Project {
                 .map(|edge| narrative_link(&context, edge))
                 .collect::<Vec<_>>());
         }
-        let schema = checking.then(|| effects_schema(&context));
+        let schema = checking.then(|| effects_schema(&effect_schema_context));
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
         }

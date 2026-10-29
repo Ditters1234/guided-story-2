@@ -168,6 +168,7 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
         }
         world.nodes.push(node.clone());
         world.ai_context.push(AiContextBinding {
+            image_preparation: false,
             node_id: node.id.clone(),
             enabled: true,
             role: AiContextRole::Instructions,

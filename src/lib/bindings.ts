@@ -23,6 +23,9 @@ export const commands = {
 	nodeSources: (storyId: string, world: World_Deserialize, nodeId: string) => typedError<NodeSourceView_Serialize[], string>(__TAURI_INVOKE("node_sources", { storyId, world, nodeId })),
 	readNodeSource: (storyId: string, world: World_Deserialize, id: string) => typedError<SourceReading, string>(__TAURI_INVOKE("read_node_source", { storyId, world, id })),
 	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
+	previewImageContext: (world: World_Deserialize) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_image_context", { world })),
+	refreshImageGuidance: (storyId: string, id: string, version: number) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("refresh_image_guidance", { storyId, id, version })),
+	previewImagePreparation: (storyId: string, id: string, accepted: boolean) => typedError<ImagePreparationPreview, string>(__TAURI_INVOKE("preview_image_preparation", { storyId, id, accepted })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
 	loadLlmConnection: () => typedError<ConnectionView_Serialize, string>(__TAURI_INVOKE("load_llm_connection")),
@@ -142,13 +145,26 @@ export type AcceptedPassage_Serialize = {
 	sourceFingerprint: string,
 };
 
-export type AiContextBinding = {
+export type AiContextBinding = AiContextBinding_Serialize | AiContextBinding_Deserialize;
+
+export type AiContextBinding_Deserialize = {
 	nodeId: string,
 	enabled: boolean,
 	role: AiContextRole,
 	tasks: TextPromptTask[],
 	fields: AiContextField[],
 	order: number,
+	imagePreparation?: boolean,
+};
+
+export type AiContextBinding_Serialize = {
+	nodeId: string,
+	enabled: boolean,
+	role: AiContextRole,
+	tasks: TextPromptTask[],
+	fields: AiContextField[],
+	order: number,
+	imagePreparation?: boolean,
 };
 
 export type AiContextField = "description" | "visualDescription" | "components";
@@ -535,6 +551,11 @@ export type ImageConnection_Serialize = {
 	profile: ImageWorkflowProfile_Serialize,
 };
 
+export type ImageContextCapture = {
+	world: RecordRef,
+	sections: AiContextSection[],
+};
+
 export type ImageFile = {
 	id: string,
 	sha256: string,
@@ -543,11 +564,19 @@ export type ImageFile = {
 	height: number,
 };
 
+export type ImageGuidanceSource = "source" | "current";
+
 export type ImageMoment = "before" | "after";
 
 export type ImagePreflight = {
 	ready: boolean,
 	issues: string[],
+};
+
+export type ImagePreparationPreview = {
+	sections: AiContextSection[],
+	prompt: string,
+	error: string,
 };
 
 export type ImagePromptApplyResult = ImagePromptApplyResult_Serialize | ImagePromptApplyResult_Deserialize;
@@ -808,12 +837,14 @@ export type MediaSource_Deserialize = {
 	world: RecordRef,
 	passage?: RecordRef | null,
 	facts: ShotFact[],
+	imageContext?: ImageContextCapture | null,
 };
 
 export type MediaSource_Serialize = {
 	world: RecordRef,
 	passage: RecordRef | null,
 	facts: ShotFact[],
+	imageContext?: ImageContextCapture,
 };
 
 export type MediaStage = "draft" | "submitting" | "unknown" | "queued" | "ready" | "failed" | "accepted";
@@ -843,6 +874,7 @@ export type MediaTarget_Deserialize = {
 	passageId?: string | null,
 	moment: ImageMoment,
 	subjectIds: string[],
+	guidanceSource?: ImageGuidanceSource | null,
 };
 
 export type MediaTarget_Serialize = {
@@ -850,6 +882,7 @@ export type MediaTarget_Serialize = {
 	passageId: string | null,
 	moment: ImageMoment,
 	subjectIds: string[],
+	guidanceSource?: ImageGuidanceSource,
 };
 
 export type MediaView = MediaView_Serialize | MediaView_Deserialize;
@@ -857,11 +890,15 @@ export type MediaView = MediaView_Serialize | MediaView_Deserialize;
 export type MediaView_Deserialize = {
 	draft: MediaDraft_Deserialize,
 	stale: boolean,
+	guidanceStale?: boolean,
+	preparation?: ImagePreparationPreview | null,
 };
 
 export type MediaView_Serialize = {
 	draft: MediaDraft_Serialize,
 	stale: boolean,
+	guidanceStale?: boolean,
+	preparation?: ImagePreparationPreview,
 };
 
 export type MemoryContext = MemoryContext_Serialize | MemoryContext_Deserialize;
@@ -1501,7 +1538,7 @@ export type World_Deserialize = {
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition_Deserialize[],
 	relationTypes: RelationDefinition_Deserialize[],
-	aiContext?: AiContextBinding[],
+	aiContext?: AiContextBinding_Deserialize[],
 	sourceAnnotations?: SourceAnnotation_Deserialize[],
 };
 
@@ -1511,7 +1548,7 @@ export type World_Serialize = {
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition_Serialize[],
 	relationTypes: RelationDefinition_Serialize[],
-	aiContext?: AiContextBinding[],
+	aiContext?: AiContextBinding_Serialize[],
 	sourceAnnotations?: SourceAnnotation_Serialize[],
 };
 

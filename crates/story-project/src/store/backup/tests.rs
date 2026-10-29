@@ -100,6 +100,7 @@ fn passage(p: &Project) -> String {
 }
 fn target(p: &Project) -> MediaTarget {
     MediaTarget {
+        guidance_source: None,
         node_id: Some(p.view().unwrap().world.nodes[0].id.clone()),
         passage_id: None,
         moment: ImageMoment::After,

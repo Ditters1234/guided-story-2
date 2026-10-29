@@ -33,6 +33,37 @@ pub(crate) fn effect_record_issues(
         records.entry(record_id).or_default().push(i);
         match change {
             PassageEffect::PutNode { node, .. } => {
+                let old = source.nodes.iter().find(|n| n.id == node.id);
+                if (authoring_only_components(source, node.components.keys())
+                    || old.is_some_and(|n| authoring_only_components(source, n.components.keys())))
+                    && old.is_none_or(|n| n != node)
+                {
+                    issues[i].push("Author-only presentation/planning profiles are edited through world tools, not passage effects. Remove this proposal; the prose is retained.".into());
+                }
+                for def in source.component_types.iter().filter(|d| {
+                    node.components.contains_key(&d.id)
+                        || old.is_some_and(|n| n.components.contains_key(&d.id))
+                }) {
+                    for field in def.fields.iter().filter(|f| planning_only(f)) {
+                        let before = old
+                            .and_then(|n| n.components.get(&def.id))
+                            .and_then(|v| v.get(&field.key))
+                            .unwrap_or(&PropertyValue::Null);
+                        let after = node
+                            .components
+                            .get(&def.id)
+                            .and_then(|v| v.get(&field.key))
+                            .unwrap_or(&PropertyValue::Null);
+                        let changed = if old.is_some() {
+                            before != after
+                        } else {
+                            after != &PropertyValue::Null && after != &field.default_value
+                        };
+                        if changed {
+                            issues[i].push(format!("{} / {} is author planning guidance. Preserve its saved/default value or remove this proposal; use world tools to revise it.",def.name,field.label));
+                        }
+                    }
+                }
                 if node.components.contains_key("detail.event") && (source.source_annotations.iter().filter(|a|a.node_id==node.id).count()>=32 || source.source_annotations.len()+effects.changes.iter().filter(|e|matches!(e,PassageEffect::PutNode{node,..} if node.components.contains_key("detail.event"))).count()>10000) {
                     issues[i].push("This Event needs space for its source citation. Remove an older citation from the current node, or remove this Event proposal while retaining the other passage effects.".into());
                 }

@@ -227,6 +227,7 @@ fn legacy_project_history_forks_backups_and_media_keep_original_records() {
         .create_media(
             &request(),
             MediaTarget {
+                guidance_source: None,
                 node_id: Some(w.nodes[0].id.clone()),
                 passage_id: None,
                 moment: ImageMoment::After,

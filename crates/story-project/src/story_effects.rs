@@ -20,6 +20,67 @@ pub struct PassageEffects {
     pub notes: Vec<ContinuityNote>,
     pub suggest_chapter_end: bool,
 }
+pub(crate) fn planning_only(field: &FieldDefinition) -> bool {
+    !field.used_for(FieldUse::Story) && !field.used_for(FieldUse::Visual)
+}
+pub(crate) fn authoring_only_components(
+    world: &World,
+    ids: impl Iterator<Item = impl AsRef<str>>,
+) -> bool {
+    let ids: BTreeSet<String> = ids.map(|id| id.as_ref().to_string()).collect();
+    let operational = world
+        .relation_types
+        .iter()
+        .filter(|r| r.physical_placement)
+        .any(|r| {
+            [r.source_capability.as_ref(), r.target_capability.as_ref()]
+                .into_iter()
+                .flatten()
+                .any(|c| ids.contains(c))
+        });
+    let fields: Vec<_> = world
+        .component_types
+        .iter()
+        .filter(|d| ids.contains(&d.id))
+        .flat_map(|d| &d.fields)
+        .collect();
+    !operational && !fields.is_empty() && fields.iter().all(|f| planning_only(f))
+}
+/// The canonical schema stays complete; prose only receives creation definitions
+/// for story/appearance records and declarations needed by supplied existing nodes.
+pub(crate) fn prose_effect_schema(world: &World) -> World {
+    let mut scoped = world.clone();
+    scoped.node_types.retain(|t| {
+        world.nodes.iter().any(|n| n.type_id == t.id)
+            || !authoring_only_components(world, t.components.iter())
+    });
+    let mut needed: BTreeSet<_> = scoped
+        .node_types
+        .iter()
+        .flat_map(|t| t.components.iter().cloned())
+        .chain(
+            world
+                .nodes
+                .iter()
+                .flat_map(|n| n.components.keys().cloned()),
+        )
+        .collect();
+    needed.extend(
+        world
+            .component_types
+            .iter()
+            .filter(|c| c.fields.is_empty() || c.fields.iter().any(|f| !planning_only(f)))
+            .map(|c| c.id.clone()),
+    );
+    scoped.component_types.retain(|c| needed.contains(&c.id));
+    scoped.relation_types.retain(|r| {
+        [r.source_capability.as_ref(), r.target_capability.as_ref()]
+            .into_iter()
+            .flatten()
+            .all(|id| needed.contains(id))
+    });
+    scoped
+}
 fn alias(id: &str) -> bool {
     id.strip_prefix("new:").is_some_and(|s| {
         !s.is_empty()

@@ -30,6 +30,11 @@ pub struct AiContextBinding {
     pub tasks: Vec<TextPromptTask>,
     pub fields: Vec<AiContextField>,
     pub order: i32,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub image_preparation: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -106,21 +111,28 @@ pub fn resolve_ai_context(
     world: &World,
     task: TextPromptTask,
 ) -> Result<Vec<AiContextSection>, String> {
+    resolve_context_sections(
+        world,
+        |b| b.tasks.contains(&task) || (task == TextPromptTask::ImagePrompt && b.image_preparation),
+        false,
+    )
+}
+pub(crate) fn resolve_context_sections(
+    world: &World,
+    selected: impl Fn(&AiContextBinding) -> bool,
+    allow_empty: bool,
+) -> Result<Vec<AiContextSection>, String> {
     validate_ai_context(world)?;
     let mut sections = vec![];
     let mut bytes = 0usize;
-    for binding in world
-        .ai_context
-        .iter()
-        .filter(|b| b.enabled && b.tasks.contains(&task))
-    {
+    for binding in world.ai_context.iter().filter(|b| b.enabled && selected(b)) {
         let node = world
             .nodes
             .iter()
             .find(|n| n.id == binding.node_id)
             .ok_or("Included AI context node is missing.")?;
         let text = content(world, node, &binding.fields)?;
-        if text.trim().is_empty() {
+        if text.trim().is_empty() && !allow_empty {
             return Err(format!("Included AI context “{}” has no selected content. Add text, select its content fields, or disable its inclusion for this tool.",node.name));
         }
         bytes += text.len();
@@ -208,7 +220,13 @@ pub(crate) fn story_ai_context_stamp(world: &World) -> Result<Option<String>, St
             .iter()
             .find(|n| n.id == binding.node_id)
             .ok_or("Included AI context node is missing.")?;
-        source.push((binding, &node.name, content(world, node, &binding.fields)?));
+        let mut narrative_binding = binding.clone();
+        narrative_binding.image_preparation = false;
+        source.push((
+            narrative_binding,
+            &node.name,
+            content(world, node, &binding.fields)?,
+        ));
     }
     if source.is_empty() {
         Ok(None)

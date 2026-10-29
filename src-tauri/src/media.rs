@@ -341,3 +341,30 @@ pub(crate) fn map_images(
         p.node_images(&world)
     })
 }
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn refresh_image_guidance(
+    story_id: String,
+    id: String,
+    version: u32,
+    state: State<AppState>,
+) -> Result<MediaView, String> {
+    with_project(&state, |p| {
+        check_story(p, &story_id)?;
+        p.refresh_image_guidance(&id, version)
+    })
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn preview_image_preparation(
+    story_id: String,
+    id: String,
+    accepted: bool,
+    state: State<AppState>,
+) -> Result<ImagePreparationPreview, String> {
+    with_project(&state, |p| {
+        check_story(p, &story_id)?;
+        p.preview_image_preparation(&id, accepted)
+    })
+}

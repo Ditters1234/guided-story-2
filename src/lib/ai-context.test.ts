@@ -1,8 +1,27 @@
 import {describe,it,expect} from 'vitest';
 import {exampleWorld,emptyWorld,makeNode,availableNodeTypes} from './model';
-import {defaultContextBinding,setContextBinding,removeContextBinding,addContextNote,addNarrationStyle} from './ai-context';
+import {defaultContextBinding,setContextBinding,removeContextBinding,addContextNote,addNarrationStyle,addVisualStyle} from './ai-context';
 import {editableFields} from './authoring-ui';
 describe('story-wide node context',()=>{
+  it('explicitly installs Visual style in older schemas with image-only inclusion and planning fields',()=>{
+    const world=exampleWorld();world.nodeTypes=world.nodeTypes.filter(t=>t.id!=='core.visual-style');world.componentTypes=world.componentTypes.filter(t=>t.id!=='detail.visual-style');
+    const before=structuredClone(world),first=addVisualStyle(world,'10000000-0000-4000-8000-000000000041');
+    expect(world).toEqual(before);expect(first.world.nodes.slice(0,-1)).toEqual(before.nodes);expect(first.world.edges).toEqual(before.edges);
+    expect(first.world.aiContext?.[0]).toMatchObject({nodeId:first.node.id,role:'instructions',tasks:['imagePrompt'],imagePreparation:true,fields:['description','components']});
+    expect(first.node.components['detail.visual-style'].instructions).toContain('established appearance');
+    const fields=first.world.componentTypes.find(d=>d.id==='detail.visual-style')!.fields;
+    expect(fields.map(f=>f.key)).toEqual(['medium','rendering','palette','lighting','composition','instructions']);
+    expect(fields.every(f=>f.kind==='longText'&&f.metadata?.uses?.includes('planning')&&!f.metadata.uses.includes('visual')&&!f.metadata.uses.includes('story'))).toBe(true);
+    const second=addVisualStyle(first.world);expect(second.world.nodeTypes.filter(t=>t.id==='core.visual-style')).toHaveLength(1);expect(second.world.aiContext).toHaveLength(2);
+  });
+  it('supports image guidance on custom presets while preserving explicitly selected tools',()=>{
+    const initial=addVisualStyle(emptyWorld()),node=initial.node;
+    node.typeId='custom.presentation';node.components['core.narration-style']={person:'Third person',tense:'Past tense'};
+    expect(defaultContextBinding(node.id,7,initial.world)).toMatchObject({role:'instructions',tasks:['passage','wording','imagePrompt'],imagePreparation:true,order:7});
+    const custom=setContextBinding(initial.world,{...defaultContextBinding(node.id,7,initial.world),tasks:['world'],imagePreparation:false});
+    expect(custom.aiContext?.[0]).toMatchObject({tasks:['world'],imagePreparation:false});
+    expect(defaultContextBinding('ordinary-node')).not.toHaveProperty('imagePreparation');
+  });
   it('offers narration in older stories and explicitly adds its reusable fields and writing-only inclusion',()=>{
     const world=exampleWorld();world.nodeTypes=world.nodeTypes.filter(t=>t.id!=='core.narration-style');world.componentTypes=world.componentTypes.filter(t=>t.id!=='core.narration-style');
     const before=structuredClone(world);expect(availableNodeTypes(world).some(t=>t.id==='core.narration-style')).toBe(true);expect(world).toEqual(before);

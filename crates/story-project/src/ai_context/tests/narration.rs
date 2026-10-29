@@ -26,6 +26,7 @@ fn profile(world: &mut World) -> String {
         )]),
     });
     world.ai_context.push(AiContextBinding {
+        image_preparation: false,
         node_id: node_id.clone(),
         enabled: true,
         role: AiContextRole::Instructions,

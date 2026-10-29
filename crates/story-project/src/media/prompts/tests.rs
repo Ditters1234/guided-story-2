@@ -53,6 +53,7 @@ fn historical_image_assistance_uses_context_from_its_captured_passage_boundary()
     p.create_media(
         &media_id,
         MediaTarget {
+            guidance_source: None,
             node_id: None,
             passage_id: Some(passage),
             moment: ImageMoment::Before,
@@ -109,6 +110,7 @@ fn text() -> LlmConnection {
 fn media(p: &Project) -> String {
     let key = id();
     let target = MediaTarget {
+        guidance_source: None,
         node_id: Some(p.view().unwrap().world.nodes[1].id.clone()),
         passage_id: None,
         moment: ImageMoment::After,
@@ -192,6 +194,7 @@ fn historical_requests_exclude_future_profiles_and_full_passage_prose() {
     p.create_media(
         &media_id,
         MediaTarget {
+            guidance_source: None,
             node_id: None,
             passage_id: Some(passage),
             moment: ImageMoment::Before,
@@ -584,8 +587,25 @@ fn process_exit_preserves_prompt_apply_exactly_once() {
     use std::process::{Command, Stdio};
     for stage in ["before-media", "after-media", "after-status"] {
         let (_dir, p) = fixture();
+        let mut current = p.view().unwrap();
+        crate::ai_context::tests::note(
+            &mut current.world,
+            "Captured image style",
+            "Use visible watercolour washes.",
+            AiContextRole::Instructions,
+            vec![TextPromptTask::ImagePrompt],
+        );
+        current
+            .world
+            .ai_context
+            .last_mut()
+            .unwrap()
+            .image_preparation = true;
+        p.commit(current.revision, id(), current.title, current.world)
+            .unwrap();
         let root = p.root_path().to_path_buf();
         let media = media(&p);
+        let capture = p.media_draft(&media).unwrap().source.image_context.unwrap();
         let key = proposal(&p, &media, &text(), &ImageConnection::default());
         ready(&p, &key);
         drop(p);
@@ -617,7 +637,8 @@ fn process_exit_preserves_prompt_apply_exactly_once() {
         assert_eq!(result.replayed, applied);
         assert_eq!(result.media.draft.request.prompt, output().prompt);
         assert_eq!(result.media.draft.prompt_receipts.len(), 1);
-        assert_eq!(p.view().unwrap().revision, 0);
+        assert_eq!(result.media.draft.source.image_context, Some(capture));
+        assert_eq!(p.view().unwrap().revision, 1);
     }
 }
 
