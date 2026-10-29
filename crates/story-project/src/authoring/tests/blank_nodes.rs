@@ -42,6 +42,91 @@ fn revise(node: &WorldNode) -> AuthoringRequest {
         }],
     }
 }
+
+#[test]
+fn structured_field_development_accepts_unspecified_provider_nulls_and_preserves_protected_fields()
+{
+    let (_dir, project) = create();
+    let mut world = project.view().unwrap().world;
+    let mut person = blank_node(&world, "core.character", "Nora");
+    for (id, values) in &mut person.components {
+        *values = default_properties(world.component_types.iter().find(|d| &d.id == id).unwrap());
+    }
+    world.nodes.push(person.clone());
+    project
+        .commit(0, id(), "Fixture".into(), world.clone())
+        .unwrap();
+    let request = AuthoringRequest {
+        fields: vec![EditableField {
+            node_id: person.id.clone(),
+            component_id: Some("detail.voice".into()),
+            key: "style".into(),
+        }],
+        ..revise(&person)
+    };
+    let key = id();
+    project.save_authoring_draft(&key, 0, request).unwrap();
+    project.start_authoring(&key, 1, 1, &settings()).unwrap();
+    let mut proposed = person.clone();
+    proposed
+        .components
+        .get_mut("detail.profile")
+        .unwrap()
+        .insert("age".into(), PropertyValue::Null);
+    proposed.components.get_mut("detail.voice").unwrap().insert(
+        "style".into(),
+        PropertyValue::Text("Brief practical questions".into()),
+    );
+    project
+        .finish_authoring(
+            &key,
+            Ok(serde_json::to_string(&NodeCandidate {
+                nodes: vec![proposed.clone()],
+                edges: vec![],
+            })
+            .unwrap()),
+            false,
+            false,
+        )
+        .unwrap();
+    let review = project.authoring_view(&key, &settings()).unwrap();
+    assert!(review.error.is_empty(), "{}", review.error);
+    proposed
+        .components
+        .get_mut("detail.profile")
+        .unwrap()
+        .insert("age".into(), PropertyValue::Text("Forty".into()));
+    project
+        .save_authoring_candidate(
+            &key,
+            review.version,
+            serde_json::to_string(&NodeCandidate {
+                nodes: vec![proposed],
+                edges: vec![],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+    let blocked = project.authoring_view(&key, &settings()).unwrap();
+    assert!(blocked.error.contains("protected"));
+    project
+        .save_authoring_candidate(&key, blocked.version, review.candidate_text)
+        .unwrap();
+    let ready = project.authoring_view(&key, &settings()).unwrap();
+    project
+        .apply_authoring(&key, ready.version, &settings())
+        .unwrap();
+    let saved = project.view().unwrap().world.nodes.remove(0);
+    assert_eq!(
+        saved.components["detail.profile"],
+        person.components["detail.profile"]
+    );
+    assert_eq!(
+        saved.components["detail.voice"]["style"],
+        PropertyValue::Text("Brief practical questions".into())
+    );
+    assert_eq!(saved.name, person.name);
+}
 #[test]
 fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_until_review() {
     for (kind, name) in [
@@ -64,6 +149,7 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
                 kind: FieldKind::Text,
                 required: false,
                 default_value: PropertyValue::Text("".into()),
+                metadata: None,
             }],
         });
         world.node_types.push(NodeTypeDefinition {

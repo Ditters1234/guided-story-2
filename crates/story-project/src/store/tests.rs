@@ -335,6 +335,7 @@ fn custom_node_types_fields_and_relations_round_trip_without_engine_changes() {
             kind: FieldKind::Text,
             required: true,
             default_value: PropertyValue::Text("Unknown".into()),
+            metadata: None,
         }],
     });
     world.node_types.push(NodeTypeDefinition {
@@ -395,7 +396,7 @@ fn invalid_editor_drafts_are_preserved_without_changing_canon() {
     world.nodes.push(item);
     project
         .save_draft(EditorDraft {
-            schema_version: 1,
+            schema_version: 2,
             source_revision: 0,
             title: "Test story".into(),
             world: world.clone(),
@@ -425,7 +426,7 @@ fn replacing_an_older_draft_archives_it_instead_of_silently_erasing_it() {
     let (_dir, project) = create();
     project
         .save_draft(EditorDraft {
-            schema_version: 1,
+            schema_version: 2,
             source_revision: 0,
             title: "Unfinished".into(),
             world: World::default(),
@@ -438,7 +439,7 @@ fn replacing_an_older_draft_archives_it_instead_of_silently_erasing_it() {
     next.nodes.push(node(&next, "core.place", "New place"));
     project
         .save_draft(EditorDraft {
-            schema_version: 1,
+            schema_version: 2,
             source_revision: 1,
             title: "Accepted".into(),
             world: next,

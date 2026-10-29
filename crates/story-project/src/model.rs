@@ -76,6 +76,40 @@ pub enum FieldKind {
     Boolean,
     NodeRef,
     NodeRefs,
+    Choice,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FieldUse {
+    Story,
+    Visual,
+    Planning,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FieldStability {
+    Stable,
+    State,
+}
+
+/// Declarative authoring/projection hints. These never grant edit permission.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FieldMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uses: Vec<FieldUse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stability: Option<FieldStability>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference_capability: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub covered_by: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -86,6 +120,17 @@ pub struct FieldDefinition {
     pub kind: FieldKind,
     pub required: bool,
     pub default_value: PropertyValue,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<FieldMetadata>,
+}
+
+impl FieldDefinition {
+    pub fn used_for(&self, usage: FieldUse) -> bool {
+        match &self.metadata {
+            Some(meta) if !meta.uses.is_empty() => meta.uses.contains(&usage),
+            _ => usage == FieldUse::Story,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -177,8 +222,24 @@ pub(crate) fn capability(node: &WorldNode, id: &str) -> bool {
     node.components.contains_key(id)
         || (id == "core.holder" && node.components.contains_key("core.container"))
 }
-fn field_matches(value: &PropertyValue, kind: &FieldKind, ids: &BTreeSet<String>) -> bool {
-    match kind {
+fn field_matches(
+    value: &PropertyValue,
+    field: &FieldDefinition,
+    nodes: &BTreeMap<&str, &WorldNode>,
+) -> bool {
+    if matches!(value, PropertyValue::Null) && !field.required {
+        return true;
+    }
+    let valid_ref = |id: &str| {
+        nodes.get(id).is_some_and(|n| {
+            field
+                .metadata
+                .as_ref()
+                .and_then(|m| m.reference_capability.as_ref())
+                .is_none_or(|c| capability(n, c))
+        })
+    };
+    match field.kind {
         FieldKind::Text | FieldKind::LongText => {
             value.as_str().is_some_and(|s| s.chars().count() <= 16000)
         }
@@ -187,12 +248,17 @@ fn field_matches(value: &PropertyValue, kind: &FieldKind, ids: &BTreeSet<String>
             .is_some_and(|n| n.is_finite() && n.abs() <= 9_007_199_254_740_991.0),
         FieldKind::Boolean => matches!(value, PropertyValue::Boolean(_)),
         FieldKind::NodeRef => {
-            matches!(value, PropertyValue::Null)
-                || value.as_str().is_some_and(|id| ids.contains(id))
+            matches!(value, PropertyValue::Null) || value.as_str().is_some_and(valid_ref)
         }
         FieldKind::NodeRefs => {
-            matches!(value, PropertyValue::NodeRefs(refs) if refs.len() <= 500 && refs.iter().all(|id| ids.contains(id)))
+            matches!(value, PropertyValue::NodeRefs(refs) if refs.len() <= 500 && refs.iter().all(|id| valid_ref(id)))
         }
+        FieldKind::Choice => value.as_str().is_some_and(|value| {
+            field
+                .metadata
+                .as_ref()
+                .is_some_and(|m| m.choices.iter().any(|choice| choice == value))
+        }),
     }
 }
 
@@ -265,15 +331,9 @@ impl World {
     pub fn validate(&self) -> Result<(), String> {
         crate::ai_context::validate_ai_context(self)?;
         // Extensions use their own IDs rather than weakening built-in behavior.
-        let builtins = Self::default();
+        let builtins: Self = serde_json::from_str(include_str!("../../../schema/world-core.json"))
+            .expect("Invalid native world contracts");
         for definition in &builtins.component_types {
-            // Later optional presets are installed only by an explicit author
-            // action. Legacy snapshots retain their exact schema/receipt hashes.
-            if definition.id == "core.narration-style"
-                && !self.component_types.iter().any(|d| d.id == definition.id)
-            {
-                continue;
-            }
             if !self.component_types.contains(definition) {
                 return Err("A built-in capability definition is missing or changed. Add a custom capability instead.".into());
             }
@@ -320,6 +380,17 @@ impl World {
             .collect();
         let types: BTreeSet<_> = self.node_types.iter().map(|d| d.id.as_str()).collect();
         for preset in &self.node_types {
+            if preset.description.chars().count() > 4000 {
+                return Err("Preset help is too long.".into());
+            }
+            if preset
+                .components
+                .iter()
+                .enumerate()
+                .any(|(i, id)| preset.components[..i].contains(id))
+            {
+                return Err("A preset cannot repeat an extension.".into());
+            }
             if preset
                 .components
                 .iter()
@@ -329,6 +400,9 @@ impl World {
             }
         }
         for definition in &self.component_types {
+            if definition.description.chars().count() > 4000 {
+                return Err("Extension help is too long.".into());
+            }
             if definition.fields.len() > 100 {
                 return Err("A capability has too many fields.".into());
             }
@@ -338,6 +412,51 @@ impl World {
                 validate_name(&field.label)?;
                 if !fields.insert(&field.key) {
                     return Err("Duplicate capability field.".into());
+                }
+                if let Some(meta) = &field.metadata {
+                    if meta.help.as_ref().is_some_and(|s| s.chars().count() > 1000)
+                        || meta.uses.len() > 3
+                        || meta
+                            .uses
+                            .iter()
+                            .enumerate()
+                            .any(|(i, value)| meta.uses[..i].contains(value))
+                        || meta.choices.len() > 40
+                        || meta.covered_by.len() > 30
+                        || meta
+                            .covered_by
+                            .iter()
+                            .any(|v| v.trim().is_empty() || v.chars().count() > 100)
+                    {
+                        return Err(
+                            "Field guidance exceeds its limits or repeats a task use.".into()
+                        );
+                    }
+                    let mut choices = BTreeSet::new();
+                    for choice in &meta.choices {
+                        validate_name(choice)?;
+                        if !choices.insert(choice) {
+                            return Err("Field choices must be unique.".into());
+                        }
+                    }
+                    if !matches!(field.kind, FieldKind::Choice) && !meta.choices.is_empty() {
+                        return Err("Only a choice field may declare choices.".into());
+                    }
+                    if let Some(id) = &meta.reference_capability {
+                        if !matches!(field.kind, FieldKind::NodeRef | FieldKind::NodeRefs)
+                            || !components.contains_key(id.as_str())
+                        {
+                            return Err("A reference filter needs a reference field and a saved capability.".into());
+                        }
+                    }
+                    if !meta.covered_by.is_empty() && !field.used_for(FieldUse::Visual) {
+                        return Err("Coverage hints apply to visual fields only.".into());
+                    }
+                }
+                if matches!(field.kind, FieldKind::Choice)
+                    && field.metadata.as_ref().is_none_or(|m| m.choices.is_empty())
+                {
+                    return Err("A choice field needs at least one saved choice.".into());
                 }
             }
         }
@@ -368,9 +487,10 @@ impl World {
                 return Err("A node description is too long.".into());
             }
         }
+        let node_index: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
         for definition in &self.component_types {
             for field in &definition.fields {
-                if !field_matches(&field.default_value, &field.kind, &ids) {
+                if !field_matches(&field.default_value, field, &node_index) {
                     return Err(format!(
                         "Invalid default for {} / {}.",
                         definition.name, field.label
@@ -379,6 +499,9 @@ impl World {
             }
         }
         for node in &self.nodes {
+            if capability(node, "core.wearable") && !capability(node, "core.item") {
+                return Err("A wearable extension requires the inventory item capability.".into());
+            }
             for (id, values) in &node.components {
                 let definition = components
                     .get(id.as_str())
@@ -394,7 +517,7 @@ impl World {
                         None if field.required => {
                             return Err(format!("{} needs a value for {}.", node.name, field.label))
                         }
-                        Some(value) if !field_matches(value, &field.kind, &ids) => {
+                        Some(value) if !field_matches(value, field, &node_index) => {
                             return Err(format!("Invalid {} on {}.", field.label, node.name))
                         }
                         _ => (),

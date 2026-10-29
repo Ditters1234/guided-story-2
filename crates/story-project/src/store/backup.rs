@@ -330,7 +330,12 @@ fn audit(root: &Path, entries: &[Entry]) -> Result<(Manifest, Head), String> {
         if folder == "worlds" {
             decode::<World>(&bytes)?.validate()?;
         } else {
-            if value.get("schemaVersion").and_then(Value::as_u64) != Some(1) {
+            let expected_schema = if folder == "revisions" {
+                u64::from(SCHEMA)
+            } else {
+                1
+            };
+            if value.get("schemaVersion").and_then(Value::as_u64) != Some(expected_schema) {
                 return Err(format!("Unsupported record schema: {}", entry.path));
             }
             if value

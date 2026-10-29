@@ -18,6 +18,7 @@ export const commands = {
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
+	validateWorld: (world: World_Deserialize) => typedError<World_Serialize, string>(__TAURI_INVOKE("validate_world", { world })),
 	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
@@ -295,11 +296,20 @@ export type CommitResult_Serialize = {
 	replayed: boolean,
 };
 
-export type ComponentDefinition = {
+export type ComponentDefinition = ComponentDefinition_Serialize | ComponentDefinition_Deserialize;
+
+export type ComponentDefinition_Deserialize = {
 	id: string,
 	name: string,
 	description: string,
-	fields: FieldDefinition[],
+	fields: FieldDefinition_Deserialize[],
+};
+
+export type ComponentDefinition_Serialize = {
+	id: string,
+	name: string,
+	description: string,
+	fields: FieldDefinition_Serialize[],
 };
 
 export type ConnectionTest = {
@@ -429,15 +439,54 @@ export type ExistingPlacement = {
 	targetId: string,
 };
 
-export type FieldDefinition = {
+export type FieldDefinition = FieldDefinition_Serialize | FieldDefinition_Deserialize;
+
+export type FieldDefinition_Deserialize = {
 	key: string,
 	label: string,
 	kind: FieldKind,
 	required: boolean,
 	defaultValue: PropertyValue,
+	metadata?: FieldMetadata_Deserialize | null,
 };
 
-export type FieldKind = "text" | "longText" | "number" | "boolean" | "nodeRef" | "nodeRefs";
+export type FieldDefinition_Serialize = {
+	key: string,
+	label: string,
+	kind: FieldKind,
+	required: boolean,
+	defaultValue: PropertyValue,
+	metadata?: FieldMetadata_Serialize,
+};
+
+export type FieldKind = "text" | "longText" | "number" | "boolean" | "nodeRef" | "nodeRefs" | "choice";
+
+/**  Declarative authoring/projection hints. These never grant edit permission. */
+export type FieldMetadata = FieldMetadata_Serialize | FieldMetadata_Deserialize;
+
+/**  Declarative authoring/projection hints. These never grant edit permission. */
+export type FieldMetadata_Deserialize = {
+	help?: string | null,
+	uses?: FieldUse[],
+	stability?: FieldStability | null,
+	choices?: string[],
+	referenceCapability?: string | null,
+	coveredBy?: string[],
+};
+
+/**  Declarative authoring/projection hints. These never grant edit permission. */
+export type FieldMetadata_Serialize = {
+	help?: string,
+	uses?: FieldUse[],
+	stability?: FieldStability,
+	choices?: string[],
+	referenceCapability?: string,
+	coveredBy?: string[],
+};
+
+export type FieldStability = "stable" | "state";
+
+export type FieldUse = "story" | "visual" | "planning";
 
 export type ImageConnection = ImageConnection_Serialize | ImageConnection_Deserialize;
 
@@ -1304,7 +1353,7 @@ export type WorldEdge = {
 	description: string,
 };
 
-export type WorldEdit = { kind: "putLink"; link: WorldEdge } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string };
+export type WorldEdit = { kind: "putLink"; link: WorldEdge } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
 
 export type WorldEditPreview = WorldEditPreview_Serialize | WorldEditPreview_Deserialize;
 
@@ -1332,7 +1381,7 @@ export type World_Deserialize = {
 	nodes: WorldNode[],
 	edges: WorldEdge[],
 	nodeTypes: NodeTypeDefinition[],
-	componentTypes: ComponentDefinition[],
+	componentTypes: ComponentDefinition_Deserialize[],
 	relationTypes: RelationDefinition_Deserialize[],
 	aiContext?: AiContextBinding[],
 };
@@ -1341,7 +1390,7 @@ export type World_Serialize = {
 	nodes: WorldNode[],
 	edges: WorldEdge[],
 	nodeTypes: NodeTypeDefinition[],
-	componentTypes: ComponentDefinition[],
+	componentTypes: ComponentDefinition_Serialize[],
 	relationTypes: RelationDefinition_Serialize[],
 	aiContext?: AiContextBinding[],
 };

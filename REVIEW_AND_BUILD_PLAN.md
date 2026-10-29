@@ -1,6 +1,6 @@
-# Pre-implementation review and build plan
+# Review and build plan
 
-October 25, 2026. Companion to [DESIGN_REVIEW.md](DESIGN_REVIEW.md). This is a design review, not evidence of a working application. Confirmed user decisions in the main proposal take precedence; technical defaults here guide implementation and may change if a feasibility check fails.
+Initial review October 25, 2026; node-model revision October 28. Companion to [DESIGN_REVIEW.md](DESIGN_REVIEW.md). This is a design review, not evidence of a working application. Confirmed user decisions in the main proposal take precedence; technical defaults here guide implementation and may change if a feasibility check fails.
 
 Recent dependencies and design references are assessed separately in [EXISTING_WORK_REVIEW.md](EXISTING_WORK_REVIEW.md), including exact inspected commits and reuse boundaries. Evaluate the desktop shell and typed bridge at Gate 0; retain independent story storage and acceptance semantics.
 
@@ -14,9 +14,27 @@ Shared [AI world authoring](AI_AUTHORING.md) and the bounded [passage/history/fo
 
 ## Verdict
 
-The product direction is ready for a bounded first build. The major risks are save integrity, state/version consistency, small-model context quality and an authoring interface becoming too crowded. No further major product choice is required before a technical skeleton and one complete workflow. Do not try to implement every convenience feature before proving that workflow.
+The prototype now has a bounded authoring/history/media loop; the next design priority is richer composable nodes. The major risks remain save integrity, state/version consistency, small-model context quality and an authoring interface becoming too crowded. Retain the existing acceptance/storage boundaries while improving what nodes contain and how tasks use their facts.
 
 Keep these decisions fixed: fresh Windows-first Tauri/Svelte app; user-selected self-contained JSON projects; map-based character access; item-based clothing; optional portraits and passage illustrations; idea-to-reviewed-foundation and continuing manual/AI creation/revision/reroll; explicit Apply/Accept; automatic manual/draft saves; chapter contents and reading navigation; one Fork after this passage action.
+
+## Next revision: composable world nodes
+
+[WORLD_NODE_DESIGN.md](WORLD_NODE_DESIGN.md) is the detailed specification and code audit for this pass. Basic behavioral capabilities stay small; standard creation presets bundle useful descriptive extensions. Definitions drive the generic editor, AI contracts and task projections. A node is not a separate character/place/item persistence class, and its preset label cannot suppress other attached capabilities.
+
+The initial capability/default-preset slice uses story format 2. The user permits starting fresh; no migration/import or compatibility work for older prototype stories is required. Existing folders are not overwritten or deleted automatically. Immutable passage/snapshot history, backups, forks and receipt recovery within the supported format remain mandatory.
+
+Implement in these ordered slices:
+
+1. **Capability contract:** field purpose/section/task metadata, choice/unset support, capability composition/removal, native behavioral registry separate from the optional preset catalogue, fresh-format fixtures.
+2. **Useful defaults:** Character profile/personality/appearance/motivation/voice/state; Place/Item/Thread structure; shared compact inspector and search; checked-field manual/AI editing.
+3. **Relationships and projections:** typed link properties, scoped relationship review, shared story/image fact assembly and media fingerprints. Structured appearance and garment details must actually reach image tools.
+4. **Wider core catalogue:** Organization, Lore, World rule, Story brief, Visual style and source-linked Event; preserve the existing Narration style binding behavior. Presets are available, not automatically instantiated.
+5. **Situated knowledge:** source-linked claims, character stance/acquisition and reader disclosure, with task/viewpoint/history filtering. Do not present a secret/known-by control as protective before the full context path exists.
+
+Each slice must cover native validation, UI, AI schemas/protections, context fingerprints and history where relevant. Use the fictional end-to-end fixture and completion criteria in the node specification. Richer schemas alone do not establish narrative quality. Keep advanced genre bundles, live inheritance, faction simulation and workflow engines outside this pass.
+
+Current checkpoint: the capability/default bundles, typed custom forms and shared task/media projections are implemented, together with Organization/Lore/World rule/Story brief. Rich link properties, Event/source annotations, Visual style bindings and situated knowledge remain the next slices. See [verified evidence](FOUNDATION_STATUS.md).
 
 ## Findings resolved in the proposal
 
@@ -26,6 +44,8 @@ Keep these decisions fixed: fresh Windows-first Tauri/Svelte app; user-selected 
 | High | One coarse revision would make layout or portrait changes invalidate unrelated writing. | Separate committed project revision from generation-source fingerprints and independent workspace/draft versions. Revalidate and merge only explicitly independent metadata changes. |
 | High | JSON atomicity was described, but its tests appeared at the end of delivery. | Prove head publication, process interruption, request deduplication and project ownership locking before feature work. |
 | High | The save system did not explicitly separate autosaved valid records from invalid or unaccepted candidate edits. | Maintain distinct canonical, form-draft and AI-proposal stores; autosaving a proposal never applies it. Multi-record operations remain atomic. |
+| High | Thin presets hide story-relevant information in general notes; richer fields could still be ignored by image/context code. | Bundle reusable extensions and update editor, AI protection/schema, task projections and source fingerprints together. See the node revision's source audit. |
+| High | Comparing every saved world to the entire current default catalogue turns new optional presets into mandatory schema changes. | Separate native behavioral contracts from optional project-local catalogue definitions; use an explicit new format for this revision. |
 | High | Historical image moments and forks could leak future state. | Passage before/after snapshots are authoritative boundaries; intermediate image facts require source evidence/review. Fork plans, memories, media and settings must be anchored to retained history. |
 | Medium | Depletion and deletion behavior was unspecified. | Explicit stock units, conserved transfers and inactive zero-stock records; resolve current dependents before retiring holders. Preserve historical IDs. |
 | Medium | Contradiction detection and wording-only polish sounded infallible. | Structural validation is strict; semantic review is fallible and advisory. Show exact diffs and source links; event edits use the event-revision path. |
@@ -123,8 +143,8 @@ No lengthy live-model runs are needed to prove storage or domain behavior. Test 
 
 ## Explicitly deferred
 
-Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic workflow editing, geographic maps and travel simulation, faction systems, full in-place historical event rewrites, operation-level undo, old Guided Story import, automatic reference-image conditioning, elaborate template libraries and storage garbage collection. Simple local outfit presets and reusable character templates follow the core loop; they are not prerequisites for the first useful build.
+Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic workflow editing, geographic maps and travel simulation, faction simulation, full in-place historical event rewrites, operation-level undo, old Guided Story import, older prototype story migration, automatic reference-image conditioning, elaborate genre/template libraries and storage garbage collection. A descriptive Organization preset is part of the node revision; it does not imply a faction simulation. Simple local outfit presets and reusable character templates follow the core loop.
 
 ## Readiness boundary
 
-Continue from the bounded authoring/revision/memory/media loop, optional shot/prompt assistance and validated folder backup/restore into representative provider validation and further memory/knowledge controls. No unresolved product decision blocks that work. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness that still require validation.
+Continue from the implemented capability/default-preset slice into richer relationship properties and source records, then situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.

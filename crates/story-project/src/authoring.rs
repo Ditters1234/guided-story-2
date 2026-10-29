@@ -188,19 +188,29 @@ pub fn authoring_fields(world: &World, targets: &[String]) -> Vec<EditableField>
     }
     fields
 }
-fn field_schema(kind: &FieldKind) -> Value {
-    match kind {
+fn field_schema(field: &FieldDefinition) -> Value {
+    let mut schema = match field.kind {
         FieldKind::Text | FieldKind::LongText => json!({"type":"string","maxLength":16000}),
         FieldKind::Number => json!({"type":"number"}),
         FieldKind::Boolean => json!({"type":"boolean"}),
         FieldKind::NodeRef => json!({"type":["string","null"]}),
         FieldKind::NodeRefs => json!({"type":"array","items":{"type":"string"},"maxItems":500}),
+        FieldKind::Choice => {
+            json!({"type":"string","enum":field.metadata.as_ref().map(|m| &m.choices)})
+        }
+    };
+    if !field.required {
+        schema = json!({"anyOf":[schema,{"type":"null"}]});
     }
+    if let Some(help) = field.metadata.as_ref().and_then(|m| m.help.as_ref()) {
+        schema["description"] = json!(help);
+    }
+    schema
 }
 fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
     let mut choices = vec![];
     let component_properties:serde_json::Map<String,Value>=world.component_types.iter().map(|d| {
-        let fields:serde_json::Map<String,Value>=d.fields.iter().map(|f|(f.key.clone(),field_schema(&f.kind))).collect();
+        let fields:serde_json::Map<String,Value>=d.fields.iter().map(|f|(f.key.clone(),field_schema(f))).collect();
         (d.id.clone(),json!({"type":"object","properties":fields,"required":d.fields.iter().filter(|f|f.required).map(|f|&f.key).collect::<Vec<_>>(),"additionalProperties":false}))
     }).collect();
     let types: Vec<_> = world
@@ -334,7 +344,27 @@ pub fn prepare_authoring(
         effective_request.direction="Develop the checked fields from each node's name, type, existing facts and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, capabilities and links unchanged. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
     }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
-    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/350).clamp(1,20)}});
+    let fields_per_node = context
+        .node_types
+        .iter()
+        .filter(|t| {
+            request
+                .type_id
+                .as_ref()
+                .or(request.group_type_id.as_ref())
+                .is_none_or(|id| id == &t.id)
+        })
+        .map(|t| {
+            t.components
+                .iter()
+                .filter_map(|id| context.component_types.iter().find(|d| &d.id == id))
+                .map(|d| d.fields.len() as u32)
+                .sum::<u32>()
+        })
+        .max()
+        .unwrap_or(0);
+    let estimated_node_tokens = 240 + fields_per_node * 16;
+    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/estimated_node_tokens).clamp(1,20)}});
     if request.mode == AuthoringMode::Create {
         input["creationIntent"] = json!(if request.type_id.is_some() {
             "node"
@@ -408,7 +438,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v4",
+        "world-authoring-v5-composable-fields",
         &system,
         &user,
         &response_schema,
@@ -502,7 +532,7 @@ fn candidate_world(
     source: &World,
     record: &mut AuthoringRecord,
 ) -> Result<(World, Vec<String>), String> {
-    let candidate: NodeCandidate = serde_json::from_str(&record.candidate_text)
+    let mut candidate: NodeCandidate = serde_json::from_str(&record.candidate_text)
         .map_err(|e| format!("Candidate JSON needs editing: {e}"))?;
     if candidate.nodes.is_empty()
         && record.request.creation_scope == Some(CreationScope::Group)
@@ -515,6 +545,42 @@ fn candidate_world(
     }
     let request = &record.request;
     let create = request.mode == AuthoringMode::Create;
+    // Missing and explicit null both mean unspecified for optional properties.
+    // Preserve the source representation of protected fields instead of rejecting
+    // harmless provider nulls or silently publishing representation-only changes.
+    if !create {
+        for node in &mut candidate.nodes {
+            let Some(old) = source.nodes.iter().find(|n| n.id == node.id) else {
+                continue;
+            };
+            for (component, values) in &mut node.components {
+                let Some(old_values) = old.components.get(component) else {
+                    continue;
+                };
+                let Some(definition) = source.component_types.iter().find(|d| &d.id == component)
+                else {
+                    continue;
+                };
+                for field in &definition.fields {
+                    if !field.required
+                        && !selected(request, &node.id, Some(component), &field.key)
+                        && values
+                            .get(&field.key)
+                            .is_none_or(|v| v == &PropertyValue::Null)
+                        && old_values
+                            .get(&field.key)
+                            .is_none_or(|v| v == &PropertyValue::Null)
+                    {
+                        if let Some(value) = old_values.get(&field.key) {
+                            values.insert(field.key.clone(), value.clone());
+                        } else {
+                            values.remove(&field.key);
+                        }
+                    }
+                }
+            }
+        }
+    }
     let allowed_refs: BTreeSet<_> = request
         .context_ids
         .iter()

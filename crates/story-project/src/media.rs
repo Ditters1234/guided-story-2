@@ -158,13 +158,34 @@ fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
         _ => 0.0,
     };
     worn.sort_by(|a, b| layer(a.0).total_cmp(&layer(b.0)).then(a.0.id.cmp(&b.0.id)));
-    let outfit = worn
+    let covered_regions: Vec<String> = worn
+        .iter()
+        .filter_map(|(node, _)| {
+            node.components
+                .get("core.wearable")
+                .and_then(|v| v.get("regions"))
+        })
+        .filter_map(|v| {
+            if let PropertyValue::Text(s) = v {
+                Some(s)
+            } else {
+                None
+            }
+        })
+        .flat_map(|s| {
+            s.split([',', ';'])
+                .map(|part| part.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+        })
+        .collect();
+    let appearance = visual_summary(world, node, &covered_regions);
+    let outfit: Vec<String> = worn
         .iter()
         .map(|(n, e)| {
             format!(
                 "{}: {}{}{}",
                 n.name,
-                n.visual_description,
+                visual_summary(world, n, &[]),
                 n.components
                     .get("core.wearable")
                     .map(|details| format!(
@@ -187,7 +208,8 @@ fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
     let fingerprint = hash(
         &serde_json::to_vec(&(
             &node.name,
-            &node.visual_description,
+            &appearance,
+            &outfit,
             worn.iter()
                 .map(|(n, e)| {
                     (
@@ -205,7 +227,7 @@ fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
     Ok(ShotFact {
         node_id: id.into(),
         name: node.name.clone(),
-        appearance: node.visual_description.clone(),
+        appearance,
         outfit,
         fingerprint,
     })

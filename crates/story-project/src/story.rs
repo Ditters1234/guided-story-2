@@ -728,7 +728,7 @@ impl Project {
         let memory = self.memory_context(index, plan, &context, memory_budget)?;
         let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"recentPassages":recent,"earlierMemory":memory});
         let mut fingerprint = story_hash(&(
-            "passage-source-v4-optional-direction",
+            "passage-source-v5-composable-fields",
             &input,
             &context.node_types,
             &context.component_types,
@@ -797,6 +797,13 @@ impl Project {
         let source_world_data: World = self.read_record("worlds", &source_world)?;
         let included = resolve_ai_context(&source_world_data, task)?;
         append_ai_context(&included, &mut system, &mut input);
+        if !checking {
+            input["records"] = json!(context
+                .nodes
+                .iter()
+                .map(|node| narrative_record(&context, node))
+                .collect::<Vec<_>>());
+        }
         let schema = checking.then(effects_schema);
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
@@ -825,6 +832,13 @@ impl Project {
                 input[key] = value.clone();
             }
             fingerprint = expanded_fingerprint;
+        }
+        if !checking {
+            input["records"] = json!(context
+                .nodes
+                .iter()
+                .map(|node| narrative_record(&context, node))
+                .collect::<Vec<_>>());
         }
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize

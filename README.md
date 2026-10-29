@@ -42,13 +42,20 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 
 **Narration style** is a standard Add node preset with narrative person, tense and multiline instructions. Its creation shortcuts include it for passage writing and wording edits; its reusable capability, AI tools and context controls are shared with other world nodes.
 
+**Composable node presets** bundle optional profile, appearance, personality, goals, voice and state extensions. Places, items and threads also have structured details. The shared inspector uses expandable sections; **Manage extensions** adds/removes extensions or changes a preset through native review. **Define extension** and **Define a custom node type** support typed fields, choices, reference filters and story/image/planning use. Clothing remains linked inventory, and structured visible fields reach image preparation.
+
+This revision uses **story format 2**. Start a new story folder; older prototype stories are preserved but are not migrated. App appearance, API settings and credentials remain separate and retain their existing formats.
+
 ## Design and build documents
 
 - [Product design](DESIGN_REVIEW.md): confirmed decisions, authoring flows, records, media and history.
+- [Composable-node revision](WORLD_NODE_DESIGN.md): implemented initial slices, target relationship/knowledge design, task projections and remaining acceptance slices.
 - [Model targets](MODEL_TARGETS.md): Qwen-class 30B defaults, scoped tasks and Guided Story ComfyUI workflow profiles.
 - [Review and build plan](REVIEW_AND_BUILD_PLAN.md): state contracts, risks, implementation gates and acceptance walkthroughs.
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
+
+The initial node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style and Note presets. Presets are available without populating empty stories. Rich relationship properties, source-linked Event and Visual style presets, and situated knowledge remain later slices of the design.
 
 ## Technical direction
 

@@ -10,7 +10,7 @@ use std::{
 };
 use uuid::Uuid;
 
-const SCHEMA: u32 = 1;
+const SCHEMA: u32 = 2;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 mod backup;
 pub use backup::*;
@@ -254,7 +254,7 @@ impl Project {
 
     fn load(&self, head: &Head) -> Result<(Manifest, World), String> {
         if head.schema_version != SCHEMA {
-            return Err("Unsupported project schema version.".into());
+            return Err("This prototype story uses an older or unsupported format. Create a new story folder for the revised node model; the existing folder has been preserved.".into());
         }
         let manifest: Manifest = self.read_record("revisions", &head.revision)?;
         if manifest.schema_version != SCHEMA {

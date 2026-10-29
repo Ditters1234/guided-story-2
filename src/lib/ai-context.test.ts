@@ -7,7 +7,7 @@ describe('story-wide node context',()=>{
     const world=exampleWorld();world.nodeTypes=world.nodeTypes.filter(t=>t.id!=='core.narration-style');world.componentTypes=world.componentTypes.filter(t=>t.id!=='core.narration-style');
     const before=structuredClone(world);expect(availableNodeTypes(world).some(t=>t.id==='core.narration-style')).toBe(true);expect(world).toEqual(before);
     const first=addNarrationStyle(world,'10000000-0000-4000-8000-000000000031');
-    expect(first.node.components['core.narration-style']).toEqual({person:'Third person',tense:'Past tense',instructions:''});
+    expect(first.node.components['core.narration-style']).toEqual({person:'Third person',tense:'Past tense'});
     expect(first.world.aiContext?.[0]).toMatchObject({nodeId:first.node.id,role:'instructions',tasks:['passage','wording'],fields:['description','components'],enabled:true});
     expect(first.world.edges).toEqual(before.edges);expect(first.world.nodes.slice(0,-1)).toEqual(before.nodes);expect(world).toEqual(before);
     expect(editableFields(first.world,[first.node.id]).some(f=>f.componentId==='core.narration-style'&&f.key==='instructions')).toBe(true);

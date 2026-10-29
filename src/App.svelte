@@ -10,6 +10,7 @@
   import Sidebar from './lib/Sidebar.svelte';
   import WorldMap from './lib/WorldMap.svelte';
   import Inspector from './lib/Inspector.svelte';
+  import NodeDefinitionDialog from './lib/NodeDefinitionDialog.svelte';
   import WorldEditDialog from './lib/WorldEditDialog.svelte';
   import RelationshipTypeDialog from './lib/RelationshipTypeDialog.svelte';
   import SettingsDialog from './lib/SettingsDialog.svelte';
@@ -132,7 +133,7 @@
       status = 'Saving…';
       try {
         if (!pending) {
-          unwrap(await commands.saveDraft({ schemaVersion: 1, sourceRevision: operation.expectedRevision, title: operation.title, world: operation.world }));
+          unwrap(await commands.saveDraft({ schemaVersion: project!.schemaVersion, sourceRevision: operation.expectedRevision, title: operation.title, world: operation.world }));
           persistedDraftVersion = operation.version;
           pending = operation;
         }
@@ -308,10 +309,7 @@
     scheduleSave();
   }
   function addCapability(componentId: string) {
-    const definition = world.componentTypes.find((d)=>d.id===componentId);
-    if (!definition || !project || !selected || historyWorld) return;
-    world = {...world,nodes:world.nodes.map((node)=>node.id===selected!.id?{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map((f)=>[f.key,structuredClone(f.defaultValue)]))}}:node)};
-    scheduleSave();
+    if (selected) reviewEdit({kind:'addCapability',id:selected.id,capability:componentId});
   }
   function editLink(id: string) {
     if (!project || busy || historyWorld) return;
@@ -341,19 +339,10 @@
     for (const edge of changed) workspace = {...workspace,expandedIds:revealRecord(worldRecords(next), workspace.expandedIds, edge.sourceId)};
     structuralEdit = null; scheduleSave(); persistLayout();
   }
-  let showType = $state(false);
-  let typeName = $state('');
-  let typeBase = $state('');
-  let typeFields = $state('');
-  function createType(event: SubmitEvent) {
-    event.preventDefault();
-    if (!project || !typeName.trim()) return;
-    const typeId='custom.'+crypto.randomUUID(), componentId='custom.'+crypto.randomUUID();
-    const fields=[...new Set(typeFields.split(',').map((s)=>s.trim()).filter(Boolean))].map((label,index)=>({key:'field'+index,label,kind:'text' as const,required:false,defaultValue:''}));
-    const components=[...(world.nodeTypes.find((d)=>d.id===typeBase)?.components??[]),...(fields.length?[componentId]:[])];
-    world={...world,nodeTypes:[...world.nodeTypes,{id:typeId,name:typeName.trim(),description:'Custom world node preset',components}],
-      componentTypes:[...world.componentTypes,...(fields.length?[{id:componentId,name:typeName.trim()+' details',description:'Custom fields',fields}]:[])]};
-    showType=false;addRecord(typeId);typeName='';typeFields='';typeBase='';
+  let showType = $state(false),showExtension=$state(false);
+  function applyDefinition(next:World,source:string,selectedId:string){
+    if(!project||historyWorld||JSON.stringify(world)!==source)throw Error('The world changed. Close this definition and reopen it from the current world.');
+    applyStructure(next,source);workspace={...workspace,selectedId};persistLayout();showType=false;showExtension=false;
   }
 
   onMount(() => {
@@ -439,7 +428,7 @@
       <PaneResizer class="pane-resizer" />
       <Pane defaultSize={25} minSize={20} maxSize={36}>
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
-        <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability}
+        <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability} onDefineCapability={()=>{showExtension=true;}} onRetype={id=>{const n=world.nodes.find(n=>n.id===id);if(n)reviewEdit({kind:'retypeNode',id,typeId:n.typeId});}}
           onAi={openAi} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
           onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
@@ -474,15 +463,8 @@
 {/if}
 
 {#if showType}
-  <div class="dialog-scrim"></div>
-  <dialog open class="project-dialog" aria-labelledby="custom-type-title">
-    <form onsubmit={createType}>
-      <span class="eyebrow">YOUR WORLD, YOUR TOOLKIT</span><h2 id="custom-type-title">Define a node type.</h2>
-      <p>Start from any existing preset or a plain node. Add reusable text fields for the details your world needs.</p>
-      <label class="field">Type name<input bind:value={typeName} required maxlength={120} placeholder="Faction, vehicle, weather system…" /></label>
-      <label class="field">Starting capabilities<select bind:value={typeBase}><option value="">Plain world node</option>{#each world.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
-      <label class="field">Custom text fields<span class="field-help">Separate labels with commas.</span><input bind:value={typeFields} maxlength={1000} placeholder="Reputation, traditions, current goal" /></label>
-      <div class="dialog-actions"><button type="button" class="quiet-button" onclick={()=>{showType=false;}}>Cancel</button><button type="submit" class="primary-button" disabled={!typeName.trim()}>Create type & node</button></div>
-    </form>
-  </dialog>
+  <NodeDefinitionDialog {world} onApply={applyDefinition} onClose={()=>{showType=false;}}/>
+{/if}
+{#if showExtension&&selected}
+  <NodeDefinitionDialog {world} attachToId={selected.id} onApply={applyDefinition} onClose={()=>{showExtension=false;}}/>
 {/if}

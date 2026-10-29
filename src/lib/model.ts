@@ -6,6 +6,7 @@ export type {
 } from './bindings';
 import type { World, WorldEntity } from './model';
 import presets from '../../schema/world-presets.json';
+import {defaultProperties} from './node-fields';
 export const emptyWorld = (): World => structuredClone(presets) as World;
 export function availableNodeTypes(world:World){return [...world.nodeTypes,...presets.nodeTypes.filter(p=>!world.nodeTypes.some(t=>t.id===p.id))];}
 export function withBuiltinNodeType(world:World,typeId:string):World {
@@ -19,7 +20,7 @@ export function makeNode(world: World, typeId: string, name: string, id: string 
   return { id, typeId, name, description: '', visualDescription: '',
     components: Object.fromEntries((preset?.components ?? []).map((id) => {
       const definition = world.componentTypes.find((d) => d.id === id);
-      return [id, Object.fromEntries((definition?.fields ?? []).map((f) => [f.key, structuredClone(f.defaultValue)]))];
+      return [id, definition?defaultProperties(definition):{}];
     })) };
 }
 const id = (n: number) => '10000000-0000-4000-8000-' + String(n).padStart(12, '0');

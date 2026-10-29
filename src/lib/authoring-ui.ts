@@ -1,6 +1,7 @@
 import type { AuthoringRequest,EditableField,NodeCandidate,WorldNode } from './bindings';
 import type { World } from './model';
 import { makeNode } from './model';
+import {defaultProperties} from './node-fields';
 export const fieldId=(field:EditableField)=>JSON.stringify([field.nodeId,field.componentId,field.key]);
 export function editableFields(world:World,ids:string[]):(EditableField&{label:string})[]{
   return world.nodes.filter((n)=>ids.includes(n.id)).flatMap((node)=>[
@@ -21,7 +22,7 @@ export function candidateNodeTypes(world:World,request:AuthoringRequest){return 
 export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeId:string,componentId:string):NodeCandidate{
   const definition=world.componentTypes.find(d=>d.id===componentId);
   if(!definition)throw Error('Choose a capability from this project.');
-  return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:Object.fromEntries(definition.fields.map(f=>[f.key,structuredClone(f.defaultValue)]))}});
+  return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:defaultProperties(definition)}});
 }
 export function wornItemType(world:World):string|null{
   return world.componentTypes.some(d=>d.id==='core.wearable')&&world.relationTypes.some(r=>r.id==='core.worn-by'&&r.physicalPlacement)?world.nodeTypes.find(d=>d.components.includes('core.item'))?.id??null:null;

@@ -1,10 +1,12 @@
 import type { MarkerType, Edge, Node } from '@xyflow/svelte';
 import type { World, Workspace } from './model';
+import {nodeSearchText} from './node-fields';
 
 export type RecordKind = 'place' | 'character' | 'item' | 'thread' | 'custom';
 export type WorldRecord = {
   id: string; name: string; description: string; visualDescription: string;
   kind: RecordKind; parentId: string | null; relation: string; detail: string;
+  searchText?:string;
 };
 export type WorldNodeData = WorldRecord & { count: number; expanded: boolean; onToggle: (id: string) => void; imageId?:string;imageStoryId?:string };
 export type WorldNode = Node<WorldNodeData, 'world'>;
@@ -28,7 +30,7 @@ export function worldRecords(world: World): WorldRecord[] {
     const kind: RecordKind = node.components['core.character'] ? 'character' : node.components['core.place'] ? 'place' : node.components['core.item'] ? 'item' : node.components['core.thread'] ? 'thread' : 'custom';
     const preset=world.nodeTypes.find((d)=>d.id===node.typeId);
     const item=node.components['core.item'];
-    return {id:node.id,name:node.name,description:node.description,visualDescription:node.visualDescription,kind,parentId:parent?.targetId??null,
+    return {id:node.id,name:node.name,description:node.description,visualDescription:node.visualDescription,searchText:nodeSearchText(node),kind,parentId:parent?.targetId??null,
       relation:worn?'worn by':parent?.typeId==='core.stored-in'&&nodes.get(parent.targetId)?.components['core.character']?'carried by':relations.get(parent?.typeId ?? '')?.label??'related to',
       detail:node.components['core.container']?'Container':item ? String(item.quantity)+' '+String(item.unit)+(item.quantity!==1?'s':'') :preset?.name??'World node'};
   });
@@ -73,7 +75,7 @@ export function visibleRecords(records: WorldRecord[], expandedIds: string[], se
   const expanded = new Set(expandedIds);
   const wanted = new Set<string>();
   if (search.trim()) {
-    for (const record of records.filter((r) => `${r.name} ${r.description}`.toLowerCase().includes(search.trim().toLowerCase()))) {
+    for (const record of records.filter((r) => (r.searchText??`${r.name} ${r.description}`).toLowerCase().includes(search.trim().toLowerCase()))) {
       let next: WorldRecord | undefined = record;
       while (next && !wanted.has(next.id)) { wanted.add(next.id); next = next.parentId ? byId.get(next.parentId) : undefined; }
     }

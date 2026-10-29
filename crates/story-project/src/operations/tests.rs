@@ -166,6 +166,7 @@ fn removal_keeps_children_and_clears_only_typed_references() {
                 kind: FieldKind::NodeRef,
                 required: true,
                 default_value: PropertyValue::Text(person.clone()),
+                metadata: None,
             },
             FieldDefinition {
                 key: "many".into(),
@@ -173,6 +174,7 @@ fn removal_keeps_children_and_clears_only_typed_references() {
                 kind: FieldKind::NodeRefs,
                 required: false,
                 default_value: PropertyValue::NodeRefs(vec![]),
+                metadata: None,
             },
             FieldDefinition {
                 key: "text".into(),
@@ -180,6 +182,7 @@ fn removal_keeps_children_and_clears_only_typed_references() {
                 kind: FieldKind::Text,
                 required: false,
                 default_value: PropertyValue::Text(String::new()),
+                metadata: None,
             },
         ],
     });
@@ -290,6 +293,7 @@ fn invalid_schema_defaults_and_oversized_connection_notes_are_rejected() {
             kind: FieldKind::Number,
             required: false,
             default_value: PropertyValue::Text("wrong kind".into()),
+            metadata: None,
         }],
     });
     assert!(w.validate().unwrap_err().contains("Invalid default"));

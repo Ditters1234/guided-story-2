@@ -91,7 +91,7 @@ export function nodeDiff(world:World,nodes:WorldNode[],next:WorldNode):{label:st
     for(const key of new Set([...Object.keys(old.components[id]??{}),...Object.keys(next.components[id]??{})])){
       const before=old.components[id]?.[key],after=next.components[id]?.[key];
       const field=definition?.fields.find(f=>f.key===key);
-      if(JSON.stringify(before)!==JSON.stringify(after))rows.push({label:`${definition?.name??id} · ${field?.label??key}`,before:valueLabel(before,nodes,field?.kind),after:valueLabel(after,nodes,field?.kind)});
+      if(JSON.stringify(before??null)!==JSON.stringify(after??null))rows.push({label:`${definition?.name??id} · ${field?.label??key}`,before:valueLabel(before,nodes,field?.kind),after:valueLabel(after,nodes,field?.kind)});
     }
   }
   return rows;

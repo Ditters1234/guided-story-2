@@ -2,6 +2,8 @@
 
 Images share one service and review flow. Any world node, including a custom preset, can have a selected image. Character portraits stay in the map and shared inspector. Accepted passage illustrations appear with their passage in the reader.
 
+Story format 2 resolves structured fields marked for images, including custom extensions, together with supplementary visual notes. Garment design/condition comes from linked worn item records. Regional detail can declare matching garment coverage that hides it from image facts; this remains a conservative projection, not a full clothing/framing simulator. The same captured facts feed the default prompt and optional LLM prompt tools. Relevant structured changes stale pending image work; story-only voice/goal edits do not change appearance applicability. Accepted sources remain immutable.
+
 ## Use images
 
 - In a saved project's inspector, open **Image → Generate / choose image**. Choose **New shot**, write or edit its prompt, then **Generate image**. **Import image** uses the same candidate review flow for a local PNG, JPEG or WebP.

@@ -17,7 +17,7 @@
   let review = $state<HTMLDivElement>();
   const link = $derived(candidate.kind === 'putLink' ? candidate.link : null);
   const definition = $derived(world.relationTypes.find((d) => d.id === link?.typeId));
-  const title = $derived(candidate.kind === 'putLink' ? (world.edges.some((e) => e.id === candidate.link.id) ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove capability' : 'Remove connection');
+  const title = $derived(candidate.kind === 'putLink' ? (world.edges.some((e) => e.id === candidate.link.id) ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove extension' : candidate.kind==='addCapability'?'Add extension':candidate.kind==='retypeNode'?'Change preset':'Remove connection');
   function supports(node: WorldNode, capability: string | null | undefined) {
     return !capability || !!node.components[capability] || (capability === 'core.holder' && !!node.components['core.container']);
   }
@@ -50,6 +50,11 @@
         <label class="field">Target node<select bind:value={link.targetId} required><option value="">Choose target…</option>{#each world.nodes.filter((n) => n.id !== link.sourceId && supports(n, definition?.targetCapability)) as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
         <label class="field">Connection notes<textarea bind:value={link.description} rows={2} maxlength={16000}></textarea></label>
       </fieldset>
+    {:else if candidate.kind==='addCapability'}
+      <p>Add <strong>{world.componentTypes.find(d=>candidate.kind==='addCapability'&&d.id===candidate.capability)?.name}</strong> to <strong>{world.nodes.find(n=>n.id===candidate.id)?.name}</strong>.</p>
+      <p class="field-help">{world.componentTypes.find(d=>candidate.kind==='addCapability'&&d.id===candidate.capability)?.description}</p>
+    {:else if candidate.kind==='retypeNode'}
+      <label class="field">Preset<select bind:value={candidate.typeId}>{#each world.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label><p>Existing extensions, values and connections are retained. Missing extensions from this preset are added with their declared defaults.</p>
     {:else if candidate.kind === 'removeNode'}
       <p>Remove <strong>{world.nodes.find((n) => n.id === candidate.id)?.name}</strong> from the current world. Contents remain as unplaced nodes. Connections and typed references to this node are cleared. Previous saved worlds stay intact.</p>
     {:else if candidate.kind === 'removeCapability'}

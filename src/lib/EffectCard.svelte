@@ -1,7 +1,8 @@
 <script lang="ts">
   import type {PassageEffects,PassageEffect,ContinuityNote,EffectReviewEntry,PropertyValue,WorldNode} from './bindings';
   import type {World} from './model';
-  import PropertyInput from './PropertyInput.svelte';
+  import NodeFields from './NodeFields.svelte';
+  import {defaultProperties} from './node-fields';
   import {evidenceIssue,passageQuotes,proposedNodes,effectTitle,linkLabel,nodeDiff,removalPlan,removeProposals,connectionIdentity} from './effects-ui';
   let {world,effects,prose,kind,index,entry,approvedKeys,disabled=false,canApprove=false,onChange,onApprove}:{world:World;effects:PassageEffects;prose:string;kind:'change'|'note';index:number;entry?:EffectReviewEntry;approvedKeys:string[];disabled?:boolean;canApprove?:boolean;onChange:(value:PassageEffects,invalidated:string[])=>void;onApprove:(keys:string[])=>void}=$props();
   let editing=$state(false),confirmRemove=$state(false),choosingQuote=$state(false);
@@ -53,8 +54,8 @@
         <label class="field">Name<input value={proposalNode.name} maxlength={200} oninput={e=>editNode(n=>({...n,name:e.currentTarget.value}))}/></label>
         <label class="field">Story notes<textarea value={proposalNode.description} rows={3} maxlength={16000} oninput={e=>editNode(n=>({...n,description:e.currentTarget.value}))}></textarea></label>
         <label class="field">Visible description<textarea value={proposalNode.visualDescription} rows={3} maxlength={16000} oninput={e=>editNode(n=>({...n,visualDescription:e.currentTarget.value}))}></textarea></label>
-        {#each Object.entries(proposalNode.components) as [componentId,values]}{@const definition=world.componentTypes.find(d=>d.id===componentId)}<section class="capability"><strong>{definition?.name??componentId}</strong>{#each definition?.fields??[] as field}<PropertyInput {field} value={values[field.key]??null} {nodes} {disabled} onChange={v=>property(componentId,field.key,v)}/>{/each}</section>{/each}
-        {#if isNew}<select aria-label="Add capability to proposed record" value="" onchange={e=>{const id=e.currentTarget.value,definition=world.componentTypes.find(d=>d.id===id);if(definition)editNode(n=>({...n,components:{...n.components,[id]:Object.fromEntries(definition.fields.map(f=>[f.key,structuredClone(f.defaultValue)]))}}));e.currentTarget.value='';}}><option value="">Add capability…</option>{#each world.componentTypes.filter(d=>!proposalNode!.components[d.id]) as d}<option value={d.id}>{d.name}</option>{/each}</select>{/if}
+        <NodeFields {world} node={proposalNode} {nodes} {disabled} onChange={property}/>
+        {#if isNew}<select aria-label="Add capability to proposed record" value="" onchange={e=>{const id=e.currentTarget.value,definition=world.componentTypes.find(d=>d.id===id);if(definition)editNode(n=>({...n,components:{...n.components,[id]:defaultProperties(definition)}}));e.currentTarget.value='';}}><option value="">Add capability…</option>{#each world.componentTypes.filter(d=>!proposalNode!.components[d.id]) as d}<option value={d.id}>{d.name}</option>{/each}</select>{/if}
       {:else if proposalLink}
         <label class="field">Connection to update<select aria-label="Connection to update" value={connectionIdentity(world,proposalLink)} onchange={e=>{const selection=e.currentTarget.value;if(selection!=='missing')change(v=>v.kind==='putLink'?{...v,link:{...v.link,id:selection==='new'?`new:link-${crypto.randomUUID()}`:selection}}:v);}}>{#if connectionIdentity(world,proposalLink)==='missing'}<option value="missing" disabled>Unrecognized connection — choose one</option>{/if}<option value="new">Create new connection</option>{#each world.edges as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
         <label class="field">Source<select aria-label="Source" value={proposalLink.sourceId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,sourceId:e.currentTarget.value}}:v)}>{#if !nodes.some(n=>n.id===proposalLink!.sourceId)}<option value={proposalLink.sourceId}>Missing source</option>{/if}{#each nodes as n}<option value={n.id}>{n.name}</option>{/each}</select></label>

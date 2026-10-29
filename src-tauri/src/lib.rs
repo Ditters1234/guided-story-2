@@ -236,6 +236,12 @@ fn preview_world_edit(world: World, edit: WorldEdit) -> Result<WorldEditPreview,
 }
 #[tauri::command]
 #[specta::specta]
+fn validate_world(world: World) -> Result<World, String> {
+    world.validate()?;
+    Ok(world)
+}
+#[tauri::command]
+#[specta::specta]
 fn preview_ai_context(
     world: World,
     task: story_project::TextPromptTask,
@@ -287,6 +293,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_draft,
             clear_matching_draft,
             preview_world_edit,
+            validate_world,
             preview_ai_context,
             load_preferences,
             save_preferences,

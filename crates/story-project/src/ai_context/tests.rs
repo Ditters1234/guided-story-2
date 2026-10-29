@@ -131,6 +131,7 @@ fn arbitrary_nodes_roles_task_filters_selected_fields_and_order_are_explicit() {
             kind: FieldKind::Text,
             required: false,
             default_value: PropertyValue::Text("".into()),
+            metadata: None,
         }],
     });
     world.nodes[0].components.insert(

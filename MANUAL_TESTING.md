@@ -6,7 +6,7 @@ Double-click **Guided Story 2.exe** in this folder. This Windows build includes 
 
 The app reopens the last story you successfully opened or created. On first launch, choose **New story** or **Open story**. New stories start empty unless you select the optional Brasswater example. Give a new story a name and choose a parent folder; each story has its own portable folder. **Project → New project / Open project** remain available while working. Keep your working stories outside this testing-build folder so you can replace the executable independently.
 
-The first launch after updating from an older build has no remembered story yet: open yours once. Close and relaunch to check that it returns. The folder choice is stored with device settings, outside story projects. If the folder was moved/deleted, is locked, or cannot be read, an error and the New/Open choices should appear without loading example data or overwriting the saved choice. Canceling the folder picker should leave those choices available. An explicit `--project` launch overrides the remembered folder.
+This node revision uses **story format 2** and requires a fresh story folder. An older remembered prototype story is preserved and rejected with a New/Open choice. After creating a new story, close and relaunch to check that it returns. The folder choice is stored with device settings, outside story projects. If the folder was moved/deleted, is locked, or cannot be read, an error and the New/Open choices should appear without loading example data or overwriting the saved choice. Canceling the folder picker should leave those choices available. An explicit `--project` launch overrides the remembered folder.
 
 The settings gear contains Appearance, Custom themes, LLM, Prompts and Images. Existing device settings are preserved. Appearance and API settings stay separate from story folders. The offline demo provider lets you test proposal review without an LLM; its output is deterministic sample data, not a quality demonstration.
 
@@ -33,6 +33,14 @@ After generating, the footer should say **Draft not accepted · check world chan
 If evidence validation fails, the affected cards should show **Source quote · needs correction**. Use **Choose quote from passage** or edit a continuous 8–600 character excerpt, reapprove that card and **Validate reviewed changes**. AI-added ellipses that skip or join text are invalid; literal ellipses already present in the prose are allowed. **Advanced JSON** retains raw editing and indexed native diagnostics for repair, but should be collapsed during normal review. The saved passage should remain intact throughout; generating new proposals is a separate explicit action.
 
 If all cards are approved but validation is blocked, the header should explain that correction/validation is still required. A broken connection should be marked **Needs correction** with its reason on that card. Open **Edit** and use **Connection to update** to choose an existing connection or **Create new connection**. Correct the relationship/endpoints as needed: **Inside** is for place nesting; a character uses **Present at**. Reapprove edited cards and validate. Other approvals should survive, and the saved prose should remain intact. An update/removal pair using the same connection ID should mark both cards; remove the redundant proposal or explicitly create a separate connection.
+
+## Node extensions
+
+Before connecting a model, create a Character manually. Expand Profile, Goals, Voice and Appearance; leave unused values blank. Changes within an open section should keep it open. Under Manage extensions, add Detailed anatomy or another extension, review/apply it, then try changing the preset: existing capabilities/values remain until explicitly removed. Removing a capability used by a connection should fail safely. Clothing belongs in linked item nodes.
+
+Use Define extension to add a choice, number and yes/no field. Review and apply; initially they should be unspecified. Enter zero and No, close/reopen, and confirm those remain distinct from unspecified. Define a custom node type from Character with Inventory item and Container added; all corresponding tools/sections should work together. Text in structured fields should be searchable. At enlarged text sizes, definition forms should scroll with Review/Apply visible.
+
+Inspect image source facts for a character whose appearance and garment design use structured fields. Both the initial image prompt and optional AI prompt assistance should receive those values. No image generation or story event should occur merely from editing or opening sections.
 
 ## Your LLM
 

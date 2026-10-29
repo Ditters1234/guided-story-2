@@ -68,12 +68,25 @@ pub(super) fn group_context(
                 .take(600)
                 .collect::<String>()
         );
+        // Match bounded extension text locally; transmission/write scope stays unchanged.
+        let mut content_words = words(&text);
+        if !query.is_empty() {
+            for value in node.components.values().flat_map(|values| values.values()) {
+                if let PropertyValue::Text(text) = value {
+                    content_words.extend(
+                        query
+                            .intersection(&words(&text.chars().take(600).collect::<String>()))
+                            .cloned(),
+                    );
+                }
+            }
+        }
         let score = if explicit.contains(&node.id) {
             100_000
         } else {
             0
         } + query.intersection(&name).count() as u32 * 400
-            + query.intersection(&words(&text)).count().min(10) as u32 * 4
+            + query.intersection(&content_words).count().min(10) as u32 * 4
             + if request.group_type_id.as_ref() == Some(&node.type_id) {
                 15
             } else {

@@ -5,12 +5,19 @@ use specta::Type;
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
 pub enum WorldEdit {
     PutLink { link: WorldEdge },
     RemoveLink { id: String },
     RemoveNode { id: String },
     RemoveCapability { id: String, capability: String },
+    AddCapability { id: String, capability: String },
+    RetypeNode { id: String, type_id: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -58,6 +65,58 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
     let mut world = source.clone();
     let mut changes = Vec::new();
     match edit {
+        WorldEdit::AddCapability { id, capability } => {
+            let definition = world
+                .component_types
+                .iter()
+                .find(|d| d.id == capability)
+                .ok_or("Choose a saved extension.")?;
+            let node = world
+                .nodes
+                .iter_mut()
+                .find(|n| n.id == id)
+                .ok_or("The node no longer exists.")?;
+            if node.components.contains_key(&capability) {
+                return Err("This extension is already attached.".into());
+            }
+            node.components
+                .insert(capability, crate::default_properties(definition));
+            changes.push(format!("Add {} to {} with its declared defaults; other fields and connections stay intact.", definition.name, node.name));
+        }
+        WorldEdit::RetypeNode { id, type_id } => {
+            let preset = world
+                .node_types
+                .iter()
+                .find(|d| d.id == type_id)
+                .ok_or("Choose a saved preset.")?;
+            let node = world
+                .nodes
+                .iter_mut()
+                .find(|n| n.id == id)
+                .ok_or("The node no longer exists.")?;
+            if node.type_id != type_id {
+                changes.push(format!(
+                    "Use the {} preset for {}. Existing extensions and values are retained.",
+                    preset.name, node.name
+                ));
+                node.type_id = type_id;
+            }
+            for id in &preset.components {
+                if !node.components.contains_key(id) {
+                    let definition = world
+                        .component_types
+                        .iter()
+                        .find(|d| &d.id == id)
+                        .ok_or("Missing preset extension.")?;
+                    node.components
+                        .insert(id.clone(), crate::default_properties(definition));
+                    changes.push(format!(
+                        "Add {} with its declared defaults.",
+                        definition.name
+                    ));
+                }
+            }
+        }
         WorldEdit::PutLink { link } => {
             crate::validate_id(&link.id)?;
             let definition = world

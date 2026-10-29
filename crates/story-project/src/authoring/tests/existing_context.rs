@@ -64,6 +64,33 @@ fn project(world: World) -> (tempfile::TempDir, Project) {
     .unwrap();
     (dir, p)
 }
+
+#[test]
+fn groups_find_structured_goals_without_sending_unrelated_records_or_expanding_permissions() {
+    let mut w = world();
+    w.nodes[1]
+        .components
+        .get_mut("detail.motivation")
+        .unwrap()
+        .insert(
+            "wants".into(),
+            PropertyValue::Text("Repair the drinkingwater pump".into()),
+        );
+    let request = AuthoringRequest {
+        direction: "Add supplies for repairing the drinkingwater pump".into(),
+        group_type_id: None,
+        ..group()
+    };
+    let prepared = prepare_authoring(&w, &request, &settings()).unwrap();
+    let discovered = prepared.existing_context.unwrap();
+    assert_eq!(discovered.detailed_node_ids, vec![w.nodes[1].id.clone()]);
+    assert!(discovered.catalog.len() <= 100);
+    assert!(!prepared
+        .user
+        .contains("UNRELATED_FULL_TEXT_MUST_NOT_BE_SENT"));
+    assert!(prepared.user.contains("Repair the drinkingwater pump"));
+    assert!(request.context_ids.is_empty());
+}
 #[test]
 fn groups_discover_existing_names_owner_outfit_and_nested_inventory_without_manual_references() {
     let w = world();

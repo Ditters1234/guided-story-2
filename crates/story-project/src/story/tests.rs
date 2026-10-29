@@ -76,6 +76,51 @@ fn fixture() -> (tempfile::TempDir, Project) {
     .unwrap();
     (dir, p)
 }
+
+#[test]
+fn passage_uses_structured_objectives_and_custom_labels_without_visual_only_or_planned_facts() {
+    let (_dir, p) = fixture();
+    let before = p.view().unwrap();
+    let mut world = before.world;
+    world.nodes[1]
+        .components
+        .get_mut("detail.intent")
+        .unwrap()
+        .insert(
+            "objective".into(),
+            PropertyValue::Text("Repair the pump before dark".into()),
+        );
+    world.nodes[1].components.insert(
+        "detail.anatomy".into(),
+        BTreeMap::from([(
+            "chest".into(),
+            PropertyValue::Text("Visual-only source".into()),
+        )]),
+    );
+    world.nodes[1].components.insert(
+        "detail.thread".into(),
+        BTreeMap::from([(
+            "direction".into(),
+            PropertyValue::Text("Future author reveal".into()),
+        )]),
+    );
+    p.commit(before.revision, id(), before.title, world)
+        .unwrap();
+    let rid = id();
+    p.save_passage(&rid, 0, edits(&p, "")).unwrap();
+    let prepared = p
+        .start_passage(&rid, 1, p.view().unwrap().revision, false, &settings())
+        .unwrap();
+    assert!(
+        prepared.user.contains("Repair the pump before dark")
+            && prepared.user.contains("Immediate objective")
+    );
+    assert!(
+        !prepared.user.contains("Visual-only source")
+            && !prepared.user.contains("Future author reveal")
+    );
+    assert_eq!(p.story_index().unwrap().passages.len(), 0);
+}
 fn edits(p: &Project, prose: &str) -> PassageEdits {
     let w = p.view().unwrap().world;
     PassageEdits {

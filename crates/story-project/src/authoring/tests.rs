@@ -72,7 +72,9 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
     assert!(required.contains(&json!("core.holder")));
     let input: Value = serde_json::from_str(&prepared.user).unwrap();
     assert_eq!(input["responseBudget"]["outputTokens"], 4096);
-    assert_eq!(input["responseBudget"]["suggestedMaxNewNodes"], 10);
+    assert!(input["responseBudget"]["suggestedMaxNewNodes"]
+        .as_u64()
+        .is_some_and(|n| n > 0 && n < 10));
     let example = &input["clothingExample"];
     let garment: WorldNode = serde_json::from_value(example["garment"].clone()).unwrap();
     assert_eq!(garment.type_id, "custom.possession");
@@ -247,6 +249,7 @@ fn custom_capability_fields_use_the_same_generation_and_protection_rules() {
             kind: FieldKind::Text,
             required: true,
             default_value: PropertyValue::Text(String::new()),
+            metadata: None,
         }],
     });
     world.node_types.push(NodeTypeDefinition {
@@ -486,6 +489,7 @@ fn connected_character_outfit_container_and_custom_references_remap_atomically()
             kind: FieldKind::NodeRef,
             required: false,
             default_value: PropertyValue::Null,
+            metadata: None,
         }],
     });
     p.commit(0, id(), "Fictional".into(), world.clone())

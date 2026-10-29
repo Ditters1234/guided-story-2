@@ -203,7 +203,7 @@ fn enriched(p: &Project, dir: &Path) -> (String, String, String) {
     let mut invalid = view.world;
     invalid.nodes[0].name = "".into();
     p.save_draft(EditorDraft {
-        schema_version: 1,
+        schema_version: super::super::SCHEMA,
         source_revision: view.revision,
         title: view.title,
         world: invalid,

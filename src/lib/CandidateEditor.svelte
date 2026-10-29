@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
-  import PropertyInput from './PropertyInput.svelte';
+  import NodeFields from './NodeFields.svelte';
   import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes } from './authoring-ui';
   let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
@@ -21,7 +21,7 @@
   <label class="field">Story notes<textarea value={node.description} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'description')} oninput={(event)=>edit('description',event.currentTarget.value)}></textarea></label>
   <label class="field">Visible description<textarea value={node.visualDescription} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'visualDescription')} oninput={(event)=>edit('visualDescription',event.currentTarget.value)}></textarea></label>
   {#if request.mode==='create'&&node.components['core.character']}<section class="capability"><strong>Worn items</strong>{#each candidate.edges.filter(e=>e.typeId==='core.worn-by'&&e.targetId===node!.id) as link}{@const garment=candidate.nodes.find(n=>n.id===link.sourceId)}{#if garment}<button class="text-action" onclick={()=>{selected=garment.id;}}>{garment.name} ↗</button>{/if}{:else}<p class="field-help">No worn items proposed.</p>{/each}{#if request.mode==='create'&&request.bundle}<button class="secondary-button" disabled={!canAddGarment||candidate.nodes.length>=20} onclick={()=>{const next=addCandidateWornItem(schema,candidate,node!.id);selected=next.nodes.at(-1)!.id;onChange(next);}}>＋ Add worn item</button>{/if}</section>{/if}
-  {#each Object.entries(node.components) as [componentId,values]}{@const definition=schema.componentTypes.find((d)=>d.id===componentId)}<section class="capability"><strong>{definition?.name??componentId}</strong>{#each definition?.fields??[] as field}<PropertyInput {field} value={values[field.key]??null} nodes={references} disabled={!allowed(node.id,componentId,field.key)} onChange={(value)=>property(componentId,field.key,value)} />{/each}</section>{/each}
+  <NodeFields world={schema} {node} nodes={references} canEdit={(componentId,key)=>allowed(node!.id,componentId,key)} onChange={property}/>
   {#if request.mode==='create'}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
 {/if}
 {#if request.mode==='create'&&request.bundle}
