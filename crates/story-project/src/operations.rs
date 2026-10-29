@@ -175,6 +175,7 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                 changes.push("Remove this node's story-wide AI context inclusion.".into());
             }
             world.ai_context.retain(|b| b.node_id != id);
+            world.source_annotations.retain(|a| a.node_id != id);
             world
                 .edges
                 .retain(|e| e.source_id != id && e.target_id != id);
@@ -257,6 +258,7 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
             ));
         }
     }
+    crate::sources::ensure_manual_event_sources(&mut world);
     world
         .validate()
         .map_err(|e| format!("Cannot apply this change: {e}"))?;

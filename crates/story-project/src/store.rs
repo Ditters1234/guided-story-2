@@ -88,8 +88,31 @@ fn write_temp(path: &Path, bytes: &[u8]) -> Result<PathBuf, String> {
     result
 }
 
+// A scanner or another reader may briefly hold Windows files/directories without
+// delete sharing. Retry only those errors, with a fixed sub-second backoff ceiling.
 #[cfg(windows)]
-fn replace_file(source: &Path, destination: &Path) -> Result<(), String> {
+fn retry_windows_io<T>(
+    mut action: impl FnMut() -> std::io::Result<T>,
+    mut wait: impl FnMut(std::time::Duration),
+) -> std::io::Result<T> {
+    let mut delays = [20, 50, 100, 200, 400].into_iter();
+    loop {
+        match action() {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                if !matches!(error.raw_os_error(), Some(5 | 32 | 33)) {
+                    return Err(error);
+                }
+                let Some(ms) = delays.next() else {
+                    return Err(error);
+                };
+                wait(std::time::Duration::from_millis(ms));
+            }
+        }
+    }
+}
+#[cfg(windows)]
+fn move_windows_path(source: &Path, destination: &Path, replace: bool) -> std::io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
@@ -100,21 +123,46 @@ fn replace_file(source: &Path, destination: &Path) -> Result<(), String> {
         .encode_wide()
         .chain(Some(0))
         .collect();
-    // Both NUL-terminated buffers outlive the call and refer to same-directory files.
-    if unsafe {
-        MoveFileExW(
-            from.as_ptr(),
-            to.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    } == 0
+    retry_windows_io(
+        || {
+            // For copies/immutable records, never replace a destination that appeared
+            // between attempts. The native call also omits REPLACE_EXISTING.
+            if !replace && destination.exists() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    "The destination already exists.",
+                ));
+            }
+            let flags = MOVEFILE_WRITE_THROUGH
+                | if replace {
+                    MOVEFILE_REPLACE_EXISTING
+                } else {
+                    0
+                };
+            if unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), flags) } == 0 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        },
+        std::thread::sleep,
+    )
+}
+pub(crate) fn publish_new_path(source: &Path, destination: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    return move_windows_path(source, destination, false).map_err(|e| e.to_string());
+    #[cfg(not(windows))]
     {
-        return Err(format!(
-            "Could not publish the save; previous revision is unchanged: {}",
-            std::io::Error::last_os_error()
-        ));
+        if destination.exists() {
+            return Err("The destination already exists.".into());
+        }
+        fs::rename(source, destination).map_err(|e| e.to_string())
     }
-    Ok(())
+}
+#[cfg(windows)]
+fn replace_file(source: &Path, destination: &Path) -> Result<(), String> {
+    move_windows_path(source, destination, true)
+        .map_err(|e| format!("Could not publish the save; previous revision is unchanged: {e}"))
 }
 
 #[cfg(not(windows))]
@@ -186,6 +234,8 @@ impl Project {
     ) -> Result<Self, String> {
         validate_name(&title)?;
         validate_id(&request_id)?;
+        let mut world = world;
+        crate::sources::ensure_manual_event_sources(&mut world);
         world.validate()?;
         fs::create_dir(root).map_err(|e| {
             format!("Choose a new project folder; existing folders are never overwritten: {e}")
@@ -267,6 +317,9 @@ impl Project {
         if let Some(reference) = &manifest.story_ref {
             let index: crate::StoryIndex = self.read_record("stories", reference)?;
             index.validate()?;
+            self.validate_world_sources(&world, &index)?;
+        } else {
+            self.validate_world_sources(&world, &crate::StoryIndex::default())?;
         }
         Ok((manifest, world))
     }
@@ -301,6 +354,8 @@ impl Project {
         title: String,
         world: World,
     ) -> Result<CommitResult, String> {
+        let mut world = world;
+        crate::sources::ensure_manual_event_sources(&mut world);
         self.commit_with_hook(expected_revision, request_id, title, world, |_| Ok(()))
     }
 
@@ -440,7 +495,7 @@ impl Project {
         };
         let path = self.record_path(folder, &reference)?;
         let temp = write_temp(&path, &bytes)?;
-        fs::rename(&temp, &path).map_err(|e| e.to_string())?;
+        publish_new_path(&temp, &path)?;
         Ok(reference)
     }
 

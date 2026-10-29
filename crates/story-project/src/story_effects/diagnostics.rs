@@ -33,6 +33,9 @@ pub(crate) fn effect_record_issues(
         records.entry(record_id).or_default().push(i);
         match change {
             PassageEffect::PutNode { node, .. } => {
+                if node.components.contains_key("detail.event") && (source.source_annotations.iter().filter(|a|a.node_id==node.id).count()>=32 || source.source_annotations.len()+effects.changes.iter().filter(|e|matches!(e,PassageEffect::PutNode{node,..} if node.components.contains_key("detail.event"))).count()>10000) {
+                    issues[i].push("This Event needs space for its source citation. Remove an older citation from the current node, or remove this Event proposal while retaining the other passage effects.".into());
+                }
                 if !alias(&node.id)
                     && (validate_id(&node.id).is_err() || !scoped.contains(node.id.as_str()))
                 {

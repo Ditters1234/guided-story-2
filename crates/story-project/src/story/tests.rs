@@ -666,6 +666,23 @@ fn story_crash_child() {
     let p = Project::open(Path::new(&root)).unwrap();
     let v = p.view().unwrap();
     let mut world = v.world;
+    if std::env::var_os("STORY_SOURCE_CRASH").is_some() {
+        let entry = p.story_index().unwrap().passages[0].clone();
+        let reading = p.read_passage(&entry.id).unwrap();
+        world = p
+            .preview_source_edit(
+                &world,
+                SourceEdit::AddPassage {
+                    node_id: world.nodes[1].id.clone(),
+                    passage_id: entry.id,
+                    version: entry.record,
+                    quote: reading.passage.prose,
+                    effect_index: None,
+                },
+            )
+            .unwrap()
+            .world;
+    }
     world.nodes[0].name = "After transaction".into();
     let mut index = p.story_index().unwrap();
     index.chapters[0].title = "After transaction".into();
@@ -731,5 +748,43 @@ fn process_exit_cannot_publish_half_a_world_and_story_index() {
             index.chapters[0].title == "After transaction"
         );
         assert_eq!(view.revision, if phase == "after-head" { 2 } else { 1 });
+    }
+}
+
+#[test]
+fn process_exit_cannot_publish_half_a_source_annotation_and_story_index() {
+    for phase in ["after-world", "before-head", "after-head"] {
+        let (_dir, p) = fixture();
+        accept(&p, edits(&p, "Mara waited beside the window."));
+        let path = p.folder_path();
+        drop(p);
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "story::tests::story_crash_child",
+                "--nocapture",
+            ])
+            .env("STORY_PASSAGE_CRASH_ROOT", &path)
+            .env("STORY_PASSAGE_CRASH_PHASE", phase)
+            .env("STORY_SOURCE_CRASH", "1")
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(86),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let p = Project::open(Path::new(&path)).unwrap();
+        let view = p.view().unwrap();
+        assert_eq!(
+            view.world.source_annotations.len(),
+            if phase == "after-head" { 1 } else { 0 }
+        );
+        assert_eq!(
+            view.world.nodes[0].name == "After transaction",
+            p.story_index().unwrap().chapters[0].title == "After transaction"
+        );
     }
 }

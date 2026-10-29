@@ -12,6 +12,7 @@ const FOLDERS: &[&str] = &[
     "worlds",
     "stories",
     "passages",
+    "source-anchors",
     "memories",
     "media",
     "images",
@@ -30,6 +31,7 @@ const RECORDS: &[&str] = &[
     "worlds",
     "stories",
     "passages",
+    "source-anchors",
     "memories",
     "media",
     "passage-draft-versions",
@@ -236,6 +238,7 @@ fn references(
                     "record" | "previousVersion" | "evidenceSource" | "passage" | "source" => {
                         "passages"
                     }
+                    "anchor" | "textAnchor" => "source-anchors",
                     "memoryReference" => "memories",
                     "mediaReference" => "media",
                     _ => return Err(format!("Unsupported backup reference field: {context}")),
@@ -264,6 +267,7 @@ fn references(
                         let key = match context {
                             "memories" => "memoryReference",
                             "media" => "mediaReference",
+                            "earlierTextAnchors" => "textAnchor",
                             _ => key.as_str(),
                         };
                         references(item, key, refs, images)?;
@@ -386,6 +390,9 @@ fn audit(root: &Path, entries: &[Entry]) -> Result<(Manifest, Head), String> {
                         associations.insert(("media", r.id, id, String::new()));
                     }
                 }
+                "source-anchors" => {
+                    decode::<SourceAnchor>(&bytes)?.validate()?;
+                }
                 "passages" => {
                     let p: AcceptedPassage = decode(&bytes)?;
                     validate_id(&p.id)?;
@@ -445,6 +452,41 @@ fn audit(root: &Path, entries: &[Entry]) -> Result<(Manifest, Head), String> {
     }
     for (path, file) in images {
         crate::media::verify_backup_image(&read(root, &path)?, &file)?;
+    }
+    // Validate citation contents as well as their ordinary checksum references.
+    let read_anchor = |r: &RecordRef| {
+        decode::<SourceAnchor>(&read(root, &format!("source-anchors/{}.json", r.id))?)
+    };
+    let read_passage =
+        |r: &RecordRef| decode::<AcceptedPassage>(&read(root, &format!("passages/{}.json", r.id))?);
+    for entry in entries.iter().filter(|e| e.path.starts_with("worlds/")) {
+        let world: World = decode(&read(root, &entry.path)?)?;
+        crate::sources::validate_annotation_records_using(&world, &read_anchor)?;
+    }
+    for entry in entries.iter().filter(|e| e.path.starts_with("passages/")) {
+        let p: AcceptedPassage = decode(&read(root, &entry.path)?)?;
+        let reference = RecordRef {
+            id: entry
+                .path
+                .trim_start_matches("passages/")
+                .trim_end_matches(".json")
+                .into(),
+            sha256: entry.sha256.clone(),
+        };
+        crate::sources::validate_passage_anchors_using(&p, &reference, &read_anchor)?;
+    }
+    for entry in entries.iter().filter(|e| e.path.starts_with("revisions/")) {
+        let revision: Manifest = decode(&read(root, &entry.path)?)?;
+        let world: World = decode(&read(
+            root,
+            &format!("worlds/{}.json", revision.world_ref.id),
+        )?)?;
+        let index = if let Some(r) = revision.story_ref {
+            decode(&read(root, &format!("stories/{}.json", r.id))?)?
+        } else {
+            StoryIndex::default()
+        };
+        crate::sources::validate_world_sources_using(&world, &index, &read_anchor, &read_passage)?;
     }
     // Check associations that a generic hash reference alone cannot establish.
     for (folder, record, id, chapter) in associations {
@@ -625,7 +667,7 @@ fn copy_entries(source: &Path, destination: &Path, entries: &[Entry]) -> Result<
             );
         }
         let temp = write_temp(&path, &bytes)?;
-        fs::rename(temp, path).map_err(|e| e.to_string())?;
+        publish_new_path(&temp, &path)?;
     }
     Ok(())
 }
@@ -633,26 +675,7 @@ fn publish(stage: &Path, destination: &Path) -> Result<(), String> {
     if destination.exists() {
         return Err("The destination already exists; it was not replaced.".into());
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
-        let source: Vec<u16> = stage.as_os_str().encode_wide().chain(Some(0)).collect();
-        let target: Vec<u16> = destination
-            .as_os_str()
-            .encode_wide()
-            .chain(Some(0))
-            .collect();
-        // No replace flag: publication must fail even if an empty destination appeared meanwhile.
-        if unsafe { MoveFileExW(source.as_ptr(), target.as_ptr(), MOVEFILE_WRITE_THROUGH) } == 0 {
-            return Err(format!(
-                "Copy remains in its incomplete folder: {}",
-                std::io::Error::last_os_error()
-            ));
-        }
-    }
-    #[cfg(not(windows))]
-    fs::rename(stage, destination)
+    publish_new_path(stage, destination)
         .map_err(|e| format!("Copy remains in its incomplete folder: {e}"))?;
     #[cfg(not(windows))]
     File::open(destination.parent().ok_or("Missing destination parent.")?)

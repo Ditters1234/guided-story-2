@@ -46,3 +46,7 @@ Relationships are directed records, not another node collection. **Feels toward*
 **Worn by → Wearing details** records current configuration, such as an open coat or raised hood. Garment design/condition belongs on the item. Wearing still uses one physical link and implies inventory membership. Wearing details marked for Images enter both native image preparation and optional image-prompt assistance.
 
 The connection’s **AI…** button develops empty checked fields or rerolls selected values. ID, type and endpoints are protected; changing placement is a separate manual Edit / move action or a reviewed passage effect. Proposals require Apply. Node removal clears typed relationship references/defaults, and capability removal checks reference filters as well as endpoint requirements. Past snapshots remain immutable.
+
+## Events and provenance
+
+Event is a shared-node preset describing an established occurrence/backstory. Participant/place/cause/consequence links remain descriptive, and creating an Event never replays physical effects. The shared inspector’s **Sources** action manages typed author notes and exact accepted-passage citations through native review. Historical source views are read-only. Node removal cleans current citation bindings without altering past snapshots. See [Events and sources](SOURCES.md).

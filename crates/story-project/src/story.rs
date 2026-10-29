@@ -190,6 +190,14 @@ pub struct ContinuityNote {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AcceptedPassage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_version_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_anchor: Option<RecordRef>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub earlier_text_anchors: BTreeMap<String, RecordRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_version: Option<RecordRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision_kind: Option<PassageRevisionKind>,
@@ -410,6 +418,7 @@ pub(crate) fn scene_world(world: &World, plan: &PassagePlan) -> Result<World, St
     let mut context = world.clone();
     context.ai_context.clear();
     context.nodes.retain(|n| ids.contains(&n.id));
+    crate::sources::scope_sources(&mut context);
     context
         .edges
         .retain(|e| ids.contains(&e.source_id) && ids.contains(&e.target_id));
@@ -441,10 +450,21 @@ impl Project {
         {
             return Err("Invalid accepted passage record.".into());
         }
+        self.validate_passage_anchors(&passage, &entry.record)?;
         let before: World = self.read_record("worlds", &passage.before_world)?;
         let after: World = self.read_record("worlds", &passage.after_world)?;
         before.validate()?;
         after.validate()?;
+        let position = index
+            .passages
+            .iter()
+            .position(|p| p.id == id)
+            .ok_or("Missing passage boundary.")?;
+        let mut boundary = index.clone();
+        boundary.passages.truncate(position);
+        self.validate_world_sources(&before, &boundary)?;
+        boundary.passages = index.passages.iter().take(position + 1).cloned().collect();
+        self.validate_world_sources(&after, &boundary)?;
         let evidence_prose = if let Some(source) = &passage.evidence_source {
             let anchor: AcceptedPassage = self.read_record("passages", source)?;
             if anchor.id != passage.id
@@ -726,13 +746,14 @@ impl Project {
             .last()
             .map(|ch| json!({"id":ch.id,"title":ch.title,"plan":ch.plan,"closed":ch.closed}));
         let memory = self.memory_context(index, plan, &context, memory_budget)?;
-        let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"recentPassages":recent,"earlierMemory":memory});
+        let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
         let mut fingerprint = story_hash(&(
-            "passage-source-v6-relationship-fields",
+            "passage-source-v7-event-sources",
             &input,
             &context.node_types,
             &context.component_types,
             &context.relation_types,
+            &context.source_annotations,
             settings,
         ))?;
         if let Some(included) = story_ai_context_stamp(world)? {
@@ -1249,8 +1270,24 @@ impl Project {
         let (world, index) = if d.attempt.is_some() {
             (world, index)
         } else {
+            let mut world = world;
+            let text_version_id = uuid::Uuid::new_v4().to_string();
+            let event_id = crate::sources::new_event_identity();
+            let text_anchor = self.write_text_anchor(
+                id,
+                &text_version_id,
+                &event_id,
+                &d.edits.plan.title,
+                &d.edits.prose,
+                &effects,
+            )?;
+            self.annotate_passage_events(&mut world, &effects, &d.allocations, &text_anchor)?;
             let after = self.write_record("worlds", &world)?;
             let passage = AcceptedPassage {
+                text_version_id: Some(text_version_id),
+                event_id: Some(event_id),
+                text_anchor: Some(text_anchor),
+                earlier_text_anchors: BTreeMap::new(),
                 previous_version: None,
                 revision_kind: None,
                 evidence_source: None,
@@ -1374,16 +1411,53 @@ impl Project {
         if !staging.starts_with(&parent) || !destination.starts_with(&parent) {
             return Err("Invalid fork destination.".into());
         }
+        let mut foundation = boundary.clone();
+        foundation.source_annotations.clear();
         let fork = Project::create(
             &staging,
             title.clone(),
-            boundary.clone(),
+            foundation,
             uuid::Uuid::new_v4().to_string(),
         )?;
+        self.copy_source_anchors(&fork, &boundary)?;
+        let mut required_source_versions = BTreeSet::new();
+        for entry in index.passages.iter().take(end + 1) {
+            let reading = self.read_passage(&entry.id)?;
+            for world in [&reading.before, &reading.after] {
+                for a in &world.source_annotations {
+                    if let SourceOrigin::Passage {
+                        passage_id,
+                        text_version_id,
+                        ..
+                    } = &a.origin
+                    {
+                        required_source_versions
+                            .insert((passage_id.clone(), text_version_id.clone()));
+                    }
+                }
+            }
+            if let Some(r) = &reading.passage.narration_source {
+                let world: World = self.read_record("worlds", r)?;
+                for a in world.source_annotations {
+                    if let SourceOrigin::Passage {
+                        passage_id,
+                        text_version_id,
+                        ..
+                    } = a.origin
+                    {
+                        required_source_versions.insert((passage_id, text_version_id));
+                    }
+                }
+            }
+        }
         let mut kept = StoryIndex::default();
         for entry in index.passages.iter().take(end + 1) {
-            let record =
-                self.copy_passage_for_fork(&fork, self.read_passage(&entry.id)?.passage)?;
+            let record = self.copy_passage_for_fork(
+                &fork,
+                self.read_passage(&entry.id)?.passage,
+                &entry.record,
+                &required_source_versions,
+            )?;
             if kept
                 .chapters
                 .last()
@@ -1413,7 +1487,7 @@ impl Project {
         self.copy_media_for_fork(&fork, &index, &mut kept)?;
         fork.commit_story(0, uuid::Uuid::new_v4().to_string(), title, boundary, kept)?;
         drop(fork);
-        fs::rename(&staging, &destination)
+        crate::store::publish_new_path(&staging, &destination)
             .map_err(|e| format!("Fork remains in its incomplete staging folder: {e}"))?;
         Project::open(&destination)
     }

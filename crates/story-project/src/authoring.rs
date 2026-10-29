@@ -408,6 +408,7 @@ pub fn prepare_authoring(
     let mut context = world.clone();
     context.ai_context.clear();
     context.nodes.retain(|n| context_ids.contains(&n.id));
+    crate::sources::scope_sources(&mut context);
     context
         .edges
         .retain(|e| context_ids.contains(&e.source_id) && context_ids.contains(&e.target_id));
@@ -454,7 +455,7 @@ pub fn prepare_authoring(
         .max()
         .unwrap_or(0);
     let estimated_node_tokens = 240 + fields_per_node * 16;
-    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/estimated_node_tokens).clamp(1,20)}});
+    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"sources":context.source_annotations,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/estimated_node_tokens).clamp(1,20)}});
     if request.mode == AuthoringMode::Create {
         input["creationIntent"] = json!(if request.type_id.is_some() {
             "node"
@@ -528,7 +529,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v6-relationship-fields",
+        "world-authoring-v7-event-sources",
         &system,
         &user,
         &response_schema,
@@ -1004,6 +1005,7 @@ fn candidate_world(
             *target = edge;
         }
     }
+    crate::sources::ensure_manual_event_sources(&mut world);
     world.validate()?;
     Ok((world, changes))
 }
@@ -1350,6 +1352,7 @@ impl Project {
                     ids.extend([edge.source_id.clone(), edge.target_id.clone()]);
                 }
                 context.nodes.retain(|n| ids.contains(&n.id));
+                crate::sources::scope_sources(&mut context);
                 context
                     .edges
                     .retain(|e| ids.contains(&e.source_id) && ids.contains(&e.target_id));

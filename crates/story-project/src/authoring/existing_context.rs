@@ -218,7 +218,7 @@ pub(super) fn group_context(
         detailed_node_ids,
         omitted_links,
     };
-    let payload = json!({"catalog":context.catalog,"details":details,"links":links,"coverage":{"totalNodes":context.total_nodes,"indexedNodes":context.catalog.len(),"fullRecords":context.detailed_node_ids.len(),"omittedNodes":context.omitted_nodes,"omittedDetails":context.omitted_details,"omittedLinks":context.omitted_links}});
+    let payload = json!({"catalog":context.catalog,"details":details,"links":links,"sources":world.source_annotations.iter().filter(|a|context.detailed_node_ids.contains(&a.node_id)).collect::<Vec<_>>(),"coverage":{"totalNodes":context.total_nodes,"indexedNodes":context.catalog.len(),"fullRecords":context.detailed_node_ids.len(),"omittedNodes":context.omitted_nodes,"omittedDetails":context.omitted_details,"omittedLinks":context.omitted_links}});
     if payload.to_string().len() > budget {
         return Err("Existing world context exceeded its allowance. Narrow required context or increase the context allowance.".into());
     }

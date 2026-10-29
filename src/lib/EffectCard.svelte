@@ -37,6 +37,7 @@
   <div class="effect-card-heading"><strong>{title}</strong>{#if issues.length||quoteError}<span class="effect-needs-correction">Needs correction</span>{:else if approved}<span class="effect-approved">Approved</span>{/if}</div>
   {#if issues.length}<div class="effect-card-issues" role="alert">{#each issues as issue}<p>{issue}</p>{/each}</div>{/if}
   {#if proposalNode}
+    {#if proposalNode.components['detail.event']}<p class="field-help">On acceptance, this quote becomes an exact passage-version citation. Recording the event does not replay other effects.</p>{/if}
     {#if differences.length}<dl class="effect-diff">{#each differences as row}<dt>{row.label}</dt><dd><del>{short(row.before)}</del><span aria-hidden="true"> → </span><ins>{short(row.after)}</ins></dd>{/each}</dl>
     {:else}<p>{short(proposalNode.description)||'No story notes.'}</p>{#if proposalNode.visualDescription}<p class="field-help">{short(proposalNode.visualDescription)}</p>{/if}{/if}
   {:else if effect?.kind==='putLink'}<div class="effect-diff">{#if priorLink}<p><strong>Before:</strong> {linkLabel(world,world.nodes,priorLink)}</p>{/if}<p><strong>After:</strong> {linkLabel(world,nodes,effect.link)}</p></div><dl class="effect-diff">{#each linkDiff(world,nodes,effect.link,priorLink) as row}<dt>{row.label}</dt><dd><del>{short(row.before)}</del> → <ins>{short(row.after)}</ins></dd>{/each}</dl>

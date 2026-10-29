@@ -34,7 +34,7 @@ Implement in these ordered slices:
 
 Each slice must cover native validation, UI, AI schemas/protections, context fingerprints and history where relevant. Use the fictional end-to-end fixture and completion criteria in the node specification. Richer schemas alone do not establish narrative quality. Keep advanced genre bundles, live inheritance, faction simulation and workflow engines outside this pass.
 
-Current checkpoint: the capability/default bundles, typed custom forms and shared task/media projections are implemented, together with Organization/Lore/World rule/Story brief. Rich link properties, Event/source annotations, Visual style bindings and situated knowledge remain the next slices. See [verified evidence](FOUNDATION_STATUS.md).
+Current checkpoint: the capability/default bundles, typed custom forms and shared task/media projections are implemented, together with Organization/Lore/World rule/Story brief. Typed relationships and Event/source annotations are now implemented; Visual style bindings and situated knowledge remain the next slices. See [verified evidence](FOUNDATION_STATUS.md).
 
 ## Findings resolved in the proposal
 
@@ -147,4 +147,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Continue from the implemented capability/default-preset and typed-relationship slices into Event/source records and Visual style/direct-image bindings, then situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.
+Continue from the implemented capability/default-preset, typed-relationship and Event/source slices into Visual style/direct-image bindings, then situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.

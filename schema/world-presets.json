@@ -109,6 +109,14 @@
       "name": "Note",
       "description": "General supplementary notes or custom guidance.",
       "components": []
+    },
+    {
+      "id": "core.event",
+      "name": "Event",
+      "description": "A significant established occurrence or author-supplied backstory, with source citations. Future intentions belong in plans or threads.",
+      "components": [
+        "detail.event"
+      ]
     }
   ],
   "componentTypes": [
@@ -1260,6 +1268,55 @@
           }
         }
       ]
+    },
+    {
+      "id": "detail.event",
+      "name": "Event",
+      "description": "Describes an established occurrence without replaying its effects. Source citations are separate typed metadata.",
+      "fields": [
+        {
+          "key": "occurrence",
+          "label": "What happened",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Describe the established occurrence, not an intended future scene.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "when",
+          "label": "When",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "An optional fictional time label; no calendar or offscreen simulation.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "significance",
+          "label": "Significance",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Established consequences or relevance. Desired future payoffs belong in planning fields.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
     }
   ],
   "relationTypes": [
@@ -1527,6 +1584,42 @@
           }
         }
       ]
+    },
+    {
+      "id": "story.participant",
+      "name": "Participant",
+      "label": "participant",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.occurred-at",
+      "name": "Occurred at",
+      "label": "occurred at",
+      "sourceCapability": "detail.event",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.caused-by",
+      "name": "Caused by",
+      "label": "caused by",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.resulted-in",
+      "name": "Resulted in",
+      "label": "resulted in",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
     }
   ]
 }

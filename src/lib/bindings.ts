@@ -19,6 +19,9 @@ export const commands = {
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit_Deserialize) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
 	validateWorld: (world: World_Deserialize) => typedError<World_Serialize, string>(__TAURI_INVOKE("validate_world", { world })),
+	previewSourceEdit: (storyId: string, world: World_Deserialize, edit: SourceEdit_Deserialize) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_source_edit", { storyId, world, edit })),
+	nodeSources: (storyId: string, world: World_Deserialize, nodeId: string) => typedError<NodeSourceView_Serialize[], string>(__TAURI_INVOKE("node_sources", { storyId, world, nodeId })),
+	readNodeSource: (storyId: string, world: World_Deserialize, id: string) => typedError<SourceReading, string>(__TAURI_INVOKE("read_node_source", { storyId, world, id })),
 	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
 	savePreferences: (expectedVersion: number, preferences: Preferences) => typedError<Preferences, string>(__TAURI_INVOKE("save_preferences", { expectedVersion, preferences })),
@@ -92,6 +95,10 @@ export const commands = {
 export type AcceptedPassage = AcceptedPassage_Serialize | AcceptedPassage_Deserialize;
 
 export type AcceptedPassage_Deserialize = {
+	textVersionId?: string | null,
+	eventId?: string | null,
+	textAnchor?: RecordRef | null,
+	earlierTextAnchors?: { [key in string]: RecordRef },
 	previousVersion?: RecordRef | null,
 	revisionKind?: PassageRevisionKind | null,
 	evidenceSource?: RecordRef | null,
@@ -112,6 +119,10 @@ export type AcceptedPassage_Deserialize = {
 };
 
 export type AcceptedPassage_Serialize = {
+	textVersionId?: string,
+	eventId?: string,
+	textAnchor?: RecordRef,
+	earlierTextAnchors?: { [key in string]: RecordRef },
 	previousVersion?: RecordRef,
 	revisionKind?: PassageRevisionKind,
 	evidenceSource?: RecordRef,
@@ -948,6 +959,22 @@ export type NodeCandidate_Serialize = {
 	edges: WorldEdge_Serialize[],
 };
 
+export type NodeSourceView = NodeSourceView_Serialize | NodeSourceView_Deserialize;
+
+export type NodeSourceView_Deserialize = {
+	annotation: SourceAnnotation_Deserialize,
+	title: string,
+	earlierWording: boolean,
+	editedSinceSource: boolean,
+};
+
+export type NodeSourceView_Serialize = {
+	annotation: SourceAnnotation_Serialize,
+	title: string,
+	earlierWording: boolean,
+	editedSinceSource: boolean,
+};
+
 export type NodeTypeDefinition = {
 	id: string,
 	name: string,
@@ -1267,6 +1294,42 @@ export type ShotFact = {
 	fingerprint: string,
 };
 
+export type SourceAnnotation = SourceAnnotation_Serialize | SourceAnnotation_Deserialize;
+
+export type SourceAnnotation_Deserialize = {
+	id: string,
+	nodeId: string,
+	subjectFingerprint: string,
+	origin: SourceOrigin_Deserialize,
+};
+
+export type SourceAnnotation_Serialize = {
+	id: string,
+	nodeId: string,
+	subjectFingerprint: string,
+	origin: SourceOrigin_Serialize,
+};
+
+export type SourceEdit = SourceEdit_Serialize | SourceEdit_Deserialize;
+
+export type SourceEdit_Deserialize = { kind: "addManual"; nodeId: string; note: string } | { kind: "addPassage"; nodeId: string; passageId: string; version: RecordRef; quote: string; effectIndex?: number | null } | { kind: "remove"; id: string };
+
+export type SourceEdit_Serialize = { kind: "addManual"; nodeId: string; note: string } | { kind: "addPassage"; nodeId: string; passageId: string; version: RecordRef; quote: string; effectIndex: number | null } | { kind: "remove"; id: string };
+
+export type SourceOrigin = SourceOrigin_Serialize | SourceOrigin_Deserialize;
+
+export type SourceOrigin_Deserialize = { kind: "manual"; note: string } | { kind: "passage"; passageId: string; textVersionId: string; eventId: string; anchor: RecordRef; quote: string; effectIndex?: number | null };
+
+export type SourceOrigin_Serialize = { kind: "manual"; note: string } | { kind: "passage"; passageId: string; textVersionId: string; eventId: string; anchor: RecordRef; quote: string; effectIndex: number | null };
+
+export type SourceReading = {
+	title: string,
+	prose: string,
+	quote: string,
+	passageId: string,
+	earlierWording: boolean,
+};
+
 export type StoryIndex = StoryIndex_Serialize | StoryIndex_Deserialize;
 
 export type StoryIndex_Deserialize = {
@@ -1439,6 +1502,7 @@ export type World_Deserialize = {
 	componentTypes: ComponentDefinition_Deserialize[],
 	relationTypes: RelationDefinition_Deserialize[],
 	aiContext?: AiContextBinding[],
+	sourceAnnotations?: SourceAnnotation_Deserialize[],
 };
 
 export type World_Serialize = {
@@ -1448,6 +1512,7 @@ export type World_Serialize = {
 	componentTypes: ComponentDefinition_Serialize[],
 	relationTypes: RelationDefinition_Serialize[],
 	aiContext?: AiContextBinding[],
+	sourceAnnotations?: SourceAnnotation_Serialize[],
 };
 
 /* Tauri Specta runtime */

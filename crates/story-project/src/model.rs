@@ -168,6 +168,8 @@ pub struct World {
     pub relation_types: Vec<RelationDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ai_context: Vec<crate::AiContextBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_annotations: Vec<crate::SourceAnnotation>,
 }
 
 /// Original field order/values for verifying immutable commit receipts. Never
@@ -182,6 +184,8 @@ pub(crate) struct StoredWorld {
     relation_types: Vec<RelationDefinition>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     ai_context: Vec<crate::AiContextBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    source_annotations: Vec<crate::SourceAnnotation>,
 }
 
 // Upgrade the in-memory interpretation only. Checksums are verified against the
@@ -196,6 +200,7 @@ impl<'de> Deserialize<'de> for World {
             component_types: data.component_types,
             relation_types: data.relation_types,
             ai_context: data.ai_context,
+            source_annotations: data.source_annotations,
         };
         world
             .upgrade_legacy_wearing()
@@ -335,6 +340,7 @@ impl World {
 
     pub fn validate(&self) -> Result<(), String> {
         crate::ai_context::validate_ai_context(self)?;
+        crate::sources::validate_annotation_shapes(self)?;
         // Extensions use their own IDs rather than weakening built-in behavior.
         let builtins: Self = serde_json::from_str(include_str!("../../../schema/world-core.json"))
             .expect("Invalid native world contracts");

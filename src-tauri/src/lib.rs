@@ -14,6 +14,8 @@ mod media;
 use media::*;
 mod image_prompts;
 use image_prompts::*;
+mod sources;
+use sources::*;
 mod backups;
 use backups::*;
 
@@ -294,6 +296,9 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             clear_matching_draft,
             preview_world_edit,
             validate_world,
+            preview_source_edit,
+            node_sources,
+            read_node_source,
             preview_ai_context,
             load_preferences,
             save_preferences,

@@ -39,7 +39,7 @@ Pre-implementation review: [REVIEW_AND_BUILD_PLAN.md](REVIEW_AND_BUILD_PLAN.md) 
 
 ## Composable-node revision
 
-[WORLD_NODE_DESIGN.md](WORLD_NODE_DESIGN.md) specifies richer bundled presets, field semantics and single ownership of facts, useful places/items/threads, typed relationship properties, knowledge/source boundaries, compact capability-driven editing and shared task projections. Its capability/default-preset and typed-relationship slices are implemented in story format 2; the checkpoint and remaining slices distinguish actual behavior from target design.
+[WORLD_NODE_DESIGN.md](WORLD_NODE_DESIGN.md) specifies richer bundled presets, field semantics and single ownership of facts, useful places/items/threads, typed relationship properties, knowledge/source boundaries, compact capability-driven editing and shared task projections. Its capability/default-preset, typed-relationship and Event/source slices are implemented in story format 2; the checkpoint and remaining slices distinguish actual behavior from target design.
 
 Additional core presets cover Organization, Lore, World rule, Event, Story brief and Visual style alongside Narration style. They are available creation bundles, not mandatory instances or separate collections. Events reference established history; future plans remain plans. More specialised presets can follow without changing the base-node model. A preset catalogue update must never silently rewrite existing instances or saved historical schemas.
 

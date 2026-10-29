@@ -452,3 +452,63 @@ fn replacing_an_older_draft_archives_it_instead_of_silently_erasing_it() {
         .flatten()
         .any(|e| e.file_name().to_string_lossy().starts_with("draft-")));
 }
+
+#[cfg(windows)]
+#[test]
+fn windows_file_retry_is_bounded_and_does_not_repeat_other_failures() {
+    let mut attempts = 0;
+    let mut waited = Vec::new();
+    let result = retry_windows_io(
+        || {
+            attempts += 1;
+            if attempts < 3 {
+                Err(std::io::Error::from_raw_os_error(32))
+            } else {
+                Ok(7)
+            }
+        },
+        |delay| waited.push(delay.as_millis()),
+    );
+    assert_eq!(result.unwrap(), 7);
+    assert_eq!(attempts, 3);
+    assert_eq!(waited, vec![20, 50]);
+    let mut attempts = 0;
+    let mut waited = 0;
+    let result: std::io::Result<()> = retry_windows_io(
+        || {
+            attempts += 1;
+            Err(std::io::Error::from_raw_os_error(5))
+        },
+        |d| waited += d.as_millis(),
+    );
+    assert!(result.is_err());
+    assert_eq!(attempts, 6);
+    assert_eq!(waited, 770);
+    let mut attempts = 0;
+    let result: std::io::Result<()> = retry_windows_io(
+        || {
+            attempts += 1;
+            Err(std::io::Error::from_raw_os_error(2))
+        },
+        |_| panic!("Not-found must not retry"),
+    );
+    assert!(result.is_err());
+    assert_eq!(attempts, 1);
+}
+#[test]
+fn immutable_publication_never_overwrites_existing_files_or_folders() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source.json");
+    let target = temp.path().join("target.json");
+    std::fs::write(&source, b"source").unwrap();
+    std::fs::write(&target, b"existing").unwrap();
+    assert!(publish_new_path(&source, &target).is_err());
+    assert_eq!(std::fs::read(&target).unwrap(), b"existing");
+    assert!(source.exists());
+    let source = temp.path().join("source-dir");
+    let target = temp.path().join("target-dir");
+    std::fs::create_dir(&source).unwrap();
+    std::fs::create_dir(&target).unwrap();
+    assert!(publish_new_path(&source, &target).is_err());
+    assert!(source.exists());
+}

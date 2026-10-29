@@ -335,7 +335,26 @@ impl Project {
             )
         } else {
             let (world, record) = if revision.kind == PassageRevisionKind::Wording {
-                (current.world.clone(), self.wording_record(draft)?)
+                let mut record = self.wording_record(draft)?;
+                record.text_version_id = Some(uuid::Uuid::new_v4().to_string());
+                record.event_id = Some(crate::sources::passage_event_identity(&base));
+                let (old_anchor, reference) =
+                    self.capture_source_anchor(&base, &revision.source)?;
+                record
+                    .earlier_text_anchors
+                    .insert(old_anchor.text_version_id, reference);
+                record.text_anchor = Some(self.write_text_anchor(
+                    &record.id,
+                    record.text_version_id.as_ref().unwrap(),
+                    record.event_id.as_ref().unwrap(),
+                    &record.plan.title,
+                    &record.prose,
+                    &record.effects,
+                )?);
+                if record.earlier_text_anchors.len() > 512 {
+                    return Err("The passage has too many wording anchors. Fork before adding more revisions.".into());
+                }
+                (current.world.clone(), record)
             } else {
                 let before: World = self.read_record("worlds", &base.before_world)?;
                 let context = scene_world(&before, &draft.edits.plan)?;
@@ -355,8 +374,29 @@ impl Project {
                         }
                     }
                 }
+                let mut world = world;
+                let text_version_id = uuid::Uuid::new_v4().to_string();
+                let event_id = crate::sources::new_event_identity();
+                let text_anchor = self.write_text_anchor(
+                    &base.id,
+                    &text_version_id,
+                    &event_id,
+                    &draft.edits.plan.title,
+                    &draft.edits.prose,
+                    &effects,
+                )?;
+                self.annotate_passage_events(
+                    &mut world,
+                    &effects,
+                    &draft.allocations,
+                    &text_anchor,
+                )?;
                 let after = self.write_record("worlds", &world)?;
                 let record = AcceptedPassage {
+                    text_version_id: Some(text_version_id),
+                    event_id: Some(event_id),
+                    text_anchor: Some(text_anchor),
+                    earlier_text_anchors: BTreeMap::new(),
                     previous_version: Some(revision.source.clone()),
                     revision_kind: Some(PassageRevisionKind::Events),
                     evidence_source: None,
@@ -465,7 +505,10 @@ impl Project {
         &self,
         fork: &Project,
         mut record: AcceptedPassage,
+        source_record: &RecordRef,
+        required_sources: &BTreeSet<(String, String)>,
     ) -> Result<AcceptedPassage, String> {
+        self.freeze_fork_text_identity(fork, &mut record, source_record)?;
         if let Some(source) = &record.evidence_source {
             let mut anchor: AcceptedPassage = self.read_record("passages", source)?;
             if anchor.id != record.id
@@ -477,16 +520,58 @@ impl Project {
                     "The retained wording evidence anchor does not match its events.".into(),
                 );
             }
+            self.freeze_fork_text_identity(fork, &mut anchor, source)?;
             anchor.previous_version = None;
             anchor.evidence_source = None;
+            self.copy_retained_text_anchors(fork, &mut anchor, required_sources)?;
             self.copy_passage_worlds(fork, &mut anchor)?;
             record.evidence_source = Some(fork.write_record("passages", &anchor)?);
         }
         record.previous_version = None;
+        self.copy_retained_text_anchors(fork, &mut record, required_sources)?;
         self.copy_passage_worlds(fork, &mut record)?;
         Ok(record)
     }
 
+    fn freeze_fork_text_identity(
+        &self,
+        fork: &Project,
+        record: &mut AcceptedPassage,
+        original: &RecordRef,
+    ) -> Result<(), String> {
+        if record.text_version_id.is_none() {
+            let event_id = crate::sources::passage_event_identity(record);
+            let anchor = fork.write_text_anchor(
+                &record.id,
+                &original.id,
+                &event_id,
+                &record.plan.title,
+                &record.prose,
+                &record.effects,
+            )?;
+            record.text_version_id = Some(original.id.clone());
+            record.event_id = Some(event_id);
+            record.text_anchor = Some(anchor);
+        }
+        Ok(())
+    }
+    fn copy_retained_text_anchors(
+        &self,
+        fork: &Project,
+        record: &mut AcceptedPassage,
+        required: &BTreeSet<(String, String)>,
+    ) -> Result<(), String> {
+        record
+            .earlier_text_anchors
+            .retain(|version, _| required.contains(&(record.id.clone(), version.clone())));
+        if let Some(r) = &record.text_anchor {
+            self.copy_text_anchor(fork, r)?;
+        }
+        for r in record.earlier_text_anchors.values() {
+            self.copy_text_anchor(fork, r)?;
+        }
+        Ok(())
+    }
     fn copy_passage_worlds(
         &self,
         fork: &Project,
@@ -495,11 +580,13 @@ impl Project {
         for reference in [&mut record.before_world, &mut record.after_world] {
             let world: World = self.read_record("worlds", reference)?;
             world.validate()?;
+            self.copy_source_anchors(fork, &world)?;
             *reference = fork.write_record("worlds", &world)?;
         }
         if let Some(source) = &record.narration_source {
             let world: World = self.read_record("worlds", source)?;
             world.validate()?;
+            self.copy_source_anchors(fork, &world)?;
             record.narration_source = Some(fork.write_record("worlds", &world)?);
         }
         Ok(())

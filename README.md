@@ -46,6 +46,8 @@ Valid manual edits and unfinished drafts autosave. AI world proposals require **
 
 This revision uses **story format 2**. Start a new story folder; older prototype stories are preserved but are not migrated. App appearance, API settings and credentials remain separate and retain their existing formats.
 
+**Event** records established occurrences or authored backstory. **Sources** in the shared inspector manages author notes and exact passage-version citations, with earlier-wording labels and read-only historical evidence. Event creation never replays its effects. See [Events and sources](SOURCES.md).
+
 ## Design and build documents
 
 - [Product design](DESIGN_REVIEW.md): confirmed decisions, authoring flows, records, media and history.
@@ -55,7 +57,7 @@ This revision uses **story format 2**. Start a new story folder; older prototype
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
 
-The initial node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style and Note presets. Presets are available without populating empty stories. Rich relationship properties, source-linked Event and Visual style presets, and situated knowledge remain later slices of the design.
+The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note and Event presets. Rich typed relationships and [Event/source citations](SOURCES.md) use the shared tools. Presets are available without populating empty stories. Visual style/direct-image bindings and situated knowledge remain later slices.
 
 ## Technical direction
 

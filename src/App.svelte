@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {mergeNativeSources} from './lib/sources-ui';
+  import SourcesDialog from './lib/SourcesDialog.svelte';
   import BackupDialog from './lib/BackupDialog.svelte';
   import AiContextDialog from './lib/AiContextDialog.svelte';
   import {setContextBinding,addNarrationStyle} from './lib/ai-context';
@@ -66,6 +68,8 @@
   let systemDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
   const colorMode = $derived(resolveTheme(appearance.value, systemDark).mode);
   $effect(() => { applyAppearance(appearance.value, systemDark); });
+  let sourceNodeId=$state<string|null>(null);
+  async function openSources(id:string){if(!project||busy)return;try{if(!historyWorld)await flush();sourceNodeId=id;}catch(caught){error=describe(caught);}}
   let structuralEdit = $state<WorldEdit | null>(null);
   let showRelationshipType = $state(false);
   let showCreate = $state(false);
@@ -140,6 +144,8 @@
         }
         const result: CommitResult_Serialize = unwrap(await commands.saveProject(operation.expectedRevision, operation.requestId, operation.title, operation.world));
         project = result.project;
+        // Merge native-added provenance without replacing typing made during this save.
+        world=mergeNativeSources(world,operation.world,result.project.world);
         savedVersion = operation.version;
         pending = null;
         error = '';
@@ -209,7 +215,7 @@
     const sameStory=project?.storyId===view.storyId&&project?.folderPath===view.folderPath;
     project = view; world = view.world;
     historyWorld=null;historyLabel='';
-    if(!sameStory){aiRunId=null;aiRunning=false;aiRequest=null;imagePromptRunId=null;imagePromptMediaId=null;imagePromptRunning=false;imagePromptRetained=false;imagePromptTarget=null;imagePromptWorlds=null;passageRunning=false;storyOpened=false;surface='world';}
+    if(!sameStory){sourceNodeId=null;aiRunId=null;aiRunning=false;aiRequest=null;imagePromptRunId=null;imagePromptMediaId=null;imagePromptRunning=false;imagePromptRetained=false;imagePromptTarget=null;imagePromptWorlds=null;passageRunning=false;storyOpened=false;surface='world';}
     editVersion = savedVersion = persistedDraftVersion = 0; pending = null;
     workspace = { version: 0, expandedIds: view.world.nodes.filter((n) => n.components["core.place"]).map((n) => n.id), selectedId: view.world.nodes[0]?.id ?? null, positions: {} };
     search = ''; error = view.warnings.join(' '); layoutError = ''; recoveryPath = null;
@@ -374,7 +380,7 @@
 
 <svelte:head><title>{project?.title ?? 'Open a story'} · Guided Story 2</title></svelte:head>
 
-<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || showContext || !!structuralEdit || !!backupMode}>
+<div class="app-shell" inert={showCreate || showType || showRelationshipType || showSettings || showAi || showContext || !!structuralEdit || !!backupMode || !!sourceNodeId}>
   <header class="app-header">
     <div class="brand" aria-label="Guided Story 2"><img src={icon} alt="" /><span>guided story</span></div>
     <div class="header-actions"><details class="add-menu project-menu"><summary>Project</summary><div><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;void openProject();}}>Open project…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;showNewProject();}}>New project…</button><button disabled={!desktop||busy||!project} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='export';}}>Export backup…</button><button disabled={!desktop||busy} onclick={event=>{event.currentTarget.closest('details')!.open=false;backupMode='restore';}}>Restore backup…</button></div></details><button class="settings-button quiet-button" onclick={()=>{settingsSection='appearance';showSettings=true;}} aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m9 3-1 3-3 1-2 3 2 2v3l3 1 1 3h6l1-3 3-1v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="11" r="3"/></svg></button></div>
@@ -430,7 +436,7 @@
       <Pane defaultSize={25} minSize={20} maxSize={36}>
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
         <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability} onDefineCapability={()=>{showExtension=true;}} onRetype={id=>{const n=world.nodes.find(n=>n.id===id);if(n)reviewEdit({kind:'retypeNode',id,typeId:n.typeId});}}
-          onAi={openAi} onAiLink={openAiLink} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
+          onAi={openAi} onAiLink={openAiLink} onSources={id=>{void openSources(id);}} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
           onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
         {/if}
@@ -469,3 +475,5 @@
 {#if showExtension&&selected}
   <NodeDefinitionDialog {world} attachToId={selected.id} onApply={applyDefinition} onClose={()=>{showExtension=false;}}/>
 {/if}
+
+{#if sourceNodeId&&project}<SourcesDialog storyId={project.storyId} world={displayWorld} nodeId={sourceNodeId} editable={!historyWorld&&!busy} onApply={(next,source)=>{if(!project||historyWorld||JSON.stringify(world)!==source)throw Error('The world changed. Reopen sources and review the citation again.');applyStructure(next,source);sourceNodeId=null;}} onClose={()=>{sourceNodeId=null;}}/>{/if}

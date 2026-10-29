@@ -83,3 +83,11 @@ Use a connection’s **AI…** action with blank direction and empty checked fie
 Create a custom relationship via **Add node → Define a relationship…**, adding Choice, Number, Yes/no and Node reference fields. Review/Apply the definition, use it on a connection, save zero/No, and reopen. Change a connection type and check that its review lists cleared old details. Try at 140% text in a small window; dialog actions stay visible while the form scrolls.
 
 On a worn item, set **Wearing details** to “open coat, sleeves rolled.” Keep garment design on the item and one physical link. Confirm captured image facts include the wearing configuration. In passage review, edit/approve a relationship detail as a normal card; source quote errors and unknown fields must be editable on that card. Accept, inspect Before/After and fork after it; later manual edits must not rewrite those snapshots. These checks assess the flow; real-model output quality and ComfyUI execution require separate explicit tests.
+
+## Event and source pass
+
+Create an Event such as an old mill fire, fill What happened/When/Significance, and link participants and a place. Confirm it receives author provenance, without moving anyone or changing inventory. Revise blank fields using AI and apply; source metadata remains separately controlled.
+
+In **Sources**, add an author note, then cite an accepted passage using a continuous excerpt and optional effect scope. Review/Apply, remove one citation and reopen. Read exact source, polish the passage and check the earlier-wording label. Edit the current node and check “Node edited since citation.” Historical source controls must be read-only. Removing an Event’s last passage citation explains that it remains author-established; replace a sole author source before removing that note.
+
+Accept a passage with an individually approved Event card. Check Before/After, current source identity and effect number; no Event effects should replay. Fork after it, make the source project unavailable, and read the quoted evidence in the independent copy. A later Event/quote must be absent. Export/restore a backup including an earlier-wording citation. Try the Sources form at 140% text in a smaller window; footer controls should stay visible while the content scrolls.

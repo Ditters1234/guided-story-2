@@ -183,7 +183,8 @@ pub fn narrative_record(world: &World, node: &WorldNode) -> Value {
         .collect();
     json!({"id":node.id,"name":node.name,"typeId":node.type_id,
         "capabilities":node.components.keys().collect::<Vec<_>>(),
-        "notes":node.description,"visualNotes":node.visual_description,"details":sections})
+        "notes":node.description,"visualNotes":node.visual_description,"details":sections,
+        "sources":world.source_annotations.iter().filter(|a|a.node_id==node.id).map(|a|serde_json::json!({"origin":a.origin,"recordEditedSinceCitation":a.subject_fingerprint!=crate::sources::node_source_fingerprint(node)})).collect::<Vec<_>>()})
 }
 
 /// Values with no visual hint are not inferred to describe appearance. Supplementary

@@ -7,7 +7,7 @@
   import AiContextBindingEditor from './AiContextBindingEditor.svelte';
   import {hasCapability} from './node-fields';
   import type {AiContextBinding} from './bindings';
-  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onDefineCapability, onRetype, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onAiLink,onContext,onContextOpen }: {
+  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onDefineCapability, onRetype, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onAiLink,onSources,onContext,onContextOpen }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
     imageStoryId:string|null;revision:number;onImage:(id:string)=>void;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
@@ -16,7 +16,7 @@
     onAddCapability: (componentId: string) => void;onDefineCapability:()=>void;onRetype:(id:string)=>void;
     onRemoveNode: (id: string) => void; onRemoveCapability: (id: string, capability: string) => void;
     onLink: (id: string) => void; onNewLink: (id: string) => void; onRemoveLink: (id: string) => void;
-    onAi: (id:string)=>void;onAiLink:(id:string)=>void;
+    onAi: (id:string)=>void;onAiLink:(id:string)=>void;onSources:(id:string)=>void;
     onContext:(binding:AiContextBinding)=>void;onContextOpen:()=>void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
@@ -54,6 +54,7 @@
         {#if edge.description}<p class="field-help">{edge.description}</p>{/if}{#each relation?.fields??[] as field}{#if edge.properties?.[field.key]!==undefined&&edge.properties?.[field.key]!==null&&edge.properties?.[field.key]!==''}<p class="field-help">{field.label}: {valueLabel(edge.properties?.[field.key],world.nodes,field.kind)}</p>{/if}{/each}
       {:else}<p class="field-help">No connections.</p>{/each}
     </div>
+    <div class="section-actions"><button class="text-action" onclick={()=>onSources(node!.id)}>Sources ({world.sourceAnnotations?.filter(a=>a.nodeId===node!.id).length??0})</button></div>
     <details class="linked-section"><summary>AI context</summary><div class="section-actions">{#if editable}<button class="text-action" onclick={onContextOpen}>Manage / preview</button>{/if}</div><AiContextBindingEditor nodeId={node.id} {world} binding={world.aiContext?.find(b=>b.nodeId===node!.id)} disabled={!editable} onChange={onContext}/></details>
     <details class="linked-section"><summary>Manage extensions</summary>
       {#each Object.keys(node.components) as id}
