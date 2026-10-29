@@ -30,6 +30,13 @@ pub struct EditableField {
     pub component_id: Option<String>,
     pub key: String,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EditableLinkField {
+    pub link_id: String,
+    /// None selects notes; Some selects a declared relationship property.
+    pub property: Option<String>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AuthoringRequest {
@@ -44,6 +51,10 @@ pub struct AuthoringRequest {
     pub target_ids: Vec<String>,
     pub context_ids: Vec<String>,
     pub fields: Vec<EditableField>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub link_target_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub link_fields: Vec<EditableLinkField>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -151,15 +162,20 @@ fn hash<T: Serialize>(value: &T) -> Result<String, String> {
 }
 fn bounded_request(request: &AuthoringRequest) -> Result<(), String> {
     if request.direction.chars().count() > 12000
-        || request.target_ids.len() > 12
+        || request.target_ids.len() + request.link_target_ids.len() > 12
         || request.context_ids.len() > 12
-        || request.fields.len() > 200
+        || request.fields.len() + request.link_fields.len() > 200
     {
         return Err(
             "Narrow the request: at most 12 targets/references and 200 editable fields.".into(),
         );
     }
-    for id in request.target_ids.iter().chain(&request.context_ids) {
+    for id in request
+        .target_ids
+        .iter()
+        .chain(&request.context_ids)
+        .chain(&request.link_target_ids)
+    {
         validate_id(id)?;
     }
     Ok(())
@@ -188,7 +204,7 @@ pub fn authoring_fields(world: &World, targets: &[String]) -> Vec<EditableField>
     }
     fields
 }
-fn field_schema(field: &FieldDefinition) -> Value {
+pub(crate) fn field_schema(field: &FieldDefinition) -> Value {
     let mut schema = match field.kind {
         FieldKind::Text | FieldKind::LongText => json!({"type":"string","maxLength":16000}),
         FieldKind::Number => json!({"type":"number"}),
@@ -206,6 +222,51 @@ fn field_schema(field: &FieldDefinition) -> Value {
         schema["description"] = json!(help);
     }
     schema
+}
+pub fn authoring_link_fields(world: &World, targets: &[String]) -> Vec<EditableLinkField> {
+    world
+        .edges
+        .iter()
+        .filter(|e| targets.contains(&e.id))
+        .flat_map(|edge| {
+            std::iter::once(EditableLinkField {
+                link_id: edge.id.clone(),
+                property: None,
+            })
+            .chain(
+                world
+                    .relation_types
+                    .iter()
+                    .find(|d| d.id == edge.type_id)
+                    .into_iter()
+                    .flat_map(|d| &d.fields)
+                    .map(|f| EditableLinkField {
+                        link_id: edge.id.clone(),
+                        property: Some(f.key.clone()),
+                    }),
+            )
+        })
+        .collect()
+}
+fn link_selected(request: &AuthoringRequest, id: &str, property: Option<&str>) -> bool {
+    request
+        .link_fields
+        .iter()
+        .any(|f| f.link_id == id && f.property.as_deref() == property)
+}
+pub(crate) fn relationship_schema(world: &World) -> Value {
+    let choices:Vec<_> = world.relation_types.iter().map(|r| {
+        let properties:serde_json::Map<String,Value> = r.fields.iter().map(|f| (f.key.clone(), field_schema(f))).collect();
+        json!({"type":"object","properties":{
+            "id":{"type":"string"},"typeId":{"const":r.id},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string","maxLength":16000},
+            "properties":{"type":"object","properties":properties,"required":r.fields.iter().filter(|f|f.required).map(|f|&f.key).collect::<Vec<_>>(),"additionalProperties":false}
+        },"required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false})
+    }).collect();
+    if choices.is_empty() {
+        json!({"not":{}})
+    } else {
+        json!({"anyOf":choices})
+    }
 }
 fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
     let mut choices = vec![];
@@ -242,11 +303,14 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
             "components":{"allOf":[{"$ref":"#/$defs/components"}],"required":required}
         },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false}));
     }
+    let node_schema = if choices.is_empty() {
+        json!({"type":"object","properties":{},"additionalProperties":false})
+    } else {
+        json!({"anyOf":choices})
+    };
     json!({"type":"object","$defs":{"components":{"type":"object","properties":component_properties,"additionalProperties":false}},"properties":{
-        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group){0}else{1},"maxItems":20,"items":{"anyOf":choices}},
-        "edges":{"type":"array","maxItems":80,"items":{"type":"object","properties":{
-            "id":{"type":"string"},"typeId":{"type":"string","enum":world.relation_types.iter().map(|r|&r.id).collect::<Vec<_>>()},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string","maxLength":16000}
-        },"required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false}}
+        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group)||request.target_ids.is_empty(){0}else{1},"maxItems":if request.mode==AuthoringMode::Revise{request.target_ids.len()}else{20},"items":node_schema},
+        "edges":{"type":"array","maxItems":if request.mode==AuthoringMode::Revise{request.link_target_ids.len()}else{80},"items":relationship_schema(world)}
     },"required":["nodes","edges"],"additionalProperties":false})
 }
 pub fn prepare_authoring(
@@ -261,26 +325,38 @@ pub fn prepare_authoring(
         return Err("Describe what you want to create or change.".into());
     }
     let targets: BTreeSet<_> = request.target_ids.iter().cloned().collect();
-    let context_ids: BTreeSet<_> = request
+    let mut context_ids: BTreeSet<_> = request
         .target_ids
         .iter()
         .chain(&request.context_ids)
         .cloned()
         .collect();
+    let link_targets: BTreeSet<_> = request.link_target_ids.iter().cloned().collect();
+    for id in &link_targets {
+        let edge = world
+            .edges
+            .iter()
+            .find(|e| &e.id == id)
+            .ok_or("A selected relationship no longer exists.")?;
+        context_ids.extend([edge.source_id.clone(), edge.target_id.clone()]);
+    }
     for id in &context_ids {
         if !world.nodes.iter().any(|n| &n.id == id) {
             return Err("A selected target or reference no longer exists.".into());
         }
     }
     if request.mode == AuthoringMode::Revise {
-        if targets.is_empty()
+        if (targets.is_empty() && link_targets.is_empty())
             || targets.len() != request.target_ids.len()
-            || request.fields.is_empty()
+            || link_targets.len() != request.link_target_ids.len()
+            || (request.fields.is_empty() && request.link_fields.is_empty())
             || request.bundle
             || request.creation_scope.is_some()
             || request.group_type_id.is_some()
         {
-            return Err("Select existing nodes and the fields AI may change.".into());
+            return Err(
+                "Select existing nodes or relationships and the fields AI may change.".into(),
+            );
         }
         let allowed = authoring_fields(world, &request.target_ids);
         let mut unique = BTreeSet::new();
@@ -292,8 +368,22 @@ pub fn prepare_authoring(
                 );
             }
         }
+        let allowed = authoring_link_fields(world, &request.link_target_ids);
+        let mut unique = BTreeSet::new();
+        for field in &request.link_fields {
+            if !allowed.contains(field) || !unique.insert(field) {
+                return Err(
+                    "A relationship field is missing, duplicated or outside the selected targets."
+                        .into(),
+                );
+            }
+        }
     } else {
-        if !request.target_ids.is_empty() || !request.fields.is_empty() {
+        if !request.target_ids.is_empty()
+            || !request.fields.is_empty()
+            || !request.link_target_ids.is_empty()
+            || !request.link_fields.is_empty()
+        {
             return Err("Creation cannot rewrite existing nodes.".into());
         }
         if (request.creation_scope.is_some() && (request.type_id.is_some() || !request.bundle))
@@ -341,7 +431,7 @@ pub fn prepare_authoring(
     let mut system = settings.system_prompt(TextPromptTask::World);
     let mut effective_request = request.clone();
     if request.mode == AuthoringMode::Revise && request.direction.trim().is_empty() {
-        effective_request.direction="Develop the checked fields from each node's name, type, existing facts and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, capabilities and links unchanged. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
+        effective_request.direction="Develop the checked fields from the selected records, their types and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, node capabilities and relationship types/endpoints unchanged. Return exactly the selected node targets and selected relationship targets. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
     }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
     let fields_per_node = context
@@ -438,7 +528,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v5-composable-fields",
+        "world-authoring-v6-relationship-fields",
         &system,
         &user,
         &response_schema,
@@ -540,7 +630,10 @@ fn candidate_world(
     {
         return Ok((source.clone(), vec![]));
     }
-    if candidate.nodes.is_empty() || candidate.nodes.len() > 20 || candidate.edges.len() > 80 {
+    if (candidate.nodes.is_empty() && record.request.mode == AuthoringMode::Create)
+        || candidate.nodes.len() > 20
+        || candidate.edges.len() > 80
+    {
         return Err("A proposal needs 1–20 nodes and at most 80 links.".into());
     }
     let request = &record.request;
@@ -581,7 +674,7 @@ fn candidate_world(
             }
         }
     }
-    let allowed_refs: BTreeSet<_> = request
+    let mut allowed_refs: BTreeSet<_> = request
         .context_ids
         .iter()
         .chain(&request.target_ids)
@@ -594,6 +687,13 @@ fn candidate_world(
         )
         .chain(candidate.nodes.iter().map(|n| n.id.clone()))
         .collect();
+    for edge in source
+        .edges
+        .iter()
+        .filter(|e| request.link_target_ids.contains(&e.id))
+    {
+        allowed_refs.extend([edge.source_id.clone(), edge.target_id.clone()]);
+    }
     let mut seen = BTreeSet::new();
     let mut changes = vec![];
     let mut world = source.clone();
@@ -611,8 +711,12 @@ fn candidate_world(
                 return Err("The root must keep the requested node type.".into());
             }
         }
-    } else if !candidate.edges.is_empty() || candidate.nodes.len() != request.target_ids.len() {
-        return Err("Revision must contain exactly the selected targets and no link edits.".into());
+    } else if candidate.edges.len() != request.link_target_ids.len()
+        || candidate.nodes.len() != request.target_ids.len()
+    {
+        return Err(
+            "Revision must contain exactly the selected node and relationship targets.".into(),
+        );
     }
     for node in &candidate.nodes {
         if !seen.insert(node.id.clone()) {
@@ -715,7 +819,77 @@ fn candidate_world(
             }
         }
     }
-    for edge in &candidate.edges {
+    for edge in &mut candidate.edges {
+        if !create {
+            if !request.link_target_ids.contains(&edge.id) || !seen.insert(edge.id.clone()) {
+                return Err(
+                    "A relationship revision is duplicated or outside its selected scope.".into(),
+                );
+            }
+            let old = source
+                .edges
+                .iter()
+                .find(|e| e.id == edge.id)
+                .ok_or("Missing relationship target.")?;
+            if old.type_id != edge.type_id
+                || old.source_id != edge.source_id
+                || old.target_id != edge.target_id
+            {
+                return Err(
+                    "AI relationship revision cannot change identity, type or endpoints.".into(),
+                );
+            }
+            if old.description != edge.description {
+                if !link_selected(request, &edge.id, None) {
+                    return Err("Connection notes are protected.".into());
+                }
+                changes.push("Update connection notes.".into());
+            }
+            let def = source
+                .relation_types
+                .iter()
+                .find(|d| d.id == edge.type_id)
+                .ok_or("Unknown relationship.")?;
+            for field in &def.fields {
+                if !field.required
+                    && !link_selected(request, &edge.id, Some(&field.key))
+                    && edge
+                        .properties
+                        .get(&field.key)
+                        .is_none_or(|v| v == &PropertyValue::Null)
+                    && old
+                        .properties
+                        .get(&field.key)
+                        .is_none_or(|v| v == &PropertyValue::Null)
+                {
+                    if let Some(value) = old.properties.get(&field.key) {
+                        edge.properties.insert(field.key.clone(), value.clone());
+                    } else {
+                        edge.properties.remove(&field.key);
+                    }
+                }
+            }
+            for key in old
+                .properties
+                .keys()
+                .chain(edge.properties.keys())
+                .collect::<BTreeSet<_>>()
+            {
+                if old.properties.get(key) != edge.properties.get(key) {
+                    if !link_selected(request, &edge.id, Some(key)) {
+                        return Err(format!("Relationship field {key} is protected."));
+                    }
+                    let label = def
+                        .fields
+                        .iter()
+                        .find(|f| &f.key == key)
+                        .map(|f| f.label.as_str())
+                        .unwrap_or(key);
+                    changes.push(format!("Update {} / {label}.", def.name));
+                }
+            }
+            continue;
+        }
         if !alias(&edge.id)
             || !seen.insert(edge.id.clone())
             || !candidate.nodes.iter().any(|n| n.id == edge.source_id)
@@ -789,6 +963,23 @@ fn candidate_world(
         }
     }
     for mut edge in candidate.edges {
+        let def = source
+            .relation_types
+            .iter()
+            .find(|d| d.id == edge.type_id)
+            .ok_or("Unknown proposed relationship.")?;
+        let previous = source
+            .edges
+            .iter()
+            .find(|e| e.id == edge.id)
+            .map(|e| &e.properties);
+        crate::projection::resolve_property_references(
+            &def.fields,
+            &mut edge.properties,
+            previous,
+            &allowed_refs,
+            &resolve,
+        )?;
         edge.id = resolve(&edge.id);
         edge.source_id = resolve(&edge.source_id);
         edge.target_id = resolve(&edge.target_id);
@@ -802,7 +993,16 @@ fn candidate_world(
                 .map(|n| n.name.as_str())
                 .unwrap_or("reference")
         ));
-        world.edges.push(edge);
+        if create {
+            world.edges.push(edge);
+        } else {
+            let target = world
+                .edges
+                .iter_mut()
+                .find(|e| e.id == edge.id)
+                .ok_or("Missing relationship target.")?;
+            *target = edge;
+        }
     }
     world.validate()?;
     Ok((world, changes))
@@ -918,6 +1118,8 @@ impl Project {
         record.status = AuthoringStatus::Discarded;
         record.version += 1;
         record.request = AuthoringRequest {
+            link_target_ids: vec![],
+            link_fields: vec![],
             mode: AuthoringMode::Create,
             direction: String::new(),
             type_id: None,
@@ -1133,11 +1335,24 @@ impl Project {
             .unwrap_or_else(|_| {
                 let mut context = source.clone();
                 context.ai_context.clear();
-                context.nodes.retain(|n| {
-                    record.request.target_ids.contains(&n.id)
-                        || record.request.context_ids.contains(&n.id)
-                });
-                context.edges.clear();
+                let mut ids: BTreeSet<_> = record
+                    .request
+                    .target_ids
+                    .iter()
+                    .chain(&record.request.context_ids)
+                    .cloned()
+                    .collect();
+                for edge in source
+                    .edges
+                    .iter()
+                    .filter(|e| record.request.link_target_ids.contains(&e.id))
+                {
+                    ids.extend([edge.source_id.clone(), edge.target_id.clone()]);
+                }
+                context.nodes.retain(|n| ids.contains(&n.id));
+                context
+                    .edges
+                    .retain(|e| ids.contains(&e.source_id) && ids.contains(&e.target_id));
                 context
             });
         let stale = !record.source_fingerprint.is_empty()
@@ -1334,6 +1549,7 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
         return serde_json::to_string_pretty(&NodeCandidate {
             nodes,
             edges: vec![WorldEdge {
+                properties: Default::default(),
                 id: "new:group-link".into(),
                 type_id: "core.related".into(),
                 source_id: "new:group-1".into(),
@@ -1426,7 +1642,34 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
     };
     serde_json::to_string_pretty(&NodeCandidate {
         nodes,
-        edges: vec![],
+        edges: world
+            .edges
+            .iter()
+            .filter(|e| request.link_target_ids.contains(&e.id))
+            .cloned()
+            .map(|mut edge| {
+                for field in request.link_fields.iter().filter(|f| f.link_id == edge.id) {
+                    if let Some(key) = &field.property {
+                        let def = world
+                            .relation_types
+                            .iter()
+                            .find(|d| d.id == edge.type_id)
+                            .and_then(|d| d.fields.iter().find(|f| &f.key == key));
+                        if def.is_some_and(|f| {
+                            matches!(f.kind, FieldKind::Text | FieldKind::LongText)
+                        }) {
+                            edge.properties.insert(
+                                key.clone(),
+                                PropertyValue::Text("Demo relationship variation".into()),
+                            );
+                        }
+                    } else {
+                        edge.description = "Demo connection notes variation".into();
+                    }
+                }
+                edge
+            })
+            .collect(),
     })
     .map_err(|e| e.to_string())
 }

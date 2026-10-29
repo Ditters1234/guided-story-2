@@ -269,6 +269,17 @@ pub(crate) fn preview_passage_effects(
                 .find(|d| d.id == link.type_id)
                 .ok_or("Unknown effect relationship.")?;
             let mut link = link.clone();
+            crate::projection::resolve_property_references(
+                &definition.fields,
+                &mut link.properties,
+                source
+                    .edges
+                    .iter()
+                    .find(|e| e.id == link.id)
+                    .map(|e| &e.properties),
+                &allowed,
+                &resolve,
+            )?;
             link.id = resolve(&link.id);
             link.source_id = resolve(&link.source_id);
             link.target_id = resolve(&link.target_id);
@@ -306,10 +317,10 @@ pub(crate) fn preview_passage_effects(
     world.validate()?;
     Ok((world, labels))
 }
-pub(crate) fn effects_schema() -> Value {
+pub(crate) fn effects_schema(world: &World) -> Value {
     let quote = json!({"type":"string","minLength":8,"maxLength":600,"description":"Copy one continuous excerpt verbatim from the current supplied prose, preserving words, capitalization and punctuation. No paraphrase, inserted ellipses, joined excerpts or quotes from earlier passages."});
     let node = json!({"type":"object","properties":{"id":{"type":"string"},"typeId":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"visualDescription":{"type":"string"},"components":{"type":"object"}},"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
-    let link = json!({"type":"object","properties":{"id":{"type":"string"},"typeId":{"type":"string"},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string"}},"required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false});
+    let link = crate::authoring::relationship_schema(world);
     json!({"type":"object","properties":{"changes":{"type":"array","maxItems":80,"items":{"anyOf":[
         {"type":"object","properties":{"kind":{"const":"putNode"},"node":node,"evidence":quote},"required":["kind","node","evidence"],"additionalProperties":false},
         {"type":"object","properties":{"kind":{"const":"putLink"},"link":link,"evidence":quote},"required":["kind","link","evidence"],"additionalProperties":false},

@@ -147,4 +147,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Continue from the implemented capability/default-preset slice into richer relationship properties and source records, then situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.
+Continue from the implemented capability/default-preset and typed-relationship slices into Event/source records and Visual style/direct-image bindings, then situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.

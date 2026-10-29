@@ -1,4 +1,4 @@
-import type { AuthoringRequest,EditableField,NodeCandidate,WorldNode } from './bindings';
+import type { AuthoringRequest,EditableField,EditableLinkField,NodeCandidate,WorldNode } from './bindings';
 import type { World } from './model';
 import { makeNode } from './model';
 import {defaultProperties} from './node-fields';
@@ -46,7 +46,18 @@ export function parseCandidateForEditor(text:string):NodeCandidate|null{
   const property=(value:unknown)=>value===null||['string','number','boolean'].includes(typeof value)||(Array.isArray(value)&&value.every((v)=>typeof v==='string'));
   try{const value:unknown=JSON.parse(text);if(!record(value)||!Array.isArray(value.nodes)||!Array.isArray(value.edges)||value.nodes.length>20||value.edges.length>80)return null;
     if(!value.nodes.every((n)=>record(n)&&['id','typeId','name','description','visualDescription'].every((key)=>typeof n[key]==='string')&&record(n.components)&&Object.values(n.components).every((values)=>record(values)&&Object.values(values).every(property))))return null;
-    if(!value.edges.every((e)=>record(e)&&['id','typeId','sourceId','targetId','description'].every((key)=>typeof e[key]==='string')))return null;
+    if(!value.edges.every((e)=>record(e)&&['id','typeId','sourceId','targetId','description'].every((key)=>typeof e[key]==='string')&&(e.properties===undefined||(record(e.properties)&&Object.values(e.properties).every(property)))))return null;
     return value as unknown as NodeCandidate;
   }catch{return null;}
+}
+
+export const linkFieldId=(field:EditableLinkField)=>JSON.stringify([field.linkId,field.property]);
+export function editableLinkFields(world:World,ids:string[]):(EditableLinkField&{label:string})[]{
+  return world.edges.filter(e=>ids.includes(e.id)).flatMap(e=>{
+    const relation=world.relationTypes.find(d=>d.id===e.typeId),label=(world.nodes.find(n=>n.id===e.sourceId)?.name??'Source')+' → '+(relation?.label??e.typeId)+' → '+(world.nodes.find(n=>n.id===e.targetId)?.name??'Target');
+    return [{linkId:e.id,property:null,label:label+' / Connection notes'},...(relation?.fields??[]).map(f=>({linkId:e.id,property:f.key,label:label+' / '+f.label}))];
+  });
+}
+export function newLinkAuthoringRequest(world:World,id:string):AuthoringRequest{
+  return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:[],contextIds:[],fields:[],linkTargetIds:[id],linkFields:editableLinkFields(world,[id]).map(({label:_,...field})=>field)};
 }

@@ -1,6 +1,8 @@
 use super::*;
 fn group() -> AuthoringRequest {
     AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         creation_scope: Some(CreationScope::Group),
         group_type_id: Some("core.item".into()),
         type_id: None,
@@ -38,6 +40,7 @@ fn world() -> World {
         ("core.stored-in", 4, 3),
     ] {
         w.edges.push(WorldEdge {
+            properties: Default::default(),
             id: id(),
             type_id: kind.into(),
             source_id: w.nodes[source].id.clone(),
@@ -77,6 +80,8 @@ fn groups_find_structured_goals_without_sending_unrelated_records_or_expanding_p
             PropertyValue::Text("Repair the drinkingwater pump".into()),
         );
     let request = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         direction: "Add supplies for repairing the drinkingwater pump".into(),
         group_type_id: None,
         ..group()
@@ -209,6 +214,7 @@ fn indexed_existing_nodes_are_usable_link_targets_but_unexposed_ids_and_existing
             "Wool blanket",
         )],
         edges: vec![WorldEdge {
+            properties: Default::default(),
             id: "new:carry".into(),
             type_id: "core.stored-in".into(),
             source_id: "new:blanket".into(),

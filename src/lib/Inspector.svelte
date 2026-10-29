@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { WorldRecord } from './graph';
   import type { World } from './model';
+  import {valueLabel} from './effects-ui';
   import NodeFields from './NodeFields.svelte';
   import NodeImage from './NodeImage.svelte';
   import AiContextBindingEditor from './AiContextBindingEditor.svelte';
   import {hasCapability} from './node-fields';
   import type {AiContextBinding} from './bindings';
-  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onDefineCapability, onRetype, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onContext,onContextOpen }: {
+  let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onDefineCapability, onRetype, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onAiLink,onContext,onContextOpen }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
     imageStoryId:string|null;revision:number;onImage:(id:string)=>void;
     onEdit: (field: 'name' | 'description' | 'visualDescription', value: string) => void;
@@ -15,7 +16,7 @@
     onAddCapability: (componentId: string) => void;onDefineCapability:()=>void;onRetype:(id:string)=>void;
     onRemoveNode: (id: string) => void; onRemoveCapability: (id: string, capability: string) => void;
     onLink: (id: string) => void; onNewLink: (id: string) => void; onRemoveLink: (id: string) => void;
-    onAi: (id:string)=>void;
+    onAi: (id:string)=>void;onAiLink:(id:string)=>void;
     onContext:(binding:AiContextBinding)=>void;onContextOpen:()=>void;
   } = $props();
   const node = $derived(world.nodes.find((n) => n.id === record?.id));
@@ -48,8 +49,9 @@
         {@const other = world.nodes.find((n) => n.id === (outgoing ? edge.targetId : edge.sourceId))}
         {@const relation = world.relationTypes.find((d) => d.id === edge.typeId)}
         <div class="connection-row"><button class="linked-record" disabled={!other} onclick={() => {if(other)onSelect(other.id);}}><span>{outgoing ? '→' : '←'} {other?.name??'Missing node'}</span><small>{outgoing ? '' : 'incoming · '}{relation?.label}</small></button>
-          {#if editable}<div class="connection-actions"><button class="text-action" onclick={() => onLink(edge.id)} aria-label={'Edit '+relation?.label+' connection with '+other?.name}>Edit / move</button><button class="text-action danger-text" onclick={() => onRemoveLink(edge.id)} aria-label={'Remove '+relation?.label+' connection with '+other?.name}>Detach</button></div>{/if}
+          {#if editable}<div class="connection-actions"><button class="text-action" onclick={() => onLink(edge.id)} aria-label={'Edit '+relation?.label+' connection with '+other?.name}>Edit / move</button><button class="text-action" onclick={()=>onAiLink(edge.id)} aria-label={'Revise '+relation?.label+' connection with AI'}>AI…</button><button class="text-action danger-text" onclick={() => onRemoveLink(edge.id)} aria-label={'Remove '+relation?.label+' connection with '+other?.name}>Detach</button></div>{/if}
         </div>
+        {#if edge.description}<p class="field-help">{edge.description}</p>{/if}{#each relation?.fields??[] as field}{#if edge.properties?.[field.key]!==undefined&&edge.properties?.[field.key]!==null&&edge.properties?.[field.key]!==''}<p class="field-help">{field.label}: {valueLabel(edge.properties?.[field.key],world.nodes,field.kind)}</p>{/if}{/each}
       {:else}<p class="field-help">No connections.</p>{/each}
     </div>
     <details class="linked-section"><summary>AI context</summary><div class="section-actions">{#if editable}<button class="text-action" onclick={onContextOpen}>Manage / preview</button>{/if}</div><AiContextBindingEditor nodeId={node.id} {world} binding={world.aiContext?.find(b=>b.nodeId===node!.id)} disabled={!editable} onChange={onContext}/></details>

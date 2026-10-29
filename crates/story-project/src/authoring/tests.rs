@@ -4,6 +4,7 @@ mod creation_scopes;
 mod deletion;
 mod existing_context;
 mod quality_probe;
+mod relationships;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -26,6 +27,8 @@ fn create() -> (tempfile::TempDir, Project) {
 }
 fn request() -> AuthoringRequest {
     AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Create,
         direction: "An old glasshouse".into(),
         type_id: Some("core.place".into()),
@@ -39,6 +42,8 @@ fn request() -> AuthoringRequest {
 }
 fn group_request() -> AuthoringRequest {
     AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         type_id: None,
         bundle: true,
         direction: "Develop a fictional isolated homestead with two adult inhabitants.".into(),
@@ -151,6 +156,8 @@ fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() 
     assert!(view.error.is_empty());
     assert!(p.apply_authoring(&rid, view.version, &settings()).is_ok());
     let single = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         type_id: Some("core.character".into()),
         bundle: false,
         creation_scope: None,
@@ -166,6 +173,8 @@ fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_pr
     node.components.remove("core.character");
     world.nodes.push(node.clone());
     let req = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         type_id: None,
         bundle: false,
@@ -266,6 +275,8 @@ fn custom_capability_fields_use_the_same_generation_and_protection_rules() {
     p.apply_authoring(&rid, view.version, &settings()).unwrap();
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "Rain before evening".into(),
         type_id: None,
@@ -296,6 +307,8 @@ fn protected_fields_and_unexposed_references_cannot_be_smuggled_into_a_candidate
     p.apply_authoring(&rid, view.version, &settings()).unwrap();
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "More lush".into(),
         type_id: None,
@@ -329,6 +342,8 @@ fn source_edits_stale_a_proposal_while_unrelated_world_edits_are_preserved() {
     p.apply_authoring(&first, v.version, &settings()).unwrap();
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "More lush".into(),
         type_id: None,
@@ -404,6 +419,8 @@ fn revisions_keep_custom_target_schema_but_exclude_unrelated_catalogue_and_dupli
     let mut world = p.view().unwrap().world;
     let node = &world.nodes[0];
     let req = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "Change only the room's description".into(),
         type_id: None,
@@ -526,6 +543,7 @@ fn connected_character_outfit_container_and_custom_references_remap_atomically()
     .into_iter()
     .enumerate()
     .map(|(i, (kind, source, target))| WorldEdge {
+        properties: Default::default(),
         id: format!("new:edge{i}"),
         type_id: format!("core.{kind}"),
         source_id: source.into(),
@@ -586,6 +604,7 @@ fn unselected_world_records_are_not_sent_and_new_links_cannot_move_existing_node
     assert_eq!(view.context.nodes.len(), 1);
     let mut candidate: NodeCandidate = serde_json::from_str(&view.candidate_text).unwrap();
     candidate.edges.push(WorldEdge {
+        properties: Default::default(),
         id: "new:bad".into(),
         type_id: "core.related".into(),
         source_id: private.id,

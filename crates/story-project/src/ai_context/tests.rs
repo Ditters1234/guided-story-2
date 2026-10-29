@@ -115,6 +115,7 @@ fn arbitrary_nodes_roles_task_filters_selected_fields_and_order_are_explicit() {
     );
     world.ai_context[1].order = -10;
     world.edges.push(WorldEdge {
+        properties: Default::default(),
         id: uuid::Uuid::new_v4().to_string(),
         type_id: "core.related".into(),
         source_id: a.clone(),
@@ -231,6 +232,8 @@ fn mandatory_content_blocks_over_budget_instead_of_truncating_and_does_not_grant
         vec![TextPromptTask::World],
     );
     let request = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Create,
         direction: "An observatory.".into(),
         type_id: Some("core.place".into()),

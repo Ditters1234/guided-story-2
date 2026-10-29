@@ -39,6 +39,7 @@ fn node(world: &mut World, preset: &str, name: &str) -> String {
 }
 fn link(world: &mut World, kind: &str, source: &str, target: &str) -> WorldEdge {
     let edge = WorldEdge {
+        properties: Default::default(),
         id: id(),
         type_id: kind.into(),
         source_id: source.into(),
@@ -134,6 +135,7 @@ fn wearing_is_one_placement_and_taking_off_changes_it_to_carried() {
         .any(|e| e.id == wear.id && e.target_id == person));
     assert_eq!(w.edges.iter().filter(|e| e.source_id == coat).count(), 1);
     let carried = WorldEdge {
+        properties: Default::default(),
         type_id: "core.stored-in".into(),
         ..wear.clone()
     };
@@ -254,6 +256,7 @@ fn cycles_invalid_endpoints_and_duplicates_are_rejected_atomically() {
 fn custom_physical_links_use_the_same_transfer_and_cycle_rules() {
     let (mut w, place, _, bag, coat) = fixture();
     w.relation_types.push(crate::RelationDefinition {
+        fields: vec![],
         id: "custom.attached".into(),
         name: "Attached".into(),
         label: "attached to".into(),

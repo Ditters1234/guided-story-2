@@ -153,6 +153,8 @@ fn world_generation_uses_the_exact_override_and_still_carries_schema_and_scoped_
     };
     let world = World::default();
     let request = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Create,
         direction: "A fictional observatory.".into(),
         type_id: Some("core.place".into()),

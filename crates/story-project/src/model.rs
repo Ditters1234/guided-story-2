@@ -56,6 +56,8 @@ pub struct WorldEdge {
     pub source_id: String,
     pub target_id: String,
     pub description: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub properties: BTreeMap<String, PropertyValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -152,6 +154,8 @@ pub struct RelationDefinition {
     pub target_capability: Option<String>,
     pub physical_placement: bool,
     pub single_target: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<FieldDefinition>,
 }
 
 #[derive(Debug, Clone, Serialize, Type, PartialEq)]
@@ -222,7 +226,7 @@ pub(crate) fn capability(node: &WorldNode, id: &str) -> bool {
     node.components.contains_key(id)
         || (id == "core.holder" && node.components.contains_key("core.container"))
 }
-fn field_matches(
+pub(crate) fn field_matches(
     value: &PropertyValue,
     field: &FieldDefinition,
     nodes: &BTreeMap<&str, &WorldNode>,
@@ -277,6 +281,7 @@ impl World {
             .find(|r| r.id == "core.worn-by")
             .unwrap();
         expected.physical_placement = false;
+        expected.fields = self.relation_types[index].fields.clone();
         if self.relation_types[index] != expected {
             return Ok(());
         }
@@ -339,7 +344,11 @@ impl World {
             }
         }
         for definition in &builtins.relation_types {
-            if !self.relation_types.contains(definition) {
+            if !self.relation_types.iter().any(|saved| {
+                let mut contract = saved.clone();
+                contract.fields.clear();
+                &contract == definition
+            }) {
                 return Err("A built-in relationship definition is missing or changed. Add a custom relationship instead.".into());
             }
         }
@@ -399,19 +408,24 @@ impl World {
                 return Err("A node preset references an unknown capability.".into());
             }
         }
-        for definition in &self.component_types {
-            if definition.description.chars().count() > 4000 {
-                return Err("Extension help is too long.".into());
+        for (name, help, definition_fields) in self
+            .component_types
+            .iter()
+            .map(|d| (&d.name, d.description.as_str(), &d.fields))
+            .chain(self.relation_types.iter().map(|d| (&d.name, "", &d.fields)))
+        {
+            if help.chars().count() > 4000 {
+                return Err(format!("{name}: help is too long."));
             }
-            if definition.fields.len() > 100 {
-                return Err("A capability has too many fields.".into());
+            if definition_fields.len() > 100 {
+                return Err(format!("{name}: too many fields."));
             }
             let mut fields = BTreeSet::new();
-            for field in &definition.fields {
+            for field in definition_fields {
                 validate_name(&field.key)?;
                 validate_name(&field.label)?;
                 if !fields.insert(&field.key) {
-                    return Err("Duplicate capability field.".into());
+                    return Err(format!("Duplicate field on {name}."));
                 }
                 if let Some(meta) = &field.metadata {
                     if meta.help.as_ref().is_some_and(|s| s.chars().count() > 1000)
@@ -488,13 +502,15 @@ impl World {
             }
         }
         let node_index: BTreeMap<_, _> = self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
-        for definition in &self.component_types {
-            for field in &definition.fields {
+        for (name, fields) in self
+            .component_types
+            .iter()
+            .map(|d| (&d.name, &d.fields))
+            .chain(self.relation_types.iter().map(|d| (&d.name, &d.fields)))
+        {
+            for field in fields {
                 if !field_matches(&field.default_value, field, &node_index) {
-                    return Err(format!(
-                        "Invalid default for {} / {}.",
-                        definition.name, field.label
-                    ));
+                    return Err(format!("Invalid default for {} / {}.", name, field.label));
                 }
             }
         }
@@ -566,6 +582,27 @@ impl World {
             let relation = relations
                 .get(edge.type_id.as_str())
                 .ok_or("An edge type has no saved definition.")?;
+            if edge
+                .properties
+                .keys()
+                .any(|key| !relation.fields.iter().any(|f| &f.key == key))
+            {
+                return Err(format!(
+                    "{} has an undefined relationship field.",
+                    relation.name
+                ));
+            }
+            for field in &relation.fields {
+                match edge.properties.get(&field.key) {
+                    None if field.required => {
+                        return Err(format!("{} needs {}.", relation.name, field.label))
+                    }
+                    Some(value) if !field_matches(value, field, &nodes) => {
+                        return Err(format!("Invalid {} on {}.", field.label, relation.name))
+                    }
+                    _ => (),
+                }
+            }
             let source = nodes
                 .get(edge.source_id.as_str())
                 .ok_or("A relation source does not exist.")?;

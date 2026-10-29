@@ -1,10 +1,11 @@
+import {linkReferences,linkFields} from './link-fields';
 import type {PassageEffect,PassageEffects,PropertyValue,WorldNode,WorldEdge} from './bindings';
 import type {World} from './model';
 
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const property=(v:unknown)=>v===null||['string','number','boolean'].includes(typeof v)||(Array.isArray(v)&&v.every(x=>typeof x==='string'));
 const node=(v:unknown):v is WorldNode=>record(v)&&['id','typeId','name','description','visualDescription'].every(k=>typeof v[k]==='string')&&record(v.components)&&Object.values(v.components).every(c=>record(c)&&Object.values(c).every(property));
-const link=(v:unknown):v is WorldEdge=>record(v)&&['id','typeId','sourceId','targetId','description'].every(k=>typeof v[k]==='string');
+const link=(v:unknown):v is WorldEdge=>record(v)&&['id','typeId','sourceId','targetId','description'].every(k=>typeof v[k]==='string')&&(v.properties===undefined||(record(v.properties)&&Object.values(v.properties).every(property)));
 export function parseEffects(text:string):PassageEffects|null {
   try {
     const v:unknown=JSON.parse(text);
@@ -58,7 +59,7 @@ function typedReferences(world:World,n:WorldNode):string[]{
     const value=values[f.key];return f.kind==='nodeRef'&&typeof value==='string'?[value]:f.kind==='nodeRefs'&&Array.isArray(value)?value:[];
   }));
 }
-function references(world:World,e:PassageEffect):string[]{return e.kind==='putNode'?typedReferences(world,e.node):e.kind==='putLink'?[e.link.sourceId,e.link.targetId]:[];}
+function references(world:World,e:PassageEffect):string[]{return e.kind==='putNode'?typedReferences(world,e.node):e.kind==='putLink'?[e.link.sourceId,e.link.targetId,...linkReferences(world,e.link)]:[];}
 export type ProposalRemoval={changes:number[];notes:number[]};
 export function removalPlan(world:World,effects:PassageEffects,kind:'change'|'note',index:number):ProposalRemoval {
   if(kind==='note')return {changes:[],notes:[index]};
@@ -93,6 +94,18 @@ export function nodeDiff(world:World,nodes:WorldNode[],next:WorldNode):{label:st
       const field=definition?.fields.find(f=>f.key===key);
       if(JSON.stringify(before??null)!==JSON.stringify(after??null))rows.push({label:`${definition?.name??id} · ${field?.label??key}`,before:valueLabel(before,nodes,field?.kind),after:valueLabel(after,nodes,field?.kind)});
     }
+  }
+  return rows;
+}
+
+export function linkDiff(world:World,nodes:WorldNode[],next:WorldEdge,old?:WorldEdge|null):{label:string;before:string;after:string}[]{
+  const rows:{label:string;before:string;after:string}[]=[];
+  if((old?.description??'')!==next.description)rows.push({label:'Connection notes',before:old?.description||'Unspecified',after:next.description||'Unspecified'});
+  for(const key of new Set([...Object.keys(old?.properties??{}),...Object.keys(next.properties??{})])){
+    const before=old?.properties?.[key],after=next.properties?.[key];
+    if(JSON.stringify(before??null)===JSON.stringify(after??null))continue;
+    const beforeField=old?linkFields(world,old).find(f=>f.key===key):undefined,afterField=linkFields(world,next).find(f=>f.key===key);
+    rows.push({label:afterField?.label??beforeField?.label??key,before:valueLabel(before,nodes,beforeField?.kind),after:valueLabel(after,nodes,afterField?.kind)});
   }
   return rows;
 }

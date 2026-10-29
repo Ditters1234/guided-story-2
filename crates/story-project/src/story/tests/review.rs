@@ -12,6 +12,7 @@ fn candidate(p: &Project) -> String {
     edit.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![PassageEffect::PutLink {
             link: WorldEdge {
+                properties: Default::default(),
                 type_id: "core.stored-in".into(),
                 ..wear.clone()
             },
@@ -115,6 +116,7 @@ fn editing_a_proposed_record_invalidates_it_and_dependants_but_preserves_other_a
             },
             PassageEffect::PutLink {
                 link: WorldEdge {
+                    properties: Default::default(),
                     target_id: "new:study".into(),
                     ..movement.clone()
                 },

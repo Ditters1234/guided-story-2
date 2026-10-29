@@ -48,3 +48,5 @@
 .candidate-json { margin: 20px 0; }
 .candidate-json>textarea { width: 100%; font-family: Consolas, monospace; font-size: 0.8rem; }
 .ai-footer-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+
+.candidate-link-details{grid-column:1/-1;display:grid;gap:12px}

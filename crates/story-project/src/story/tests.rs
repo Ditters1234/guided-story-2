@@ -5,6 +5,7 @@ mod deletion;
 mod evidence;
 mod link_review;
 mod prompts;
+mod relationships;
 mod review;
 mod revisions;
 fn id() -> String {
@@ -60,6 +61,7 @@ fn fixture() -> (tempfile::TempDir, Project) {
         ("core.worn-by", 3, 1),
     ] {
         world.edges.push(WorldEdge {
+            properties: Default::default(),
             id: id(),
             type_id: kind.into(),
             source_id: world.nodes[source].id.clone(),
@@ -278,6 +280,7 @@ fn taking_off_changes_one_placement_and_conflicting_effect_placements_are_reject
         .unwrap()
         .clone();
     let carried = WorldEdge {
+        properties: Default::default(),
         type_id: "core.stored-in".into(),
         ..wear.clone()
     };
@@ -288,6 +291,7 @@ fn taking_off_changes_one_placement_and_conflicting_effect_placements_are_reject
     };
     let conflict = PassageEffect::PutLink {
         link: WorldEdge {
+            properties: Default::default(),
             id: id(),
             ..wear.clone()
         },
@@ -594,6 +598,7 @@ fn introduced_outfit_container_and_notes_resolve_aliases_atomically() {
     ] {
         changes.push(PassageEffect::PutLink {
             link: WorldEdge {
+                properties: Default::default(),
                 id: format!("new:link{i}"),
                 type_id: kind.into(),
                 source_id: source.into(),

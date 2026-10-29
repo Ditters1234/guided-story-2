@@ -2,7 +2,7 @@
 
 A Windows desktop tool in development for crafting illustrated stories through an editable world map. Built around Tauri + Svelte, configurable model APIs and self-contained JSON story projects.
 
-**Status: world, passage and media authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes/links, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Node images and passage illustrations support reviewed import or ComfyUI submission. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), [chapter memory](MEMORY.md), and [media](MEDIA.md) for behavior and limits.
+**Status: world, passage and media authoring prototype.** The Tauri/Svelte app has an expandable world map, shared inspector, editable nodes and typed relationship details, custom presets/capabilities and JSON project storage. Shared AI tools propose individual records or connected groups with explicit Apply. Story mode supports reviewed prose, chapters, historical snapshots, independent forks, wording/event revisions and source-linked chapter memory. Node images and passage illustrations support reviewed import or ComfyUI submission. See [foundation status](FOUNDATION_STATUS.md), [world editing](WORLD_EDITING.md), [AI authoring](AI_AUTHORING.md), [passage authoring](STORY_AUTHORING.md), [chapter memory](MEMORY.md), and [media](MEDIA.md) for behavior and limits.
 
 ## Manual testing
 

@@ -1297,7 +1297,24 @@
       "sourceCapability": "core.wearable",
       "targetCapability": "core.character",
       "physicalPlacement": true,
-      "singleTarget": true
+      "singleTarget": true,
+      "fields": [
+        {
+          "key": "configuration",
+          "label": "Wearing details",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How the item is currently worn: open or fastened, hood up, sleeves rolled. Do not duplicate the garment design.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
     },
     {
       "id": "core.related",
@@ -1315,7 +1332,37 @@
       "sourceCapability": null,
       "targetCapability": "detail.organization",
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "role",
+          "label": "Role",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Position or responsibility within this group.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "obligations",
+          "label": "Obligations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Duties, expectations and conditions of membership.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
     },
     {
       "id": "story.feels-toward",
@@ -1324,7 +1371,51 @@
       "sourceCapability": "core.character",
       "targetCapability": "core.character",
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "attitude",
+          "label": "Attitude",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How the source currently feels toward the target; the reverse direction is separate.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "reasons",
+          "label": "Reasons",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Experiences or beliefs behind this attitude.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "tension",
+          "label": "Tension",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Unresolved friction or conflicting wants between these people.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
     },
     {
       "id": "story.route-to",
@@ -1333,7 +1424,109 @@
       "sourceCapability": "core.place",
       "targetCapability": "core.place",
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "access",
+          "label": "Access",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How this route can be used and any access conditions.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "obstacles",
+          "label": "Obstacles",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Hazards or barriers on this route.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "travel",
+          "label": "Travel notes",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Distance or travel conditions, without implying anyone has traveled.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.owes",
+      "name": "Owes",
+      "label": "owes",
+      "sourceCapability": null,
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "obligation",
+          "label": "Obligation",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What the source owes the target.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "terms",
+          "label": "Terms",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Conditions, deadlines or means of repayment.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current state of the obligation.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state",
+            "choices": [
+              "outstanding",
+              "fulfilled",
+              "waived"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

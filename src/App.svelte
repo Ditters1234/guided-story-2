@@ -18,7 +18,7 @@
   import StoryWorkspace from './lib/StoryWorkspace.svelte';
   import ImageDialog from './lib/ImageDialog.svelte';
   import type {MediaTarget,PassageReading_Serialize,TextPromptTask} from './lib/bindings';
-  import { newAuthoringRequest } from './lib/authoring-ui';
+  import { newAuthoringRequest,newLinkAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
   import { exampleWorld, emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
@@ -95,6 +95,7 @@
     if(targetId||!aiRequest){aiRequest=newAuthoringRequest(world,targetId,workspace.selectedId);aiRunId=null;}
     showAi=true;
   }
+  function openAiLink(id:string){if(!project||busy||historyWorld||passageRunning||imagePromptRunning||imagePromptRetained)return;if(aiRunning){showAi=true;return;}aiRequest=newLinkAuthoringRequest(world,id);aiRunId=null;showAi=true;}
   async function beforeAiAction(){await flush();if(!project)throw Error('Open a project first.');return structuredClone($state.snapshot(project));}
   async function applyAi(result:ApplyAuthoringResult_Serialize){await adopt(result.commit.project);showAi=false;aiRunId=result.proposal.id;aiRequest=result.proposal.request;const id=result.proposal.createdNodeIds[0]??result.proposal.request.targetIds[0];if(id)select(id);}
   async function switchSurface(next:'world'|'story'){
@@ -429,7 +430,7 @@
       <Pane defaultSize={25} minSize={20} maxSize={36}>
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
         <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability} onDefineCapability={()=>{showExtension=true;}} onRetype={id=>{const n=world.nodes.find(n=>n.id===id);if(n)reviewEdit({kind:'retypeNode',id,typeId:n.typeId});}}
-          onAi={openAi} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
+          onAi={openAi} onAiLink={openAiLink} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
           onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
         {/if}
@@ -447,7 +448,7 @@
 {#if project&&imageTarget&&imageWorlds}<ImageDialog bind:this={imageDialog} {project} target={imageTarget} sourceWorlds={imageWorlds} preferredMediaId={preferredImageId} otherTextBusy={aiRunning||passageRunning||imagePromptRunning||imagePromptRetained} onPromptRun={promptRun} onLlmSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='llm';showSettings=true;}} onBeforeAction={beforeAiAction} onApply={async result=>{await adopt(result.project);}} onClose={()=>{imageTarget=null;imageWorlds=null;}} onSettings={()=>{imageTarget=null;imageWorlds=null;settingsSection='images';showSettings=true;}}/>{/if}
 {#if showAi&&project&&aiRequest}<AiAuthoringDialog bind:this={aiDialog} {project} {world} focusId={workspace.selectedId} initialId={aiRunId} initialRequest={aiRequest} onBeforeAction={beforeAiAction} onApply={applyAi} onClose={()=>{showAi=false;}} onSettings={(section='llm')=>{showAi=false;promptTask='world';settingsSection=section;showSettings=true;}} onRun={(id,running)=>{aiRunId=id;aiRunning=running;}} />{/if}
 {#if structuralEdit}<WorldEditDialog {world} edit={structuralEdit} onApply={applyStructure} onClose={() => {structuralEdit = null;}} />{/if}
-{#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition)=>{if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
+{#if showRelationshipType}<RelationshipTypeDialog {world} onClose={() => {showRelationshipType=false;}} onCreate={(definition,source)=>{if(source!==JSON.stringify(world))throw Error('The world changed while reviewing this definition. Reopen the form and review again.');if(project&&!busy){world={...world,relationTypes:[...world.relationTypes,definition]};scheduleSave();}showRelationshipType=false;}} />{/if}
 
 {#if showCreate}
   <div class="dialog-scrim"></div>

@@ -154,6 +154,7 @@ fn attaching_and_retyping_preserve_values_identity_and_physical_dependencies() {
             PropertyValue::Text("Short practical answers".into()),
         );
     world.edges.push(WorldEdge {
+        properties: Default::default(),
         id: id(),
         type_id: "core.present-at".into(),
         source_id: person.clone(),
@@ -261,6 +262,7 @@ fn custom_visual_fields_and_garment_details_reach_actual_media_facts_and_stalene
             PropertyValue::Text("Rain soaked".into()),
         );
     world.edges.push(WorldEdge {
+        properties: Default::default(),
         id: id(),
         type_id: "core.worn-by".into(),
         source_id: world.nodes[1].id.clone(),
@@ -386,4 +388,220 @@ fn older_project_head_is_rejected_without_replacing_its_files() {
         .unwrap()
         .contains("new story folder"));
     assert_eq!(std::fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn relationship_fields_validate_choices_refs_and_preserve_operational_contracts() {
+    let mut w = World::default();
+    let a = node(&w, "core.character", "Nora");
+    let b = node(&w, "core.character", "Elias");
+    let place = node(&w, "core.place", "Tower");
+    let mut witness = field("witness", FieldKind::NodeRef);
+    witness.metadata = Some(FieldMetadata {
+        reference_capability: Some("core.character".into()),
+        ..Default::default()
+    });
+    w.relation_types
+        .iter_mut()
+        .find(|d| d.id == "story.owes")
+        .unwrap()
+        .fields
+        .extend([
+            witness,
+            field("amount", FieldKind::Number),
+            field("paid", FieldKind::Boolean),
+        ]);
+    let e = WorldEdge {
+        id: id(),
+        type_id: "story.owes".into(),
+        source_id: a.id.clone(),
+        target_id: b.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::from([
+            ("status".into(), PropertyValue::Text("outstanding".into())),
+            ("amount".into(), PropertyValue::Number(0.0)),
+            ("paid".into(), PropertyValue::Boolean(false)),
+            ("witness".into(), PropertyValue::Text(b.id.clone())),
+        ]),
+    };
+    w.nodes = vec![a, b, place.clone()];
+    w.edges = vec![e];
+    w.validate().unwrap();
+    for (key, value) in [
+        ("status", PropertyValue::Text("invented".into())),
+        ("amount", PropertyValue::Text("zero".into())),
+        ("witness", PropertyValue::Text(place.id)),
+        ("unknown", PropertyValue::Null),
+    ] {
+        let mut invalid = w.clone();
+        invalid.edges[0].properties.insert(key.into(), value);
+        assert!(invalid.validate().is_err(), "{key}");
+    }
+    w.relation_types
+        .iter_mut()
+        .find(|d| d.id == "core.worn-by")
+        .unwrap()
+        .physical_placement = false;
+    assert!(w.validate().unwrap_err().contains("built-in relationship"));
+}
+
+#[test]
+fn removing_nodes_clears_typed_link_values_and_defaults_without_changing_source() {
+    let mut w = World::default();
+    let a = node(&w, "core.character", "Nora");
+    let b = node(&w, "core.character", "Elias");
+    let c = node(&w, "core.character", "Witness");
+    let mut f = field("witness", FieldKind::NodeRef);
+    f.default_value = PropertyValue::Text(c.id.clone());
+    w.relation_types
+        .iter_mut()
+        .find(|d| d.id == "core.related")
+        .unwrap()
+        .fields
+        .push(f);
+    w.edges.push(WorldEdge {
+        id: id(),
+        type_id: "core.related".into(),
+        source_id: a.id.clone(),
+        target_id: b.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::from([("witness".into(), PropertyValue::Text(c.id.clone()))]),
+    });
+    w.nodes = vec![a, b, c.clone()];
+    w.validate().unwrap();
+    let preview =
+        crate::preview_world_edit(&w, crate::WorldEdit::RemoveNode { id: c.id.clone() }).unwrap();
+    assert_eq!(
+        preview.world.edges[0].properties["witness"],
+        PropertyValue::Null
+    );
+    assert_eq!(
+        preview
+            .world
+            .relation_types
+            .iter()
+            .find(|d| d.id == "core.related")
+            .unwrap()
+            .fields[0]
+            .default_value,
+        PropertyValue::Null
+    );
+    assert_eq!(w.edges[0].properties["witness"], PropertyValue::Text(c.id));
+    assert_eq!(
+        serde_json::from_slice::<World>(&serde_json::to_vec(&preview.world).unwrap()).unwrap(),
+        preview.world
+    );
+}
+
+#[test]
+fn link_projection_separates_story_image_and_planning_and_omits_empty_serialization() {
+    let mut w = World::default();
+    let a = node(&w, "core.character", "Nora");
+    let b = node(&w, "core.character", "Elias");
+    let mut visual = field("visible", FieldKind::Text);
+    visual.metadata = Some(FieldMetadata {
+        uses: vec![FieldUse::Visual],
+        ..Default::default()
+    });
+    let mut planning = field("plan", FieldKind::Text);
+    planning.metadata = Some(FieldMetadata {
+        uses: vec![FieldUse::Planning],
+        ..Default::default()
+    });
+    w.relation_types
+        .iter_mut()
+        .find(|d| d.id == "core.related")
+        .unwrap()
+        .fields = vec![field("story", FieldKind::Text), visual, planning];
+    let mut e = WorldEdge {
+        id: id(),
+        type_id: "core.related".into(),
+        source_id: a.id.clone(),
+        target_id: b.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::new(),
+    };
+    assert!(serde_json::to_value(&e)
+        .unwrap()
+        .get("properties")
+        .is_none());
+    let baseline: World =
+        serde_json::from_str(include_str!("../../../../schema/world-core.json")).unwrap();
+    assert!(serde_json::to_value(&baseline.relation_types[0])
+        .unwrap()
+        .get("fields")
+        .is_none());
+    e.properties = BTreeMap::from([
+        ("story".into(), PropertyValue::Text("StoryOnly".into())),
+        ("visible".into(), PropertyValue::Text("ImageOnly".into())),
+        ("plan".into(), PropertyValue::Text("PlanningOnly".into())),
+    ]);
+    w.nodes = vec![a, b];
+    let narrative = narrative_link(&w, &e).to_string();
+    assert!(narrative.contains("StoryOnly"));
+    assert!(!narrative.contains("ImageOnly"));
+    assert!(!narrative.contains("PlanningOnly"));
+    let image = visual_link_summary(&w, &e);
+    assert!(image.contains("ImageOnly"));
+    assert!(!image.contains("StoryOnly"));
+    assert!(!image.contains("PlanningOnly"));
+}
+
+#[test]
+fn connection_type_review_shows_removed_properties_and_ref_filters_block_capability_removal() {
+    let mut w = World::default();
+    let a = node(&w, "core.character", "Nora");
+    let b = node(&w, "core.character", "Elias");
+    let mut witness = field("witness", FieldKind::NodeRef);
+    witness.metadata = Some(FieldMetadata {
+        reference_capability: Some("core.character".into()),
+        ..Default::default()
+    });
+    w.relation_types
+        .iter_mut()
+        .find(|d| d.id == "story.feels-toward")
+        .unwrap()
+        .fields
+        .push(witness);
+    let edge = WorldEdge {
+        id: id(),
+        type_id: "story.feels-toward".into(),
+        source_id: a.id.clone(),
+        target_id: b.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::from([
+            ("attitude".into(), PropertyValue::Text("Wary".into())),
+            ("witness".into(), PropertyValue::Text(b.id.clone())),
+        ]),
+    };
+    w.nodes = vec![a, b.clone()];
+    w.edges = vec![edge.clone()];
+    w.validate().unwrap();
+    assert!(crate::preview_world_edit(
+        &w,
+        crate::WorldEdit::RemoveCapability {
+            id: b.id,
+            capability: "core.character".into()
+        }
+    )
+    .is_err());
+    let preview = crate::preview_world_edit(
+        &w,
+        crate::WorldEdit::PutLink {
+            link: WorldEdge {
+                type_id: "core.related".into(),
+                properties: BTreeMap::new(),
+                ..edge
+            },
+        },
+    )
+    .unwrap();
+    assert!(preview
+        .changes
+        .iter()
+        .any(|s| s.contains("Attitude: Wary → Unspecified")));
+    assert!(preview
+        .changes
+        .iter()
+        .any(|s| s.contains("witness: Elias → Unspecified")));
 }

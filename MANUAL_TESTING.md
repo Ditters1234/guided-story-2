@@ -73,3 +73,13 @@ Current limits include bounded chapter memory, no character-belief filtering or 
 ## Build from source
 
 With the repository's Node/Rust/Windows build prerequisites installed, run `npm ci`, `npm run verify`, then `npm run manual:build`. The last command builds a standalone release executable and creates a new ignored `build/manual-test-*` folder containing only the executable, this guide, third-party notices and build metadata. It never packages stories, connection settings or development fixtures. `npm run desktop` remains available for development.
+
+## Typed relationship pass
+
+On a fresh fictional world, connect two characters with **Feels toward**. Fill attitude/reasons/tension and confirm the reverse relationship stays independent. Add an Organization with **Member of** and a role, an **Owes** link with terms/status, and a route with access/obstacles. Reopen the story and inspect the saved fields.
+
+Use a connection’s **AI…** action with blank direction and empty checked fields. Only selected relationship notes/details should change; endpoints/type/ID stay protected. Generate details remains available with relationship fields selected and no node fields. Review and Apply explicitly. Test an unrelated manual change during generation separately from an endpoint/source edit; the latter must stale the proposal.
+
+Create a custom relationship via **Add node → Define a relationship…**, adding Choice, Number, Yes/no and Node reference fields. Review/Apply the definition, use it on a connection, save zero/No, and reopen. Change a connection type and check that its review lists cleared old details. Try at 140% text in a small window; dialog actions stay visible while the form scrolls.
+
+On a worn item, set **Wearing details** to “open coat, sleeves rolled.” Keep garment design on the item and one physical link. Confirm captured image facts include the wearing configuration. In passage review, edit/approve a relationship detail as a normal card; source quote errors and unknown fields must be editable on that card. Accept, inspect Before/After and fork after it; later manual edits must not rewrite those snapshots. These checks assess the flow; real-model output quality and ComfyUI execution require separate explicit tests.

@@ -17,7 +17,7 @@ export const commands = {
 	loadDraft: () => typedError<EditorDraft_Serialize | null, string>(__TAURI_INVOKE("load_draft")),
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
-	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
+	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit_Deserialize) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
 	validateWorld: (world: World_Deserialize) => typedError<World_Serialize, string>(__TAURI_INVOKE("validate_world", { world })),
 	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
@@ -103,7 +103,7 @@ export type AcceptedPassage_Deserialize = {
 	chapterId: string,
 	plan: PassagePlan_Deserialize,
 	prose: string,
-	effects: PassageEffects,
+	effects: PassageEffects_Deserialize,
 	closeChapter: boolean,
 	beforeWorld: RecordRef,
 	afterWorld: RecordRef,
@@ -123,7 +123,7 @@ export type AcceptedPassage_Serialize = {
 	chapterId: string,
 	plan: PassagePlan_Serialize,
 	prose: string,
-	effects: PassageEffects,
+	effects: PassageEffects_Serialize,
 	closeChapter: boolean,
 	beforeWorld: RecordRef,
 	afterWorld: RecordRef,
@@ -187,6 +187,8 @@ export type AuthoringRequest_Deserialize = {
 	targetIds: string[],
 	contextIds: string[],
 	fields: EditableField_Deserialize[],
+	linkTargetIds?: string[],
+	linkFields?: EditableLinkField_Deserialize[],
 };
 
 export type AuthoringRequest_Serialize = {
@@ -199,6 +201,8 @@ export type AuthoringRequest_Serialize = {
 	targetIds: string[],
 	contextIds: string[],
 	fields: EditableField_Serialize[],
+	linkTargetIds?: string[],
+	linkFields?: EditableLinkField_Serialize[],
 };
 
 export type AuthoringStatus = "draft" | "running" | "review" | "failed" | "cancelled" | "interrupted" | "applied" | "discarded";
@@ -363,6 +367,20 @@ export type EditableField_Serialize = {
 	nodeId: string,
 	componentId: string | null,
 	key: string,
+};
+
+export type EditableLinkField = EditableLinkField_Serialize | EditableLinkField_Deserialize;
+
+export type EditableLinkField_Deserialize = {
+	linkId: string,
+	/**  None selects notes; Some selects a declared relationship property. */
+	property?: string | null,
+};
+
+export type EditableLinkField_Serialize = {
+	linkId: string,
+	/**  None selects notes; Some selects a declared relationship property. */
+	property: string | null,
 };
 
 export type EditorDraft = EditorDraft_Serialize | EditorDraft_Deserialize;
@@ -918,9 +936,16 @@ export type MemoryView = {
 	canApply: boolean,
 };
 
-export type NodeCandidate = {
+export type NodeCandidate = NodeCandidate_Serialize | NodeCandidate_Deserialize;
+
+export type NodeCandidate_Deserialize = {
 	nodes: WorldNode[],
-	edges: WorldEdge[],
+	edges: WorldEdge_Deserialize[],
+};
+
+export type NodeCandidate_Serialize = {
+	nodes: WorldNode[],
+	edges: WorldEdge_Serialize[],
 };
 
 export type NodeTypeDefinition = {
@@ -960,10 +985,22 @@ export type PassageEdits_Serialize = {
 	approvedEffects?: string[],
 };
 
-export type PassageEffect = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
+export type PassageEffect = PassageEffect_Serialize | PassageEffect_Deserialize;
 
-export type PassageEffects = {
-	changes: PassageEffect[],
+export type PassageEffect_Deserialize = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge_Deserialize; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
+
+export type PassageEffect_Serialize = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge_Serialize; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
+
+export type PassageEffects = PassageEffects_Serialize | PassageEffects_Deserialize;
+
+export type PassageEffects_Deserialize = {
+	changes: PassageEffect_Deserialize[],
+	notes: ContinuityNote[],
+	suggestChapterEnd: boolean,
+};
+
+export type PassageEffects_Serialize = {
+	changes: PassageEffect_Serialize[],
 	notes: ContinuityNote[],
 	suggestChapterEnd: boolean,
 };
@@ -1186,6 +1223,7 @@ export type RelationDefinition_Deserialize = {
 	targetCapability?: string | null,
 	physicalPlacement: boolean,
 	singleTarget: boolean,
+	fields?: FieldDefinition_Deserialize[],
 };
 
 export type RelationDefinition_Serialize = {
@@ -1196,6 +1234,7 @@ export type RelationDefinition_Serialize = {
 	targetCapability: string | null,
 	physicalPlacement: boolean,
 	singleTarget: boolean,
+	fields?: FieldDefinition_Serialize[],
 };
 
 export type RememberedPoint = RememberedPoint_Serialize | RememberedPoint_Deserialize;
@@ -1345,15 +1384,27 @@ export type Workspace_Serialize = {
 
 export type World = World_Serialize | World_Deserialize;
 
-export type WorldEdge = {
+export type WorldEdge = WorldEdge_Serialize | WorldEdge_Deserialize;
+
+export type WorldEdge_Deserialize = {
 	id: string,
 	typeId: string,
 	sourceId: string,
 	targetId: string,
 	description: string,
+	properties?: { [key in string]: PropertyValue },
 };
 
-export type WorldEdit = { kind: "putLink"; link: WorldEdge } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
+export type WorldEdge_Serialize = {
+	id: string,
+	typeId: string,
+	sourceId: string,
+	targetId: string,
+	description: string,
+	properties?: { [key in string]: PropertyValue },
+};
+
+export type WorldEdit = WorldEdit_Serialize | WorldEdit_Deserialize;
 
 export type WorldEditPreview = WorldEditPreview_Serialize | WorldEditPreview_Deserialize;
 
@@ -1367,6 +1418,10 @@ export type WorldEditPreview_Serialize = {
 	changes: string[],
 };
 
+export type WorldEdit_Deserialize = { kind: "putLink"; link: WorldEdge_Deserialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
+
+export type WorldEdit_Serialize = { kind: "putLink"; link: WorldEdge_Serialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
+
 /**  All entities share one identity; capabilities and typed links supply behavior. */
 export type WorldNode = {
 	id: string,
@@ -1379,7 +1434,7 @@ export type WorldNode = {
 
 export type World_Deserialize = {
 	nodes: WorldNode[],
-	edges: WorldEdge[],
+	edges: WorldEdge_Deserialize[],
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition_Deserialize[],
 	relationTypes: RelationDefinition_Deserialize[],
@@ -1388,7 +1443,7 @@ export type World_Deserialize = {
 
 export type World_Serialize = {
 	nodes: WorldNode[],
-	edges: WorldEdge[],
+	edges: WorldEdge_Serialize[],
 	nodeTypes: NodeTypeDefinition[],
 	componentTypes: ComponentDefinition_Serialize[],
 	relationTypes: RelationDefinition_Serialize[],

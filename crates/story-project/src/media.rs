@@ -197,10 +197,13 @@ fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
                         layer(n)
                     ))
                     .unwrap_or_default(),
-                if e.description.is_empty() {
-                    String::new()
-                } else {
-                    format!(" ({})", e.description)
+                {
+                    let details = visual_link_summary(world, e);
+                    if details.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({details})")
+                    }
                 }
             )
         })

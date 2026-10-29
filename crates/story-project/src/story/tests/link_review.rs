@@ -16,6 +16,7 @@ fn missing_link_and_incompatible_relationship_are_actionable_even_after_all_card
         changes: vec![
             PassageEffect::PutLink {
                 link: WorldEdge {
+                    properties: Default::default(),
                     id: id(),
                     type_id: "core.inside".into(),
                     ..old.clone()
@@ -114,6 +115,7 @@ fn conflicting_updates_are_marked_on_both_cards_and_can_be_repaired_as_an_existi
         changes: vec![
             PassageEffect::PutLink {
                 link: WorldEdge {
+                    properties: Default::default(),
                     type_id: "core.stored-in".into(),
                     ..old.clone()
                 },

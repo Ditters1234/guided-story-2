@@ -27,6 +27,8 @@ fn blank_node(world: &World, type_id: &str, name: &str) -> WorldNode {
 }
 fn revise(node: &WorldNode) -> AuthoringRequest {
     AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: String::new(),
         type_id: None,
@@ -57,6 +59,8 @@ fn structured_field_development_accepts_unspecified_provider_nulls_and_preserves
         .commit(0, id(), "Fixture".into(), world.clone())
         .unwrap();
     let request = AuthoringRequest {
+        link_target_ids: vec![],
+        link_fields: vec![],
         fields: vec![EditableField {
             node_id: person.id.clone(),
             component_id: Some("detail.voice".into()),

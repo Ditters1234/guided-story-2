@@ -269,6 +269,7 @@ fn node(world: &World, preset: &str, name: &str) -> WorldNode {
 }
 fn edge(kind: &str, source: &str, target: &str) -> WorldEdge {
     WorldEdge {
+        properties: Default::default(),
         id: request(),
         type_id: kind.into(),
         source_id: source.into(),
@@ -347,6 +348,7 @@ fn custom_node_types_fields_and_relations_round_trip_without_engine_changes() {
     let storm = node(&world, "custom.sky", "The approaching storm");
     let place = node(&world, "core.place", "The valley");
     world.relation_types.push(RelationDefinition {
+        fields: vec![],
         id: "custom.affects".into(),
         name: "Affects".into(),
         label: "affects".into(),

@@ -1,9 +1,11 @@
 <script lang="ts">
   import type {PassageEffects,PassageEffect,ContinuityNote,EffectReviewEntry,PropertyValue,WorldNode} from './bindings';
   import type {World} from './model';
+  import LinkFields from './LinkFields.svelte';
+  import {changeLinkType,setLinkProperty} from './link-fields';
   import NodeFields from './NodeFields.svelte';
   import {defaultProperties} from './node-fields';
-  import {evidenceIssue,passageQuotes,proposedNodes,effectTitle,linkLabel,nodeDiff,removalPlan,removeProposals,connectionIdentity} from './effects-ui';
+  import {evidenceIssue,passageQuotes,proposedNodes,effectTitle,linkLabel,nodeDiff,removalPlan,removeProposals,connectionIdentity,linkDiff} from './effects-ui';
   let {world,effects,prose,kind,index,entry,approvedKeys,disabled=false,canApprove=false,onChange,onApprove}:{world:World;effects:PassageEffects;prose:string;kind:'change'|'note';index:number;entry?:EffectReviewEntry;approvedKeys:string[];disabled?:boolean;canApprove?:boolean;onChange:(value:PassageEffects,invalidated:string[])=>void;onApprove:(keys:string[])=>void}=$props();
   let editing=$state(false),confirmRemove=$state(false),choosingQuote=$state(false);
   const effect=$derived(kind==='change'?effects.changes[index]:null);
@@ -37,7 +39,7 @@
   {#if proposalNode}
     {#if differences.length}<dl class="effect-diff">{#each differences as row}<dt>{row.label}</dt><dd><del>{short(row.before)}</del><span aria-hidden="true"> → </span><ins>{short(row.after)}</ins></dd>{/each}</dl>
     {:else}<p>{short(proposalNode.description)||'No story notes.'}</p>{#if proposalNode.visualDescription}<p class="field-help">{short(proposalNode.visualDescription)}</p>{/if}{/if}
-  {:else if effect?.kind==='putLink'}<div class="effect-diff">{#if priorLink}<p><strong>Before:</strong> {linkLabel(world,world.nodes,priorLink)}</p>{/if}<p><strong>After:</strong> {linkLabel(world,nodes,effect.link)}</p></div>
+  {:else if effect?.kind==='putLink'}<div class="effect-diff">{#if priorLink}<p><strong>Before:</strong> {linkLabel(world,world.nodes,priorLink)}</p>{/if}<p><strong>After:</strong> {linkLabel(world,nodes,effect.link)}</p></div><dl class="effect-diff">{#each linkDiff(world,nodes,effect.link,priorLink) as row}<dt>{row.label}</dt><dd><del>{short(row.before)}</del> → <ins>{short(row.after)}</ins></dd>{/each}</dl>
   {:else if effect?.kind==='removeLink'}<p>{priorLink?linkLabel(world,world.nodes,priorLink):'Missing connection'} will be removed.</p>
   {:else if note}<p>{note.text||'Empty note'}</p>{/if}
 
@@ -59,9 +61,10 @@
       {:else if proposalLink}
         <label class="field">Connection to update<select aria-label="Connection to update" value={connectionIdentity(world,proposalLink)} onchange={e=>{const selection=e.currentTarget.value;if(selection!=='missing')change(v=>v.kind==='putLink'?{...v,link:{...v.link,id:selection==='new'?`new:link-${crypto.randomUUID()}`:selection}}:v);}}>{#if connectionIdentity(world,proposalLink)==='missing'}<option value="missing" disabled>Unrecognized connection — choose one</option>{/if}<option value="new">Create new connection</option>{#each world.edges as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
         <label class="field">Source<select aria-label="Source" value={proposalLink.sourceId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,sourceId:e.currentTarget.value}}:v)}>{#if !nodes.some(n=>n.id===proposalLink!.sourceId)}<option value={proposalLink.sourceId}>Missing source</option>{/if}{#each nodes as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
-        <label class="field">Relationship<select aria-label="Relationship" value={proposalLink.typeId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,typeId:e.currentTarget.value}}:v)}>{#if !world.relationTypes.some(r=>r.id===proposalLink!.typeId)}<option value={proposalLink.typeId}>Unknown relationship</option>{/if}{#each world.relationTypes as r}<option value={r.id}>{r.name}</option>{/each}</select></label>
+        <label class="field">Relationship<select aria-label="Relationship" value={proposalLink.typeId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:changeLinkType(world,v.link,e.currentTarget.value)}:v)}>{#if !world.relationTypes.some(r=>r.id===proposalLink!.typeId)}<option value={proposalLink.typeId}>Unknown relationship</option>{/if}{#each world.relationTypes as r}<option value={r.id}>{r.name}</option>{/each}</select></label>
         <label class="field">Target<select aria-label="Target" value={proposalLink.targetId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,targetId:e.currentTarget.value}}:v)}>{#if !nodes.some(n=>n.id===proposalLink!.targetId)}<option value={proposalLink.targetId}>Missing target</option>{/if}{#each nodes.filter(n=>n.id!==proposalLink!.sourceId) as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
         <label class="field">Connection notes<textarea value={proposalLink.description} rows={2} maxlength={16000} oninput={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,description:e.currentTarget.value}}:v)}></textarea></label>
+        <LinkFields {world} link={proposalLink} {nodes} {disabled} onChange={(key,value)=>change(v=>v.kind==='putLink'?{...v,link:setLinkProperty(v.link,key,value)}:v)}/>
       {:else if effect?.kind==='removeLink'}
         <label class="field">Connection to remove<select aria-label="Connection to remove" value={effect.id} onchange={e=>change(v=>v.kind==='removeLink'?{...v,id:e.currentTarget.value}:v)}>{#if !world.edges.some(e=>effect?.kind==='removeLink'&&e.id===effect.id)}<option value={effect.id}>Missing connection</option>{/if}{#each world.edges as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
       {:else if note}

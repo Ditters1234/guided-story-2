@@ -21,6 +21,7 @@ fn stitched_quotes_report_all_fields_and_manual_repair_preserves_prose_until_acc
             },
             PassageEffect::PutLink {
                 link: WorldEdge {
+                    properties: Default::default(),
                     type_id: "core.stored-in".into(),
                     target_id: before.world.nodes[2].id.clone(),
                     ..worn.clone()

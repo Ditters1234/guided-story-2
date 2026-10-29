@@ -108,7 +108,14 @@ pub(super) fn effect_review(
         let refs = match change {
             PassageEffect::PutNode { node, .. } => node_references(node, world),
             PassageEffect::PutLink { link, .. } => {
-                vec![link.source_id.clone(), link.target_id.clone()]
+                let mut refs = vec![link.source_id.clone(), link.target_id.clone()];
+                if let Some(def) = world.relation_types.iter().find(|d| d.id == link.type_id) {
+                    refs.extend(crate::projection::property_references(
+                        &def.fields,
+                        &link.properties,
+                    ));
+                }
+                refs
             }
             PassageEffect::RemoveLink { .. } => vec![],
         };

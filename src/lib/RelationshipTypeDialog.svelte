@@ -1,26 +1,41 @@
 <script lang="ts">
-  import type { World } from './model';
-  import type { RelationDefinition_Serialize } from './bindings';
-  let {world,onCreate,onClose}: {world:World;onCreate:(definition:RelationDefinition_Serialize)=>void;onClose:()=>void}=$props();
-  let dialog: HTMLDialogElement;
-  let name=$state(''), label=$state(''), source=$state(''), target=$state('');
-  let physical=$state(false), single=$state(false);
+  import {untrack} from 'svelte';
+  import type {World} from './model';
+  import type {RelationDefinition_Serialize} from './bindings';
+  import {commands,unwrap} from './native';
+  import {fieldDefinitions,type FieldDraft} from './schema-fields';
+  import FieldDefinitionsEditor from './FieldDefinitionsEditor.svelte';
+  let {world,onCreate,onClose}:{world:World;onCreate:(definition:RelationDefinition_Serialize,source:string)=>void;onClose:()=>void}=$props();
+  const source=untrack(()=>JSON.stringify(world)),base=JSON.parse(source) as World,id='custom.'+crypto.randomUUID();
+  let dialog:HTMLDialogElement,name=$state(''),label=$state(''),from=$state(''),target=$state(''),physical=$state(false),single=$state(false),fields=$state<FieldDraft[]>([]),working=$state(false),error=$state('');
+  let reviewed=$state<RelationDefinition_Serialize|null>(null),reviewInput=$state('');
+  const input=$derived(JSON.stringify({name,label,from,target,physical,single,fields}));
   $effect(()=>{dialog?.showModal();});
-  function create(event:SubmitEvent) {
-    event.preventDefault();
-    onCreate({id:'custom.'+crypto.randomUUID(),name:name.trim(),label:label.trim(),sourceCapability:source||null,targetCapability:target||null,physicalPlacement:physical,singleTarget:physical||single});
+  $effect(()=>{if(input!==reviewInput)reviewed=null;});
+  async function review(event:SubmitEvent){
+    event.preventDefault();working=true;error='';const signature=input;
+    try{
+      const definition:RelationDefinition_Serialize={id,name:name.trim(),label:label.trim(),sourceCapability:from||null,targetCapability:target||null,physicalPlacement:physical,singleTarget:physical||single,fields:fieldDefinitions(fields)};
+      unwrap(await commands.validateWorld({...base,relationTypes:[...base.relationTypes,definition]}));
+      if(input===signature){reviewed=definition;reviewInput=signature;}
+    }catch(caught){error=caught instanceof Error?caught.message:String(caught);}finally{working=false;}
   }
+  function apply(){if(reviewed&&input===reviewInput){try{onCreate($state.snapshot(reviewed),source);}catch(caught){error=caught instanceof Error?caught.message:String(caught);}}}
 </script>
-<dialog bind:this={dialog} class="project-dialog edit-dialog" onclose={onClose} oncancel={onClose} aria-labelledby="relationship-type-title">
-  <form onsubmit={create}>
-    <span class="eyebrow">YOUR WORLD, YOUR TOOLKIT</span><h2 id="relationship-type-title">Define a relationship.</h2>
-    <p>Use capabilities to constrain connections. A physical relationship participates in the same one-holder and containment-loop checks as built-in placements.</p>
-    <label class="field">Relationship name<input bind:value={name} required maxlength={200} placeholder="Member of, mounted on…" /></label>
-    <label class="field">Label on map<input bind:value={label} required maxlength={200} placeholder="member of" /></label>
-    <label class="field">Source needs<select bind:value={source}><option value="">Any node</option>{#each world.componentTypes as capability}<option value={capability.id}>{capability.name}</option>{/each}</select></label>
-    <label class="field">Target needs<select bind:value={target}><option value="">Any node</option>{#each world.componentTypes as capability}<option value={capability.id}>{capability.name}</option>{/each}</select></label>
-    <label class="check-field"><input type="checkbox" bind:checked={physical} /><span>Physical placement<small>Moving this link replaces the source’s previous location or holder.</small></span></label>
-    <label class="check-field"><input type="checkbox" checked={physical||single} disabled={physical} onchange={(e)=>{single=e.currentTarget.checked;}} /><span>One target per source<small>A new connection of this type replaces its previous target.</small></span></label>
-    <div class="dialog-actions"><button type="button" class="quiet-button" onclick={onClose}>Cancel</button><button type="submit" class="primary-button" disabled={!name.trim()||!label.trim()}>Create relationship</button></div>
+<dialog bind:this={dialog} class="project-dialog node-definition-dialog" onclose={onClose} oncancel={e=>{if(working)e.preventDefault();}} aria-labelledby="relationship-type-title">
+  <form onsubmit={review}>
+    <header class="settings-heading"><h2 id="relationship-type-title">Define relationship</h2><button type="button" class="icon-button" aria-label="Close relationship definition" disabled={working} onclick={onClose}>×</button></header>
+    <div class="node-definition-body"><fieldset disabled={working}>
+      <label class="field">Relationship name<input bind:value={name} required maxlength={200}/></label>
+      <label class="field">Label on map<input bind:value={label} required maxlength={200}/></label>
+      <label class="field">Source needs<select bind:value={from}><option value="">Any node</option>{#each base.componentTypes as c}<option value={c.id}>{c.name}</option>{/each}</select></label>
+      <label class="field">Target needs<select bind:value={target}><option value="">Any node</option>{#each base.componentTypes as c}<option value={c.id}>{c.name}</option>{/each}</select></label>
+      <label class="check-field"><input type="checkbox" bind:checked={physical}/><span>Physical placement<small>Replaces the source’s previous location or holder, with the usual containment checks.</small></span></label>
+      <label class="check-field"><input type="checkbox" checked={physical||single} disabled={physical} onchange={e=>{single=e.currentTarget.checked;}}/><span>One target per source</span></label>
+      <FieldDefinitionsEditor world={base} bind:fields/>
+      {#if error}<p role="alert" class="inline-error">{error}</p>{/if}
+      {#if reviewed}<div class="change-review">Create this relationship type with {fields.length} optional detail fields.</div>{/if}
+    </fieldset></div>
+    <footer class="settings-footer"><button type="button" class="quiet-button" disabled={working} onclick={onClose}>Cancel</button>{#if reviewed}<button type="button" class="primary-button" onclick={apply}>Apply definition</button>{:else}<button type="submit" class="primary-button" disabled={working||!name.trim()||!label.trim()}>{working?'Checking…':'Review definition'}</button>{/if}</footer>
   </form>
 </dialog>

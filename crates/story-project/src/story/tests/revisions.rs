@@ -32,6 +32,7 @@ fn handoff(p: &Project) -> String {
     draft.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![PassageEffect::PutLink {
             link: WorldEdge {
+                properties: Default::default(),
                 id: "new:handoff".into(),
                 type_id: "core.stored-in".into(),
                 source_id: world.nodes[3].id.clone(),

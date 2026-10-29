@@ -5,7 +5,7 @@ export type FieldTarget = {id:string;name:string;components?:WorldNode['componen
 export const hasCapability = (node:FieldTarget|undefined,id:string):boolean => !!node && (
   !!node.components?.[id] || !!node.capabilities?.includes(id) || (id==='core.holder' && hasCapability(node,'core.container')));
 
-export function defaultProperties(definition:ComponentDefinition):Record<string,PropertyValue> {
+export function defaultProperties(definition:Pick<ComponentDefinition,'fields'>):Record<string,PropertyValue> {
   return Object.fromEntries(definition.fields.filter(f=>f.required||f.defaultValue!==null).map(f=>[f.key,Array.isArray(f.defaultValue)?[...f.defaultValue]:f.defaultValue]));
 }
 export function capabilitySections(world:World,node:WorldNode) {

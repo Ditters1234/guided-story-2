@@ -728,7 +728,7 @@ impl Project {
         let memory = self.memory_context(index, plan, &context, memory_budget)?;
         let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"recentPassages":recent,"earlierMemory":memory});
         let mut fingerprint = story_hash(&(
-            "passage-source-v5-composable-fields",
+            "passage-source-v6-relationship-fields",
             &input,
             &context.node_types,
             &context.component_types,
@@ -803,8 +803,13 @@ impl Project {
                 .iter()
                 .map(|node| narrative_record(&context, node))
                 .collect::<Vec<_>>());
+            input["links"] = json!(context
+                .edges
+                .iter()
+                .map(|edge| narrative_link(&context, edge))
+                .collect::<Vec<_>>());
         }
-        let schema = checking.then(effects_schema);
+        let schema = checking.then(|| effects_schema(&context));
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
         }
@@ -838,6 +843,11 @@ impl Project {
                 .nodes
                 .iter()
                 .map(|node| narrative_record(&context, node))
+                .collect::<Vec<_>>());
+            input["links"] = json!(context
+                .edges
+                .iter()
+                .map(|edge| narrative_link(&context, edge))
                 .collect::<Vec<_>>());
         }
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;

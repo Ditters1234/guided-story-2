@@ -34,7 +34,8 @@ async fn named_people_and_item_outfits_from_a_homestead_idea() {
         id(),
     )
     .unwrap();
-    let request = AuthoringRequest { direction: "An older man and a younger woman at an isolated forested homestead. Develop this into the starting world for a story.".into(), ..group_request() };
+    let request = AuthoringRequest {
+        link_target_ids: vec![], link_fields: vec![], direction: "An older man and a younger woman at an isolated forested homestead. Develop this into the starting world for a story.".into(), ..group_request() };
     let proposal = id();
     p.save_authoring_draft(&proposal, 0, request).unwrap();
     let prepared = p.start_authoring(&proposal, 1, 0, &connection).unwrap();

@@ -1,11 +1,12 @@
 <script lang="ts">
   import {untrack} from 'svelte';
-  import type {ComponentDefinition_Serialize,FieldDefinition_Serialize,FieldKind,FieldUse} from './bindings';
+  import type {ComponentDefinition_Serialize} from './bindings';
   import type {World} from './model';
   import {makeNode} from './model';
   import {defaultProperties} from './node-fields';
   import {commands,unwrap} from './native';
-  type FieldDraft={key:string;label:string;kind:FieldKind;help:string;uses:FieldUse[];stability:'stable'|'state';choices:string;referenceCapability:string;coveredBy:string};
+  import {fieldDefinitions,type FieldDraft} from './schema-fields';
+  import FieldDefinitionsEditor from './FieldDefinitionsEditor.svelte';
   let {world,attachToId,onApply,onClose}:{world:World;attachToId?:string;onApply:(next:World,source:string,selectedId:string)=>void;onClose:()=>void}=$props();
   const source=untrack(()=>JSON.stringify(world)),base=JSON.parse(source) as World;
   const extensionId='custom.'+crypto.randomUUID(),typeId='custom.'+crypto.randomUUID(),newId=crypto.randomUUID();
@@ -14,15 +15,12 @@
   const input=$derived(JSON.stringify({name,description,components,fields}));
   $effect(()=>{dialog?.showModal();});
   $effect(()=>{if(input!==reviewInput)reviewed=null;});
-  let fieldNumber=0;
-  function addField(){fields=[...fields,{key:'field'+fieldNumber++,label:'',kind:'longText',help:'',uses:['story'],stability:'stable',choices:'',referenceCapability:'',coveredBy:''}];}
-  function setUse(index:number,use:FieldUse,checked:boolean){fields=fields.map((f,i)=>i!==index?f:{...f,uses:checked?[...f.uses,use]:f.uses.filter(v=>v!==use)});}
   async function review(event:SubmitEvent){
     event.preventDefault();error='';working=true;
     const signature=input;
     try{
       if(!name.trim()||fields.some(f=>!f.label.trim()))throw Error('Give the definition and each field a name.');
-      const definitions:FieldDefinition_Serialize[]=fields.map(f=>({key:f.key,label:f.label.trim(),kind:f.kind,required:false,defaultValue:null,metadata:{help:f.help.trim()||undefined,uses:[...f.uses],stability:f.stability,choices:f.kind==='choice'?f.choices.split(',').map(v=>v.trim()).filter(Boolean):[],referenceCapability:['nodeRef','nodeRefs'].includes(f.kind)?f.referenceCapability||undefined:undefined,coveredBy:f.uses.includes('visual')?f.coveredBy.split(',').map(v=>v.trim()).filter(Boolean):[]}}));
+      const definitions=fieldDefinitions(fields);
       const extension:ComponentDefinition_Serialize={id:extensionId,name:name.trim()+(attachToId?'':' details'),description:description.trim(),fields:definitions};
       let next=structuredClone(base);
       if(attachToId||fields.length)next.componentTypes.push(extension);
@@ -49,18 +47,7 @@
         <label class="field">Start from a preset<select value="" onchange={e=>{components=[...(base.nodeTypes.find(t=>t.id===e.currentTarget.value)?.components??[])];}}><option value="">Choose starting extensions…</option>{#each base.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
         <details><summary>Included extensions ({components.length})</summary><div class="definition-capabilities">{#each base.componentTypes as capability}<label><input type="checkbox" bind:group={components} value={capability.id}/>{capability.name}</label>{/each}</div></details>
       {/if}
-      {#each fields as field,index (field.key)}
-        <section class="definition-field"><div class="section-actions"><strong>Field {index+1}</strong><button type="button" class="text-action danger-text" onclick={()=>{fields=fields.filter(f=>f.key!==field.key);}}>Remove</button></div>
-          <div class="definition-field-row"><label class="field">Label<input bind:value={field.label} required maxlength={200}/></label><label class="field">Input<select bind:value={field.kind}><option value="text">Short text</option><option value="longText">Long text</option><option value="number">Number</option><option value="boolean">Yes / no</option><option value="choice">Choice</option><option value="nodeRef">Node reference</option><option value="nodeRefs">Node references</option></select></label></div>
-          <label class="field">Help<input bind:value={field.help} maxlength={1000}/></label>
-          {#if field.kind==='choice'}<label class="field">Choices<input bind:value={field.choices} placeholder="open, active, resolved" maxlength={4000} required/></label>{/if}
-          {#if ['nodeRef','nodeRefs'].includes(field.kind)}<label class="field">Reference needs<select bind:value={field.referenceCapability}><option value="">Any node</option>{#each base.componentTypes as c}<option value={c.id}>{c.name}</option>{/each}</select></label>{/if}
-          <div class="definition-task-uses"><span>Use for</span>{#each [{id:'story',label:'Story'},{id:'visual',label:'Images'},{id:'planning',label:'Author planning'}] as use}<label><input type="checkbox" checked={field.uses.includes(use.id as FieldUse)} disabled={field.uses.length===1&&field.uses.includes(use.id as FieldUse)} onchange={e=>setUse(index,use.id as FieldUse,e.currentTarget.checked)}/>{use.label}</label>{/each}</div>
-          <label class="field">Information<select bind:value={field.stability}><option value="stable">Lasting trait</option><option value="state">Changing state</option></select></label>
-          {#if field.uses.includes('visual')}<label class="field">Hide when covered by garment regions<input bind:value={field.coveredBy} placeholder="Optional: torso, arms" maxlength={1000}/></label>{/if}
-        </section>
-      {/each}
-      <button type="button" class="secondary-button" disabled={fields.length>=40} onclick={addField}>＋ Add field</button>
+      <FieldDefinitionsEditor world={base} bind:fields/>
       {#if error}<p class="inline-error" role="alert">{error}</p>{/if}
       {#if reviewed}<div class="change-review"><p>{attachToId?'Attach this extension to the selected node.':'Create this preset and one unplaced node.'} {fields.length} optional fields; unspecified values stay empty. Existing definitions and nodes are retained.</p></div>{/if}
     </fieldset></div>

@@ -208,6 +208,33 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
                     }
                 }
             }
+            for edge in &mut world.edges {
+                let definition = world
+                    .relation_types
+                    .iter()
+                    .find(|d| d.id == edge.type_id)
+                    .unwrap();
+                for field in &definition.fields {
+                    if let Some(value) = edge.properties.get_mut(&field.key) {
+                        if clear_reference(value, &field.kind, &id) {
+                            changes.push(format!(
+                                "Clear connection reference: {} / {}.",
+                                definition.name, field.label
+                            ));
+                        }
+                    }
+                }
+            }
+            for definition in &mut world.relation_types {
+                for field in &mut definition.fields {
+                    if clear_reference(&mut field.default_value, &field.kind, &id) {
+                        changes.push(format!(
+                            "Clear default reference in {} / {}.",
+                            definition.name, field.label
+                        ));
+                    }
+                }
+            }
         }
         WorldEdit::RemoveCapability { id, capability } => {
             let node = world
@@ -253,6 +280,48 @@ pub fn preview_world_edit(source: &World, edit: WorldEdit) -> Result<WorldEditPr
         }
     }
     for edge in &world.edges {
+        let old = source.edges.iter().find(|e| e.id == edge.id);
+        let fields = world
+            .relation_types
+            .iter()
+            .find(|d| d.id == edge.type_id)
+            .map(|d| d.fields.as_slice())
+            .unwrap_or_default();
+        let previous_fields = old
+            .and_then(|e| source.relation_types.iter().find(|d| d.id == e.type_id))
+            .map(|d| d.fields.as_slice())
+            .unwrap_or_default();
+        let keys: BTreeSet<_> = edge
+            .properties
+            .keys()
+            .chain(old.into_iter().flat_map(|e| e.properties.keys()))
+            .collect();
+        for key in keys {
+            let before_field = previous_fields.iter().find(|f| &f.key == key);
+            let after_field = fields.iter().find(|f| &f.key == key);
+            let field = after_field
+                .or(before_field)
+                .expect("validated relationship field");
+            let before = old.and_then(|e| e.properties.get(key));
+            let after = edge.properties.get(key);
+            if before.unwrap_or(&PropertyValue::Null) != after.unwrap_or(&PropertyValue::Null) {
+                changes.push(format!(
+                    "{} / {}: {} → {}.",
+                    label(&world, edge),
+                    field.label,
+                    crate::projection::field_value_text(
+                        source,
+                        before_field.unwrap_or(field),
+                        before
+                    ),
+                    crate::projection::field_value_text(
+                        &world,
+                        after_field.unwrap_or(field),
+                        after
+                    )
+                ));
+            }
+        }
         if !source.edges.iter().any(|e| e.id == edge.id) {
             changes.push(format!("Add connection: {}.", label(&world, edge)));
         }

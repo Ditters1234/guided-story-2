@@ -186,6 +186,8 @@ fn enriched(p: &Project, dir: &Path) -> (String, String, String) {
         &world_proposal,
         0,
         AuthoringRequest {
+            link_target_ids: vec![],
+            link_fields: vec![],
             mode: AuthoringMode::Create,
             direction: "A fictional courtyard".into(),
             type_id: Some("core.place".into()),
@@ -651,4 +653,47 @@ fn backup_crash_child() {
         )
         .unwrap();
     }
+}
+
+#[test]
+fn typed_relationship_values_and_definitions_roundtrip_through_reviewed_backup_restore() {
+    let (dir, p) = fixture();
+    let mut current = p.view().unwrap();
+    let mut other = current.world.nodes[0].clone();
+    other.id = id();
+    other.name = "Tower".into();
+    current
+        .world
+        .relation_types
+        .iter_mut()
+        .find(|r| r.id == "core.related")
+        .unwrap()
+        .fields
+        .push(FieldDefinition {
+            key: "access".into(),
+            label: "Access".into(),
+            kind: FieldKind::Boolean,
+            required: false,
+            default_value: PropertyValue::Null,
+            metadata: None,
+        });
+    current.world.edges.push(WorldEdge {
+        id: id(),
+        type_id: "core.related".into(),
+        source_id: current.world.nodes[0].id.clone(),
+        target_id: other.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::from([("access".into(), PropertyValue::Boolean(false))]),
+    });
+    current.world.nodes.push(other);
+    let expected = current.world.clone();
+    let commit = p
+        .commit(current.revision, id(), current.title, current.world)
+        .unwrap();
+    let backup = p
+        .export_backup(dir.path(), &id(), commit.project.revision)
+        .unwrap();
+    let restored = restore_backup(Path::new(&backup.folder_path), dir.path(), &id()).unwrap();
+    let restored = Project::open(Path::new(&restored.folder_path)).unwrap();
+    assert_eq!(restored.view().unwrap().world, expected);
 }

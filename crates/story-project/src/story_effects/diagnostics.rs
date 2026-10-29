@@ -58,6 +58,44 @@ pub(crate) fn effect_record_issues(
                 if definition.is_none() {
                     issues[i].push("Choose a saved relationship type in Edit.".into());
                 }
+                if let Some(definition) = definition {
+                    for key in link
+                        .properties
+                        .keys()
+                        .filter(|key| !definition.fields.iter().any(|f| &f.key == *key))
+                    {
+                        issues[i].push(format!("Unknown relationship field {key}. Remove it in Edit or choose the intended relationship type."));
+                    }
+                    for field in &definition.fields {
+                        match link.properties.get(&field.key) {
+                            None if field.required => {
+                                issues[i].push(format!("Fill in {} in Edit.", field.label))
+                            }
+                            Some(value) if !crate::model::field_matches(value, field, &nodes) => {
+                                issues[i].push(format!("Correct {} in Edit.", field.label))
+                            }
+                            _ => (),
+                        }
+                    }
+                    let previous = source
+                        .edges
+                        .iter()
+                        .find(|e| e.id == link.id)
+                        .map(|e| &e.properties);
+                    for field in &definition.fields {
+                        if previous.and_then(|p| p.get(&field.key))
+                            != link.properties.get(&field.key)
+                            && crate::projection::property_references(
+                                std::slice::from_ref(field),
+                                &link.properties,
+                            )
+                            .iter()
+                            .any(|id| !allowed.contains(id.as_str()))
+                        {
+                            issues[i].push(format!("{} references a node outside this scene. Choose a supplied node in Edit.",field.label));
+                        }
+                    }
+                }
                 for (label, id, capability) in [
                     (
                         "Source",

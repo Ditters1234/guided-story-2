@@ -45,6 +45,7 @@ pub(super) fn fixture() -> (tempfile::TempDir, Project) {
     );
     for (kind, source, target) in [("core.present-at", 1, 0), ("core.worn-by", 2, 1)] {
         world.edges.push(WorldEdge {
+            properties: Default::default(),
             id: id(),
             type_id: kind.into(),
             source_id: world.nodes[source].id.clone(),
@@ -945,4 +946,42 @@ async fn preflight_only_performs_bounded_get_requests() {
     settings.base_url = endpoint;
     assert!(preflight_image(&settings, None).await.unwrap().ready);
     assert_eq!(task.await.unwrap().len(), 2);
+}
+
+#[test]
+fn wearing_configuration_is_visible_and_changes_portrait_facts_but_social_links_do_not() {
+    let (_dir, p) = fixture();
+    let mut w = p.view().unwrap().world;
+    let person = w.nodes[1].id.clone();
+    let original = shot_fact(&w, &person).unwrap();
+    w.edges
+        .iter_mut()
+        .find(|e| e.type_id == "core.worn-by")
+        .unwrap()
+        .properties
+        .insert(
+            "configuration".into(),
+            PropertyValue::Text("Hood raised, coat open".into()),
+        );
+    let changed = shot_fact(&w, &person).unwrap();
+    assert!(changed
+        .outfit
+        .iter()
+        .any(|s| s.contains("Hood raised, coat open")));
+    assert_ne!(changed.fingerprint, original.fingerprint);
+    let other = node(&w, "core.character", "Elias");
+    w.edges.push(WorldEdge {
+        id: id(),
+        type_id: "story.feels-toward".into(),
+        source_id: person.clone(),
+        target_id: other.id.clone(),
+        description: String::new(),
+        properties: BTreeMap::from([("attitude".into(), PropertyValue::Text("Suspicious".into()))]),
+    });
+    w.nodes.push(other);
+    w.validate().unwrap();
+    assert_eq!(
+        shot_fact(&w, &person).unwrap().fingerprint,
+        changed.fingerprint
+    );
 }
