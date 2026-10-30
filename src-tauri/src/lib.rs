@@ -1,0 +1,409 @@
+use std::{path::Path, sync::Mutex};
+use story_project::{
+    CommitResult, EditorDraft, Preferences, Project, ProjectView, Workspace, World, WorldEdit,
+    WorldEditPreview,
+};
+use tauri::{Manager, State};
+mod ai;
+use ai::*;
+mod passages;
+use passages::*;
+mod memory;
+use memory::*;
+mod media;
+use media::*;
+mod image_prompts;
+use image_prompts::*;
+mod sources;
+use sources::*;
+mod backups;
+use backups::*;
+
+#[derive(Default)]
+struct AppState(Mutex<Option<Project>>);
+
+fn with_project<T>(
+    state: &AppState,
+    action: impl FnOnce(&Project) -> Result<T, String>,
+) -> Result<T, String> {
+    let guard = state
+        .0
+        .lock()
+        .map_err(|_| "The project session needs to be reopened.".to_string())?;
+    action(guard.as_ref().ok_or("Open or create a project first.")?)
+}
+
+fn remember_opened_project(app: &tauri::AppHandle, mut view: ProjectView) -> ProjectView {
+    if let Err(error) = preferences_root(app)
+        .and_then(|root| story_project::remember_project(&root, &view.folder_path))
+    {
+        view.warnings.push(format!(
+            "Story opened, but its folder could not be remembered for next launch: {error}"
+        ));
+    }
+    view
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_project(
+    parent_path: String,
+    title: String,
+    world: World,
+    request_id: String,
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
+) -> Result<ProjectView, String> {
+    let _idle = idle_guard(&jobs)?;
+    let parent = Path::new(&parent_path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if !parent.is_dir() {
+        return Err("Choose a parent folder for your story.".into());
+    }
+    story_project::validate_id(&request_id)?;
+    let root = parent.join(format!("guided-story-{}", &request_id[..8]));
+    let mut guard = state
+        .0
+        .lock()
+        .map_err(|_| "The project session needs to be reopened.")?;
+    let project = Project::create(&root, title, world, request_id)?;
+    let view = project.view()?;
+    *guard = Some(project);
+    Ok(remember_opened_project(&app, view))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn open_project(
+    folder_path: String,
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
+) -> Result<ProjectView, String> {
+    let _idle = idle_guard(&jobs)?;
+    let path = Path::new(&folder_path)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let mut guard = state
+        .0
+        .lock()
+        .map_err(|_| "The project session needs to be reopened.")?;
+    if let Some(current) = guard.as_ref() {
+        if Path::new(&current.folder_path()) == path {
+            return current
+                .view()
+                .map(|view| remember_opened_project(&app, view));
+        }
+    }
+    let project = Project::open(&path)?;
+    let recovery = project
+        .interrupt_authoring()
+        .and(project.interrupt_passages())
+        .and(project.interrupt_memories())
+        .and(project.interrupt_media())
+        .and(project.interrupt_image_prompts());
+    let mut view = project.view()?;
+    if let Err(error) = recovery {
+        view.warnings.push(format!(
+            "The world opened, but AI proposal recovery needs attention: {error}"
+        ));
+    }
+    *guard = Some(project);
+    Ok(remember_opened_project(&app, view))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn startup_project(
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
+) -> Result<Option<ProjectView>, String> {
+    let arguments: Vec<String> = std::env::args().collect();
+    let explicit = arguments
+        .iter()
+        .position(|arg| arg == "--project")
+        .map(|i| {
+            arguments
+                .get(i + 1)
+                .map(String::as_str)
+                .ok_or("Choose a project folder after --project.")
+        })
+        .transpose()?;
+    let path =
+        story_project::startup_project_path(&preferences_root(&app)?, explicit).map_err(|e| {
+            format!("Could not load the last-story setting: {e} Choose Open story or New story.")
+        })?;
+    path.map(|path| {
+        open_project(path, state, jobs, app)
+            .map_err(|e| format!("Could not reopen the story: {e} Choose Open story or New story."))
+    })
+    .transpose()
+}
+
+#[tauri::command]
+#[specta::specta]
+fn recover_project(
+    folder_path: String,
+    state: State<AppState>,
+    jobs: State<AuthoringJobs>,
+    app: tauri::AppHandle,
+) -> Result<ProjectView, String> {
+    let _idle = idle_guard(&jobs)?;
+    let mut guard = state
+        .0
+        .lock()
+        .map_err(|_| "The project session needs to be reopened.")?;
+    if guard
+        .as_ref()
+        .is_some_and(|p| Path::new(&p.folder_path()) == Path::new(&folder_path))
+    {
+        return Err("Reopen the app before recovering the project currently in use.".into());
+    }
+    let project = Project::recover(Path::new(&folder_path))?;
+    let recovery = project
+        .interrupt_authoring()
+        .and(project.interrupt_passages())
+        .and(project.interrupt_memories())
+        .and(project.interrupt_media())
+        .and(project.interrupt_image_prompts());
+    let mut view = project.view()?;
+    if let Err(error) = recovery {
+        view.warnings.push(format!(
+            "The world recovered, but AI proposals need attention: {error}"
+        ));
+    }
+    *guard = Some(project);
+    Ok(remember_opened_project(&app, view))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_project(
+    expected_revision: u32,
+    request_id: String,
+    title: String,
+    world: World,
+    state: State<AppState>,
+) -> Result<CommitResult, String> {
+    with_project(&state, |project| {
+        project.commit(expected_revision, request_id, title, world)
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn load_draft(state: State<AppState>) -> Result<Option<EditorDraft>, String> {
+    with_project(&state, Project::load_draft)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_draft(draft: EditorDraft, state: State<AppState>) -> Result<(), String> {
+    with_project(&state, |project| project.save_draft(draft))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn clear_matching_draft(title: String, world: World, state: State<AppState>) -> Result<(), String> {
+    with_project(&state, |project| {
+        project.clear_matching_draft(&title, &world)
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn load_workspace(state: State<AppState>) -> Result<Workspace, String> {
+    with_project(&state, Project::load_workspace)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_workspace(
+    expected_version: u32,
+    workspace: Workspace,
+    state: State<AppState>,
+) -> Result<Workspace, String> {
+    with_project(&state, |project| {
+        project.save_workspace(expected_version, workspace)
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn preview_world_edit(world: World, edit: WorldEdit) -> Result<WorldEditPreview, String> {
+    story_project::preview_world_edit(&world, edit)
+}
+#[tauri::command]
+#[specta::specta]
+fn validate_world(world: World) -> Result<World, String> {
+    world.validate()?;
+    Ok(world)
+}
+#[tauri::command]
+#[specta::specta]
+fn preview_ai_context(
+    world: World,
+    task: story_project::TextPromptTask,
+    app: tauri::AppHandle,
+) -> Result<story_project::AiContextPreview, String> {
+    let connection = story_project::load_connection(&preferences_root(&app)?)?.settings;
+    story_project::preview_ai_context(&world, task, &connection)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn preview_image_context(world: World) -> Result<story_project::AiContextPreview, String> {
+    story_project::preview_image_context(&world)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn preview_knowledge(
+    world: World,
+    plan: story_project::PassagePlan,
+) -> Result<story_project::KnowledgePreview, String> {
+    story_project::preview_knowledge(&world, &plan)
+}
+
+fn preferences_root(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os("GUIDED_STORY_PREFERENCES_DIR") {
+        return Ok(path.into());
+    }
+    app.path().app_config_dir().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn load_preferences(app: tauri::AppHandle) -> Result<Preferences, String> {
+    story_project::load_preferences(&preferences_root(&app)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn save_preferences(
+    expected_version: u32,
+    preferences: Preferences,
+    app: tauri::AppHandle,
+) -> Result<Preferences, String> {
+    story_project::save_preferences(&preferences_root(&app)?, expected_version, preferences)
+}
+
+fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::new()
+        .typ::<story_project::NodeCandidate>()
+        .commands(tauri_specta::collect_commands![
+            create_project,
+            open_project,
+            startup_project,
+            recover_project,
+            export_project_backup,
+            inspect_project_backup,
+            restore_project_backup,
+            save_project,
+            load_workspace,
+            save_workspace,
+            load_draft,
+            save_draft,
+            clear_matching_draft,
+            preview_world_edit,
+            validate_world,
+            preview_source_edit,
+            node_sources,
+            read_node_source,
+            preview_ai_context,
+            preview_image_context,
+            preview_knowledge,
+            refresh_image_guidance,
+            preview_image_preparation,
+            load_preferences,
+            save_preferences,
+            load_llm_connection,
+            save_llm_connection,
+            load_prompt_templates,
+            save_prompt_templates,
+            test_llm_connection,
+            list_authoring,
+            delete_authoring_draft,
+            get_authoring,
+            save_authoring_draft,
+            save_authoring_candidate,
+            start_authoring,
+            cancel_authoring,
+            apply_authoring,
+            close_authoring,
+            load_story,
+            next_passage_plan,
+            list_passage_drafts,
+            delete_passage_draft,
+            get_passage_draft,
+            save_passage_draft,
+            start_passage_job,
+            validate_passage,
+            accept_passage,
+            begin_passage_revision,
+            clone_passage_draft,
+            passage_versions,
+            chapter_memory_status,
+            list_memory_drafts,
+            create_memory_draft,
+            get_memory_draft,
+            save_memory_draft,
+            parse_memory_json,
+            memory_source_passage,
+            start_memory_job,
+            apply_memory,
+            load_image_settings,
+            save_image_settings,
+            bundled_image_profile,
+            test_image_connection,
+            create_image_candidate,
+            get_image_candidate,
+            list_images,
+            save_image_candidate,
+            preview_image_workflow,
+            submit_image,
+            check_image,
+            recover_image_prompt,
+            import_image,
+            image_preview,
+            accept_image,
+            choose_node_image,
+            node_image,
+            saved_image,
+            map_images,
+            clear_node_image,
+            list_image_prompt_drafts,
+            create_image_prompt_draft,
+            get_image_prompt,
+            save_image_prompt_draft,
+            parse_image_prompt_json,
+            start_image_prompt,
+            apply_image_prompt,
+            read_passage,
+            fork_after_passage
+        ])
+}
+
+pub fn run() {
+    let builder = command_builder();
+    tauri::Builder::default()
+        .manage(AppState::default())
+        .manage(AuthoringJobs::default())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(builder.invoke_handler())
+        .run(tauri::generate_context!())
+        .expect("The desktop application could not start");
+}
+
+pub fn export_bindings() {
+    command_builder()
+        .export(
+            specta_typescript::Typescript::default(),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/../src/lib/bindings.ts"),
+        )
+        .expect("Could not export typed commands");
+}

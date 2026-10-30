@@ -9,6 +9,12 @@ dist/
 build/
 .svelte-kit/
 target/
+.tools/
+/src-tauri/gen/
+/src-tauri/icons/android/
+/src-tauri/icons/ios/
+/src-tauri/icons/*
+!/src-tauri/icons/icon.ico
 coverage/
 test-results/
 *.log

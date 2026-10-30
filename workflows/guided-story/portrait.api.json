@@ -1,0 +1,135 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "Krea 2\\nsfw\\SICK_OLLIE_Krea2_BF16.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Lineage diffusion"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2"
+    },
+    "_meta": {
+      "title": "Lineage encoder"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "_meta": {
+      "title": "Lineage VAE"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "Portrait of an adult character, painterly life-sim art, neutral background."
+    },
+    "_meta": {
+      "title": "Lineage prompt"
+    }
+  },
+  "5": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "4",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 896,
+      "height": 1152,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "Lineage canvas"
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "15",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ],
+      "seed": 42,
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "beta",
+      "denoise": 1
+    },
+    "_meta": {
+      "title": "Lineage sampler"
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SeeSeeCivitaiSaveImage",
+    "inputs": {
+      "images": [
+        "8",
+        0
+      ],
+      "filename_prefix": "Lineage/portrait",
+      "embed_workflow": true
+    },
+    "_meta": {
+      "title": "Lineage output"
+    }
+  },
+  "15": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "lora_name": "Krea 2\\tool\\refusal_reduction_v2_full_rank.safetensors",
+      "strength_model": 1
+    },
+    "_meta": {
+      "title": "Lineage refusal reduction LoRA"
+    }
+  }
+}

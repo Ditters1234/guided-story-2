@@ -1,0 +1,1863 @@
+{
+  "nodes": [],
+  "edges": [],
+  "nodeTypes": [
+    {
+      "id": "core.place",
+      "name": "Place",
+      "description": "A usable scene location.",
+      "components": [
+        "core.place",
+        "core.holder",
+        "detail.place",
+        "detail.design",
+        "detail.condition"
+      ]
+    },
+    {
+      "id": "core.character",
+      "name": "Character",
+      "description": "A scene participant with optional profile, goals, voice and appearance.",
+      "components": [
+        "core.character",
+        "core.holder",
+        "detail.profile",
+        "detail.personality",
+        "detail.motivation",
+        "detail.voice",
+        "detail.appearance",
+        "detail.condition",
+        "detail.intent"
+      ]
+    },
+    {
+      "id": "core.item",
+      "name": "Item",
+      "description": "A counted object, with function and visible design.",
+      "components": [
+        "core.item",
+        "detail.item",
+        "detail.design",
+        "detail.condition"
+      ]
+    },
+    {
+      "id": "core.wearable-item",
+      "name": "Clothing / wearable item",
+      "description": "An inventory item that can be worn.",
+      "components": [
+        "core.item",
+        "core.wearable",
+        "detail.item",
+        "detail.design",
+        "detail.wearable",
+        "detail.condition"
+      ]
+    },
+    {
+      "id": "core.thread",
+      "name": "Story thread",
+      "description": "An unresolved story development.",
+      "components": [
+        "core.thread",
+        "detail.thread"
+      ]
+    },
+    {
+      "id": "core.organization",
+      "name": "Organization / household",
+      "description": "A family, business, faction or institution.",
+      "components": [
+        "detail.organization",
+        "detail.motivation"
+      ]
+    },
+    {
+      "id": "core.lore",
+      "name": "Lore / background",
+      "description": "Established setting background.",
+      "components": [
+        "detail.lore"
+      ]
+    },
+    {
+      "id": "core.rule",
+      "name": "World rule",
+      "description": "A scoped fictional constraint.",
+      "components": [
+        "detail.rule"
+      ]
+    },
+    {
+      "id": "core.brief",
+      "name": "Story brief",
+      "description": "Optional creative direction; include explicitly in AI context.",
+      "components": [
+        "detail.brief"
+      ]
+    },
+    {
+      "id": "core.narration-style",
+      "name": "Narration style",
+      "description": "Instructions for narrative person, tense and prose style.",
+      "components": [
+        "core.narration-style"
+      ]
+    },
+    {
+      "id": "core.note",
+      "name": "Note",
+      "description": "General supplementary notes or custom guidance.",
+      "components": []
+    },
+    {
+      "id": "core.event",
+      "name": "Event",
+      "description": "A significant established occurrence or author-supplied backstory, with source citations. Future intentions belong in plans or threads.",
+      "components": [
+        "detail.event"
+      ]
+    },
+    {
+      "id": "core.visual-style",
+      "name": "Visual style",
+      "description": "Image medium, rendering, palette, lighting and composition guidance. Presentation does not change source facts.",
+      "components": [
+        "detail.visual-style"
+      ]
+    },
+    {
+      "id": "core.claim",
+      "name": "Knowledge / claim",
+      "description": "An author-assessed proposition, distinct from who believes it and what narration may receive.",
+      "components": [
+        "core.claim"
+      ]
+    }
+  ],
+  "componentTypes": [
+    {
+      "id": "core.place",
+      "name": "Place",
+      "description": "Can be a scene location.",
+      "fields": []
+    },
+    {
+      "id": "core.character",
+      "name": "Character",
+      "description": "Can participate in a scene.",
+      "fields": []
+    },
+    {
+      "id": "core.holder",
+      "name": "Holds possessions",
+      "description": "Can hold items directly.",
+      "fields": []
+    },
+    {
+      "id": "core.item",
+      "name": "Inventory item",
+      "description": "Tracks explicit units.",
+      "fields": [
+        {
+          "key": "quantity",
+          "label": "Quantity",
+          "kind": "number",
+          "required": true,
+          "defaultValue": 1
+        },
+        {
+          "key": "unit",
+          "label": "Unit",
+          "kind": "text",
+          "required": true,
+          "defaultValue": "item"
+        }
+      ]
+    },
+    {
+      "id": "core.container",
+      "name": "Container",
+      "description": "Can store items; add to an item or a custom node.",
+      "fields": []
+    },
+    {
+      "id": "core.wearable",
+      "name": "Wearable",
+      "description": "Describes clothing coverage and layer.",
+      "fields": [
+        {
+          "key": "regions",
+          "label": "Coverage",
+          "kind": "text",
+          "required": true,
+          "defaultValue": "torso"
+        },
+        {
+          "key": "layer",
+          "label": "Layer",
+          "kind": "number",
+          "required": true,
+          "defaultValue": 1
+        }
+      ]
+    },
+    {
+      "id": "core.thread",
+      "name": "Story thread",
+      "description": "Tracks a development.",
+      "fields": []
+    },
+    {
+      "id": "detail.profile",
+      "name": "Profile",
+      "description": "Identity and relevant background.",
+      "fields": [
+        {
+          "key": "pronouns",
+          "label": "Pronouns",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Use the author's chosen pronouns.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "age",
+          "label": "Actual age",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Leave unknown ages unspecified.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "apparentAge",
+          "label": "Apparent age",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Visible age, when different or useful.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "occupation",
+          "label": "Occupation / social role",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What this person does or their position in society.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "background",
+          "label": "Background",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Relevant established history; avoid an exhaustive biography.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.appearance",
+      "name": "Appearance",
+      "description": "Persistent visible identity, separate from clothing and image composition.",
+      "fields": [
+        {
+          "key": "form",
+          "label": "Species / form",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Physical form; do not assume human anatomy.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "presentation",
+          "label": "Gender / presentation",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Author-specified visible presentation.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "build",
+          "label": "Build / silhouette",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Distinctive proportions and build.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "surface",
+          "label": "Skin / surface",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Complexion, fur, scales or other surface.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "face",
+          "label": "Face",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Recognisable facial features.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "hair",
+          "label": "Hair",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Colour, texture and usual arrangement.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "eyes",
+          "label": "Eyes",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Colour and distinguishing details.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "distinctive",
+          "label": "Distinctive features",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Scars, markings and other persistent identifiers.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.personality",
+      "name": "Personality",
+      "description": "Values and characteristic ways of behaving.",
+      "fields": [
+        {
+          "key": "values",
+          "label": "Values",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What matters to this individual.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "temperament",
+          "label": "Temperament / habits",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Specific behaviour, rather than a list of generic adjectives.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "contradictions",
+          "label": "Strengths / contradictions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Useful tensions or limitations; an elaborate flaw is not required.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.motivation",
+      "name": "Goals",
+      "description": "Ongoing intentions, pressures and stakes; usable by people or groups.",
+      "fields": [
+        {
+          "key": "wants",
+          "label": "Long-term wants",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What they want, without claiming it has happened.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "stakes",
+          "label": "Reasons / stakes",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Why the outcome matters to them.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "obstacles",
+          "label": "Obstacles",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What currently makes the goal difficult.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.voice",
+      "name": "Voice",
+      "description": "Dialogue guidance grounded in this individual.",
+      "fields": [
+        {
+          "key": "style",
+          "label": "Speaking style",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Sentence patterns, vocabulary and directness.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "habits",
+          "label": "Conversational habits",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How they respond, evade or initiate; avoid compulsory catchphrases.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "example",
+          "label": "Dialogue example",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "A short illustrative line, not an event that occurred.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.condition",
+      "name": "Current condition",
+      "description": "Changing physical or visible condition of any node.",
+      "fields": [
+        {
+          "key": "condition",
+          "label": "Condition",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current injuries, wear, damage or other physical state.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.intent",
+      "name": "Current intent",
+      "description": "Changing emotional state and immediate objective.",
+      "fields": [
+        {
+          "key": "emotion",
+          "label": "Emotional state",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current feeling; not automatically known to other characters.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "objective",
+          "label": "Immediate objective",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What they are trying to achieve now, not a completed event.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.place",
+      "name": "Use and surroundings",
+      "description": "Information that helps characters interact with a place.",
+      "fields": [
+        {
+          "key": "purpose",
+          "label": "Purpose / use",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What happens here and why people use it.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "layout",
+          "label": "Layout",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Useful spatial relationships, rather than exhaustive dimensions.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "access",
+          "label": "Entrances / access",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Ways in and out, restrictions and barriers.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "resources",
+          "label": "Resources / opportunities",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Useful tools, shelter, supplies or activities.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "obstacles",
+          "label": "Obstacles / hazards",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Relevant difficulties; do not invent danger for every place.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "routines",
+          "label": "Routines / customs",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Usual patterns, never proof of completed offscreen activity.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.design",
+      "name": "Design",
+      "description": "Visible construction and design of places or objects.",
+      "fields": [
+        {
+          "key": "form",
+          "label": "Form / construction",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Shape, layout or construction details.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "materials",
+          "label": "Materials",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Established materials and finish.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "colours",
+          "label": "Colours / pattern",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Visible colours and patterns.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "distinctive",
+          "label": "Distinctive details",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Recognisable design details.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.item",
+      "name": "Function and history",
+      "description": "How an object can be used and why it matters.",
+      "fields": [
+        {
+          "key": "function",
+          "label": "Function",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What the item enables someone to do.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "constraints",
+          "label": "Requirements / limitations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Fuel, access, compatibility or other relevant limits.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "provenance",
+          "label": "Provenance / significance",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Relevant origin or meaning, when known.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.wearable",
+      "name": "Garment design",
+      "description": "Additional garment design; coverage/layer live in the wearable capability.",
+      "fields": [
+        {
+          "key": "cut",
+          "label": "Cut / style",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Construction and style of this garment.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "fit",
+          "label": "Fit",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How this item fits; changing its wearer does not redesign it.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.anatomy",
+      "name": "Detailed anatomy",
+      "description": "Optional regional physical details, filtered by garment coverage for images.",
+      "fields": [
+        {
+          "key": "chest",
+          "label": "Chest detail",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional explicit adult anatomical description.",
+            "uses": [
+              "visual"
+            ],
+            "stability": "stable",
+            "coveredBy": [
+              "torso",
+              "chest",
+              "upper body"
+            ]
+          }
+        },
+        {
+          "key": "pelvis",
+          "label": "Genital / pelvic detail",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional explicit adult anatomical description.",
+            "uses": [
+              "visual"
+            ],
+            "stability": "stable",
+            "coveredBy": [
+              "pelvis",
+              "groin",
+              "hips",
+              "legs",
+              "lower body"
+            ]
+          }
+        },
+        {
+          "key": "bodyHair",
+          "label": "Body hair",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional physical detail relevant to an image.",
+            "uses": [
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "other",
+          "label": "Other physical detail",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Preserve author wording; do not invent measurements.",
+            "uses": [
+              "visual"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.thread",
+      "name": "Development",
+      "description": "An unresolved question, goal or situation.",
+      "fields": [
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": "open",
+          "metadata": {
+            "uses": [
+              "story"
+            ],
+            "stability": "state",
+            "choices": [
+              "open",
+              "active",
+              "paused",
+              "resolved",
+              "abandoned"
+            ]
+          }
+        },
+        {
+          "key": "question",
+          "label": "Question / goal",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What remains to be answered or achieved.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "stakes",
+          "label": "Stakes",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Why the outcome matters.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "unresolved",
+          "label": "Unresolved issues",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Established open issues, not invented developments.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "direction",
+          "label": "Possible direction",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional author planning, not an accomplished fact.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.organization",
+      "name": "Organization",
+      "description": "A family, business, institution, faction or informal group.",
+      "fields": [
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Why this group exists.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "resources",
+          "label": "Resources / influence",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What it can draw on.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "history",
+          "label": "Relevant history",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Established shared background.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "tensions",
+          "label": "Internal tensions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Existing differences; do not require a conflict for every group.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.lore",
+      "name": "Background",
+      "description": "Established contextual information and its significance.",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Background",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "World background; do not infer who knows it.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "significance",
+          "label": "Significance",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Why this background matters to the story.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.rule",
+      "name": "World rule",
+      "description": "A fictional constraint, with scope and exceptions.",
+      "fields": [
+        {
+          "key": "rule",
+          "label": "Rule",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What is possible, required or prohibited in the fiction.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "scope",
+          "label": "Scope",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Where, when and to whom this applies.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "exceptions",
+          "label": "Exceptions / limitations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Explicit exceptions; do not silently invent new ones.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.brief",
+      "name": "Story brief",
+      "description": "Author direction, separate from established occurrences.",
+      "fields": [
+        {
+          "key": "premise",
+          "label": "Premise",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "The central idea for the story.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "genre",
+          "label": "Genre / tone",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "The intended experience.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "themes",
+          "label": "Themes",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Questions or subjects to explore.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "aims",
+          "label": "Author aims / boundaries",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Creative guidance; no implied completed events.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "core.narration-style",
+      "name": "Narration style",
+      "description": "Instructions for person, tense and prose style.",
+      "fields": [
+        {
+          "key": "person",
+          "label": "Narrative person",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": "Third person",
+          "metadata": {
+            "uses": [
+              "planning"
+            ],
+            "choices": [
+              "First person",
+              "Second person",
+              "Third person"
+            ]
+          }
+        },
+        {
+          "key": "tense",
+          "label": "Narrative tense",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": "Past tense",
+          "metadata": {
+            "uses": [
+              "planning"
+            ],
+            "choices": [
+              "Past tense",
+              "Present tense",
+              "Future tense"
+            ]
+          }
+        },
+        {
+          "key": "instructions",
+          "label": "Narration instructions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Prose guidance for explicitly selected tools.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.event",
+      "name": "Event",
+      "description": "Describes an established occurrence without replaying its effects. Source citations are separate typed metadata.",
+      "fields": [
+        {
+          "key": "occurrence",
+          "label": "What happened",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Describe the established occurrence, not an intended future scene.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "when",
+          "label": "When",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "An optional fictional time label; no calendar or offscreen simulation.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "significance",
+          "label": "Significance",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Established consequences or relevance. Desired future payoffs belong in planning fields.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.visual-style",
+      "name": "Visual style",
+      "description": "Author guidance for image presentation; separate from physical appearance. Include it explicitly for image generation or prompt assistance.",
+      "fields": [
+        {
+          "key": "medium",
+          "label": "Medium",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "For example photography, watercolor or ink.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "rendering",
+          "label": "Rendering",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Surface treatment, linework and rendering approach.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "palette",
+          "label": "Palette",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Color or tonal choices for the image.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "lighting",
+          "label": "Lighting",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Presentation lighting; do not invent story events or change source conditions.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "composition",
+          "label": "Composition",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Framing and compositional guidance, preserving the selected subjects.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "instructions",
+          "label": "Image instructions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": "Preserve the subjects’ established appearance, worn items and visible state. Rendering guidance does not change story facts.",
+          "metadata": {
+            "help": "Rendering guidance, without redesigning anatomy, clothing or established facts.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "core.claim",
+      "name": "Claim",
+      "fields": [
+        {
+          "key": "proposition",
+          "label": "Proposition",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What is asserted; a belief is not automatically true.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "status",
+          "label": "Author assessment",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "unconfirmed",
+          "metadata": {
+            "help": "Truth assessed by the author, independent of character belief.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "established",
+              "unconfirmed",
+              "disproved"
+            ]
+          }
+        },
+        {
+          "key": "disclosure",
+          "label": "Narration access",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "withheld",
+          "metadata": {
+            "help": "Withheld is omitted from prose context. Narrator requires author perspective or a viewpoint stance; revealed is available to narration without granting character knowledge.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "withheld",
+              "narrator",
+              "revealed"
+            ]
+          }
+        },
+        {
+          "key": "subjects",
+          "label": "Related subjects",
+          "kind": "nodeRefs",
+          "required": false,
+          "defaultValue": [],
+          "metadata": {
+            "help": "Select relevant people, places or things; this does not establish their knowledge.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        }
+      ],
+      "description": "An author-assessed proposition with explicit narration access. Truth, belief and reader disclosure are independent."
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "core.inside",
+      "name": "Inside",
+      "label": "inside",
+      "sourceCapability": "core.place",
+      "targetCapability": "core.place",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.present-at",
+      "name": "Present at",
+      "label": "present at",
+      "sourceCapability": "core.character",
+      "targetCapability": "core.place",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.stored-in",
+      "name": "Stored in / carried by",
+      "label": "stored in",
+      "sourceCapability": "core.item",
+      "targetCapability": "core.holder",
+      "physicalPlacement": true,
+      "singleTarget": true
+    },
+    {
+      "id": "core.worn-by",
+      "name": "Worn by",
+      "label": "worn by",
+      "sourceCapability": "core.wearable",
+      "targetCapability": "core.character",
+      "physicalPlacement": true,
+      "singleTarget": true,
+      "fields": [
+        {
+          "key": "configuration",
+          "label": "Wearing details",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How the item is currently worn: open or fastened, hood up, sleeves rolled. Do not duplicate the garment design.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "core.related",
+      "name": "Related to",
+      "label": "related to",
+      "sourceCapability": null,
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.member-of",
+      "name": "Member of",
+      "label": "member of",
+      "sourceCapability": null,
+      "targetCapability": "detail.organization",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "role",
+          "label": "Role",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Position or responsibility within this group.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "obligations",
+          "label": "Obligations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Duties, expectations and conditions of membership.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.feels-toward",
+      "name": "Feels toward",
+      "label": "feels toward",
+      "sourceCapability": "core.character",
+      "targetCapability": "core.character",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "attitude",
+          "label": "Attitude",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How the source currently feels toward the target; the reverse direction is separate.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "reasons",
+          "label": "Reasons",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Experiences or beliefs behind this attitude.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "tension",
+          "label": "Tension",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Unresolved friction or conflicting wants between these people.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.route-to",
+      "name": "Route to",
+      "label": "route to",
+      "sourceCapability": "core.place",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "access",
+          "label": "Access",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "How this route can be used and any access conditions.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "obstacles",
+          "label": "Obstacles",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Hazards or barriers on this route.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "travel",
+          "label": "Travel notes",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Distance or travel conditions, without implying anyone has traveled.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.owes",
+      "name": "Owes",
+      "label": "owes",
+      "sourceCapability": null,
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "obligation",
+          "label": "Obligation",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What the source owes the target.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "terms",
+          "label": "Terms",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Conditions, deadlines or means of repayment.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current state of the obligation.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state",
+            "choices": [
+              "outstanding",
+              "fulfilled",
+              "waived"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.participant",
+      "name": "Participant",
+      "label": "participant",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.occurred-at",
+      "name": "Occurred at",
+      "label": "occurred at",
+      "sourceCapability": "detail.event",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.caused-by",
+      "name": "Caused by",
+      "label": "caused by",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "story.resulted-in",
+      "name": "Resulted in",
+      "label": "resulted in",
+      "sourceCapability": "detail.event",
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false
+    },
+    {
+      "id": "core.holds-claim",
+      "label": "held by",
+      "sourceCapability": "core.claim",
+      "targetCapability": "core.character",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "stance",
+          "label": "Character stance",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "believes",
+          "metadata": {
+            "help": "This character’s stance, independent of author assessment.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "believes",
+              "doubts",
+              "rejects"
+            ]
+          }
+        },
+        {
+          "key": "acquisition",
+          "label": "How learned / why believed",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Author description of acquisition. Does not automatically inform any other character.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "source",
+          "label": "Acquisition reference",
+          "kind": "nodeRef",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional existing source node (such as an Event or letter). Exact proposition citations are managed through Sources on the claim.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        }
+      ],
+      "name": "Character stance"
+    }
+  ]
+}
