@@ -297,7 +297,7 @@ fn requested_narration_has_actionable_errors_for_missing_or_empty_profiles_and_u
     n.components
         .get_mut("core.narration-style")
         .unwrap()
-        .clear();
+        .insert("instructions".into(), PropertyValue::Text("  ".into()));
     p.save_authoring_candidate(
         &key,
         missing.version,
@@ -305,7 +305,11 @@ fn requested_narration_has_actionable_errors_for_missing_or_empty_profiles_and_u
     )
     .unwrap();
     let blank = p.authoring_view(&key, &settings()).unwrap();
-    assert!(!blank.error.is_empty());
+    assert!(
+        blank.error.contains("needs narration instructions"),
+        "{}",
+        blank.error
+    );
     assert!(p.apply_authoring(&key, blank.version, &settings()).is_err());
     p.save_authoring_candidate(
         &key,

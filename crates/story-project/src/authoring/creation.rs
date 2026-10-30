@@ -195,6 +195,10 @@ pub(super) fn include_narration(
         n.components.contains_key("core.narration-style")
             && !source.nodes.iter().any(|old| old.id == n.id)
     }) {
+        if !matches!(node.components["core.narration-style"].get("instructions"), Some(PropertyValue::Text(text)) if !text.trim().is_empty())
+        {
+            return Err(format!("{} needs narration instructions. Edit the proposed Narration style node; person and tense alone do not complete the requested guidance.",node.name));
+        }
         order = (order + 10).min(10000);
         world.ai_context.push(AiContextBinding {
             node_id: node.id.clone(),
