@@ -188,6 +188,8 @@ fn enriched(p: &Project, dir: &Path) -> (String, String, String) {
         0,
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             mode: AuthoringMode::Create,
             direction: "A fictional courtyard".into(),

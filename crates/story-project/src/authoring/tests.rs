@@ -1,5 +1,6 @@
 use super::*;
 mod blank_nodes;
+mod creation_quality;
 mod creation_scopes;
 mod deletion;
 mod existing_context;
@@ -28,6 +29,8 @@ fn create() -> (tempfile::TempDir, Project) {
 fn request() -> AuthoringRequest {
     AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Create,
         direction: "An old glasshouse".into(),
@@ -43,6 +46,8 @@ fn request() -> AuthoringRequest {
 fn group_request() -> AuthoringRequest {
     AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         type_id: None,
         bundle: true,
@@ -79,7 +84,7 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
     assert_eq!(input["responseBudget"]["outputTokens"], 4096);
     assert!(input["responseBudget"]["suggestedMaxNewNodes"]
         .as_u64()
-        .is_some_and(|n| n > 0 && n < 10));
+        .is_some_and(|n| (10..=20).contains(&n)));
     let example = &input["clothingExample"];
     let garment: WorldNode = serde_json::from_value(example["garment"].clone()).unwrap();
     assert_eq!(garment.type_id, "custom.possession");
@@ -158,6 +163,8 @@ fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() 
     assert!(p.apply_authoring(&rid, view.version, &settings()).is_ok());
     let single = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         type_id: Some("core.character".into()),
         bundle: false,
@@ -175,6 +182,8 @@ fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_pr
     world.nodes.push(node.clone());
     let req = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Revise,
         type_id: None,
@@ -277,6 +286,8 @@ fn custom_capability_fields_use_the_same_generation_and_protection_rules() {
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "Rain before evening".into(),
@@ -309,6 +320,8 @@ fn protected_fields_and_unexposed_references_cannot_be_smuggled_into_a_candidate
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "More lush".into(),
@@ -344,6 +357,8 @@ fn source_edits_stale_a_proposal_while_unrelated_world_edits_are_preserved() {
     let node = p.view().unwrap().world.nodes[0].clone();
     let req = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "More lush".into(),
@@ -421,6 +436,8 @@ fn revisions_keep_custom_target_schema_but_exclude_unrelated_catalogue_and_dupli
     let node = &world.nodes[0];
     let req = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Revise,
         direction: "Change only the room's description".into(),

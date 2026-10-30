@@ -2,6 +2,8 @@ use super::*;
 fn group() -> AuthoringRequest {
     AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         creation_scope: Some(CreationScope::Group),
         group_type_id: Some("core.item".into()),
@@ -81,6 +83,8 @@ fn groups_find_structured_goals_without_sending_unrelated_records_or_expanding_p
         );
     let request = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         direction: "Add supplies for repairing the drinkingwater pump".into(),
         group_type_id: None,

@@ -234,6 +234,8 @@ fn mandatory_content_blocks_over_budget_instead_of_truncating_and_does_not_grant
     );
     let request = AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         mode: AuthoringMode::Create,
         direction: "An observatory.".into(),

@@ -548,6 +548,8 @@ fn event_ai_revision_protects_provenance_scopes_it_and_preserves_unrelated_sourc
             key: "occurrence".into(),
         }],
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
     };
     let prepared = prepare_authoring(&current.world, &req, &settings()).unwrap();

@@ -11,24 +11,31 @@ export function editableFields(world:World,ids:string[]):(EditableField&{label:s
 }
 export function newAuthoringRequest(world:World,targetId?:string,focusId?:string|null):AuthoringRequest{
   return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
-    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,targetIds:[],contextIds:focusId&&world.nodes.some(n=>n.id===focusId)?[focusId]:[],fields:[]};
+    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,creationTypeIds:foundationCreationTypes(world),...(!world.nodes.length?{includeNarration:narrationDefault(world)}:{}),targetIds:[],contextIds:focusId&&world.nodes.some(n=>n.id===focusId)?[focusId]:[],fields:[]};
 }
+export function foundationCreationTypes(world:World){return world.nodeTypes.filter(t=>t.components.some(c=>['core.place','core.character','core.item','core.narration-style','detail.rule','detail.brief'].includes(c))).map(t=>t.id);}
+export function toggleCreationType(world:World,request:AuthoringRequest,id:string):AuthoringRequest{
+  const before=request.creationTypeIds?.length?request.creationTypeIds:world.nodeTypes.map(t=>t.id),next=before.includes(id)?before.filter(v=>v!==id):[...before,id];
+  if(!next.length)return request;
+  return {...request,creationTypeIds:next,...(request.includeNarration&&!world.nodeTypes.some(t=>next.includes(t.id)&&t.components.includes('core.narration-style'))?{includeNarration:false}:{})};
+}
+function narrationDefault(world:World){return world.nodeTypes.some(t=>t.components.includes('core.narration-style'))&&!world.nodes.some(n=>n.components['core.narration-style']);}
 export function creationChoice(request:AuthoringRequest):string{return request.typeId??(request.creationScope==='group'?'@group':'@world');}
 export function changeCreationType(world:World,request:AuthoringRequest,choice:string|null):AuthoringRequest{
-  if(!choice||choice==='@world'||choice==='@group')return {...request,typeId:null,bundle:true,creationScope:choice==='@group'?'group':'world',groupTypeId:null};
-  return {...request,typeId:choice,bundle:!!world.nodeTypes.find(d=>d.id===choice)?.components.includes('core.character'),creationScope:null,groupTypeId:null};
+  if(!choice||choice==='@world'||choice==='@group')return {...request,typeId:null,bundle:true,creationScope:choice==='@group'?'group':'world',groupTypeId:null,creationTypeIds:foundationCreationTypes(world),includeNarration:choice==='@group'?undefined:narrationDefault(world)};
+  return {...request,typeId:choice,bundle:!!world.nodeTypes.find(d=>d.id===choice)?.components.includes('core.character'),creationScope:null,groupTypeId:null,creationTypeIds:undefined,includeNarration:undefined};
 }
-export function candidateNodeTypes(world:World,request:AuthoringRequest){return request.creationScope==='group'&&request.groupTypeId?world.nodeTypes.filter(t=>t.id===request.groupTypeId):world.nodeTypes;}
+export function candidateNodeTypes(world:World,request:AuthoringRequest){return request.creationScope==='group'&&request.groupTypeId?world.nodeTypes.filter(t=>t.id===request.groupTypeId):request.creationTypeIds?.length?world.nodeTypes.filter(t=>request.creationTypeIds!.includes(t.id)):world.nodeTypes;}
 export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeId:string,componentId:string):NodeCandidate{
   const definition=world.componentTypes.find(d=>d.id===componentId);
   if(!definition)throw Error('Choose a capability from this project.');
   return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:defaultProperties(definition)}});
 }
-export function wornItemType(world:World):string|null{
-  return world.componentTypes.some(d=>d.id==='core.wearable')&&world.relationTypes.some(r=>r.id==='core.worn-by'&&r.physicalPlacement)?world.nodeTypes.find(d=>d.components.includes('core.item'))?.id??null:null;
+export function wornItemType(world:World,allowedTypeIds?:string[]):string|null{
+  return world.componentTypes.some(d=>d.id==='core.wearable')&&world.relationTypes.some(r=>r.id==='core.worn-by'&&r.physicalPlacement)?world.nodeTypes.find(d=>d.components.includes('core.item')&&(!allowedTypeIds||allowedTypeIds.includes(d.id)))?.id??null:null;
 }
-export function addCandidateWornItem(world:World,candidate:NodeCandidate,wearerId:string):NodeCandidate{
-  const typeId=wornItemType(world),wearer=candidate.nodes.find(n=>n.id===wearerId);
+export function addCandidateWornItem(world:World,candidate:NodeCandidate,wearerId:string,allowedTypeIds?:string[]):NodeCandidate{
+  const typeId=wornItemType(world,allowedTypeIds),wearer=candidate.nodes.find(n=>n.id===wearerId);
   if(!typeId||!wearer?.components['core.character'])throw Error('Choose a proposed character and a schema supporting wearable items.');
   const item=makeNode(world,typeId,'New worn item','new:garment-'+crypto.randomUUID().replaceAll('-',''));
   let next=addCandidateCapability(world,{...candidate,nodes:[...candidate.nodes,item]},item.id,'core.wearable');

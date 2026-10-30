@@ -2,6 +2,8 @@ use super::*;
 fn group(type_id: Option<&str>) -> AuthoringRequest {
     AuthoringRequest {
         link_target_ids: vec![],
+        include_narration: None,
+        creation_type_ids: vec![],
         link_fields: vec![],
         creation_scope: Some(CreationScope::Group),
         group_type_id: type_id.map(str::to_string),
@@ -165,30 +167,40 @@ fn creation_scope_controls_are_validated_and_participate_in_source_checks() {
     for invalid in [
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             type_id: Some("core.item".into()),
             ..base.clone()
         },
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             creation_scope: None,
             ..base.clone()
         },
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             bundle: false,
             ..base.clone()
         },
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             group_type_id: Some("missing.type".into()),
             ..base.clone()
         },
         AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             mode: AuthoringMode::Revise,
             ..base.clone()

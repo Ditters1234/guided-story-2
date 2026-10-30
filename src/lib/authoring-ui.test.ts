@@ -1,7 +1,14 @@
 import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
-import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes } from './authoring-ui';
+import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes,foundationCreationTypes,toggleCreationType } from './authoring-ui';
 describe('shared AI node editor',()=>{
+  it('offers narration creation explicitly for a new world and clears it for groups/typed nodes',()=>{
+    const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.includeNarration).toBe(true);
+    const group=changeCreationType(world,request,'@group');expect(group.includeNarration).toBeUndefined();expect(group.creationScope).toBe('group');
+    expect(changeCreationType(world,request,'core.place').includeNarration).toBeUndefined();
+    world.nodes.push(makeNode(world,'core.narration-style','Existing style'));
+    expect(changeCreationType(world,group,'@world').includeNarration).toBe(false);expect(newAuthoringRequest(world).includeNarration).toBeUndefined();
+  });
   it('starts a new group with the current node as a full-detail reference without changing revision scope',()=>{
     const world=exampleWorld(),focus=world.nodes[3].id,before=structuredClone(world);
     expect(newAuthoringRequest(world,undefined,focus)).toMatchObject({creationScope:'group',contextIds:[focus]});
@@ -31,7 +38,15 @@ describe('shared AI node editor',()=>{
   it('limits candidate additions by any saved group preset without hiding existing references',()=>{
     const world=exampleWorld();world.nodeTypes.push({id:'custom.supply',name:'Supply',description:'',components:['core.item']});
     const request={...newAuthoringRequest(world),groupTypeId:'custom.supply'};expect(candidateNodeTypes(world,request).map(t=>t.id)).toEqual(['custom.supply']);
-    expect(candidateNodeTypes(world,{...request,groupTypeId:null})).toEqual(world.nodeTypes);expect(world.nodes).toHaveLength(8);
+    expect(candidateNodeTypes(world,{...request,groupTypeId:null}).map(t=>t.id)).toEqual(foundationCreationTypes(world));expect(candidateNodeTypes(world,{...request,groupTypeId:null,creationTypeIds:undefined})).toEqual(world.nodeTypes);expect(world.nodes).toHaveLength(8);
+  });
+  it('selects creation presets by capabilities, permits other custom types and keeps one selected type',()=>{
+    const world=emptyWorld();world.nodeTypes.push({id:'custom.person',name:'Settler',description:'',components:['core.character']},{id:'custom.weather',name:'Weather',description:'',components:[]});
+    const request=newAuthoringRequest(world),before=structuredClone(request);expect(request.creationTypeIds).toContain('custom.person');expect(request.creationTypeIds).not.toContain('custom.weather');
+    const expanded=toggleCreationType(world,request,'custom.weather');expect(candidateNodeTypes(world,expanded).map(t=>t.id)).toContain('custom.weather');expect(request).toEqual(before);
+    const noStyle=toggleCreationType(world,request,'core.narration-style');expect(noStyle.includeNarration).toBe(false);
+    const last={...request,creationTypeIds:['core.item']};expect(toggleCreationType(world,last,'core.item')).toBe(last);
+    expect(changeCreationType(world,expanded,'core.place').creationTypeIds).toBeUndefined();
   });
   it('adds a separate wearable item with one wear placement without changing the world',()=>{
     const world=emptyWorld(),before=structuredClone(world),person=makeNode(world,'core.character','Nora Hale','new:person');const input={nodes:[person],edges:[]};
@@ -40,6 +55,11 @@ describe('shared AI node editor',()=>{
   it('uses custom item presets and schema-defined capability defaults when repairing a candidate',()=>{
     const world=emptyWorld();world.nodeTypes=world.nodeTypes.map(t=>t.id==='core.item'?{...t,id:'custom.possession'}:t);world.componentTypes.push({id:'custom.condition',name:'Condition',description:'',fields:[{key:'condition',label:'Condition',kind:'text',required:true,defaultValue:'sound'}]});
     const person=makeNode(world,'core.character','Nora Hale','new:person');const candidate=addCandidateWornItem(world,{nodes:[person],edges:[]},person.id);expect(candidate.nodes[1].typeId).toBe('custom.possession');const repaired=addCandidateCapability(world,candidate,candidate.nodes[1].id,'custom.condition');expect(repaired.nodes[1].components['custom.condition']).toEqual({condition:'sound'});expect(candidate.nodes[1].components['custom.condition']).toBeUndefined();
+  });
+  it('uses a permitted clothing preset when the generic item preset is outside creation scope',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Nora Hale','new:person');const allowed=world.nodeTypes.filter(t=>t.components.includes('core.item')&&t.id!=='core.item').map(t=>t.id);expect(allowed.length).toBeGreaterThan(0);
+    const candidate=addCandidateWornItem(world,{nodes:[person],edges:[]},person.id,allowed);expect(allowed).toContain(candidate.nodes[1].typeId);expect(candidate.edges).toHaveLength(1);
+    expect(()=>addCandidateWornItem(world,{nodes:[person],edges:[]},person.id,['core.character'])).toThrow();
   });
   it('discovers fields from attached custom capabilities and protects the base name by default',()=>{
     const world=exampleWorld();world.componentTypes.push({id:'custom.details',name:'Extra details',description:'',fields:[{key:'name',label:'Alias',kind:'text',required:false,defaultValue:''}]});

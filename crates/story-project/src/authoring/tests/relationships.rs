@@ -21,6 +21,10 @@ fn fixture() -> (tempfile::TempDir, Project, AuthoringRequest, WorldEdge) {
         type_id: None,
         direction: String::new(),
         link_target_ids: vec![edge.id.clone()],
+
+        include_narration: None,
+
+        creation_type_ids: vec![],
         link_fields: vec![EditableLinkField {
             link_id: edge.id.clone(),
             property: Some("tension".into()),

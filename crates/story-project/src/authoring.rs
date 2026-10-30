@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
 };
+mod creation;
 mod existing_context;
 pub use existing_context::*;
 
@@ -48,6 +49,10 @@ pub struct AuthoringRequest {
     pub creation_scope: Option<CreationScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_type_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include_narration: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub creation_type_ids: Vec<String>,
     pub target_ids: Vec<String>,
     pub context_ids: Vec<String>,
     pub fields: Vec<EditableField>,
@@ -320,6 +325,31 @@ pub fn prepare_authoring(
 ) -> Result<PreparedAuthoring, String> {
     world.validate()?;
     bounded_request(request)?;
+    if !request.creation_type_ids.is_empty()
+        && (request.mode != AuthoringMode::Create
+            || request.type_id.is_some()
+            || request.group_type_id.is_some()
+            || request.creation_type_ids.len() > 200
+            || request
+                .creation_type_ids
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .len()
+                != request.creation_type_ids.len()
+            || request
+                .creation_type_ids
+                .iter()
+                .any(|id| !world.node_types.iter().any(|t| &t.id == id)))
+    {
+        return Err("Choose unique saved creation types for a world or mixed group; typed-node and single-type group choices supply their own scope.".into());
+    }
+    if request.include_narration.is_some()
+        && (request.mode != AuthoringMode::Create
+            || request.type_id.is_some()
+            || request.creation_scope != Some(CreationScope::World))
+    {
+        return Err("Narration creation is a world-building option. Clear it when choosing a group, typed node or revision.".into());
+    }
     settings.ready()?;
     if request.mode == AuthoringMode::Create && request.direction.trim().is_empty() {
         return Err("Describe what you want to create or change.".into());
@@ -428,35 +458,28 @@ pub fn prepare_authoring(
             .retain(|d| components.contains(&d.id));
         context.relation_types.retain(|d| relations.contains(&d.id));
     }
-    let response_schema = output_schema(&context, request);
+    let model_schema = creation::schema_world(&context, request);
+    if request.include_narration == Some(true)
+        && !model_schema
+            .node_types
+            .iter()
+            .any(|t| t.components.iter().any(|c| c == "core.narration-style"))
+    {
+        return Err(
+            "Select a narration-style creation type, or turn off narration creation.".into(),
+        );
+    }
+    let mut response_schema = output_schema(&model_schema, request);
+    creation::strip_schema_help(&mut response_schema);
     let mut system = settings.system_prompt(TextPromptTask::World);
     let mut effective_request = request.clone();
     if request.mode == AuthoringMode::Revise && request.direction.trim().is_empty() {
         effective_request.direction="Develop the checked fields from the selected records, their types and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, node capabilities and relationship types/endpoints unchanged. Return exactly the selected node targets and selected relationship targets. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
     }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
-    let fields_per_node = context
-        .node_types
-        .iter()
-        .filter(|t| {
-            request
-                .type_id
-                .as_ref()
-                .or(request.group_type_id.as_ref())
-                .is_none_or(|id| id == &t.id)
-        })
-        .map(|t| {
-            t.components
-                .iter()
-                .filter_map(|id| context.component_types.iter().find(|d| &d.id == id))
-                .map(|d| d.fields.len() as u32)
-                .sum::<u32>()
-        })
-        .max()
-        .unwrap_or(0);
-    let estimated_node_tokens = 240 + fields_per_node * 16;
-    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":context.node_types,"capabilities":context.component_types,"relationships":context.relation_types,"sources":context.source_annotations,"responseBudget":{"outputTokens":settings.max_tokens,"suggestedMaxNewNodes":(settings.max_tokens.saturating_sub(512)/estimated_node_tokens).clamp(1,20)}});
+    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":model_schema.node_types,"capabilities":creation::wire_capabilities(&model_schema),"relationships":model_schema.relation_types,"sources":context.source_annotations,"responseBudget":creation::budget(&model_schema,request,settings.max_tokens)});
     if request.mode == AuthoringMode::Create {
+        input["creationGuide"] = creation::guide(&model_schema, request);
         input["creationIntent"] = json!(if request.type_id.is_some() {
             "node"
         } else if request.creation_scope == Some(CreationScope::Group) {
@@ -464,7 +487,11 @@ pub fn prepare_authoring(
         } else {
             "world"
         });
-        input["allowedNewTypeIds"] = json!(request.group_type_id.as_ref().map(|id| vec![id]));
+        input["allowedNewTypeIds"] = if request.creation_type_ids.is_empty() {
+            json!(request.group_type_id.as_ref().map(|id| vec![id]))
+        } else {
+            json!(request.creation_type_ids)
+        };
     }
     let character_root = request
         .type_id
@@ -475,7 +502,7 @@ pub fn prepare_authoring(
         && request.bundle
         && (input["creationIntent"] == "world" || character_root)
     {
-        if let Some(example) = clothing_example(&context) {
+        if let Some(example) = clothing_example(&model_schema) {
             input["clothingExample"] = example;
         }
     }
@@ -529,7 +556,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v7-event-sources",
+        "world-authoring-v8-developed-creation",
         &system,
         &user,
         &response_schema,
@@ -568,12 +595,7 @@ fn clothing_example(world: &World) -> Option<Value> {
                 .component_types
                 .iter()
                 .find(|d| &d.id == id)
-                .map(|d| {
-                    d.fields
-                        .iter()
-                        .map(|f| (f.key.clone(), f.default_value.clone()))
-                        .collect()
-                })
+                .map(|d| default_properties(d))
                 .unwrap_or_default();
             (id.clone(), fields)
         })
@@ -589,8 +611,41 @@ fn clothing_example(world: &World) -> Option<Value> {
     wearable.insert("regions".into(), PropertyValue::Text("torso, arms".into()));
     wearable.insert("layer".into(), PropertyValue::Number(1.0));
     components.insert("core.wearable".into(), wearable);
+    for (component, key, text) in [
+        (
+            "detail.item",
+            "function",
+            "Durable workwear for outdoor chores.",
+        ),
+        (
+            "detail.design",
+            "form",
+            "Long sleeves and a button front; repaired right cuff.",
+        ),
+        (
+            "detail.design",
+            "materials",
+            "Soft, repeatedly mended linen",
+        ),
+        (
+            "detail.design",
+            "colours",
+            "Faded indigo with cream repairs",
+        ),
+    ] {
+        if world
+            .component_types
+            .iter()
+            .find(|d| d.id == component)
+            .is_some_and(|d| d.fields.iter().any(|f| f.key == key))
+        {
+            if let Some(values) = components.get_mut(component) {
+                values.insert(key.into(), PropertyValue::Text(text.into()));
+            }
+        }
+    }
     Some(
-        json!({"garment":{"id":"new:shirt","typeId":preset.id,"name":"Linen work shirt","description":"A practical everyday shirt.","visualDescription":"Faded blue linen, long sleeves and wooden buttons.","components":components},"links":[{"id":"new:shirt-worn","typeId":"core.worn-by","sourceId":"new:shirt","targetId":"new:wearer","description":""}],"note":"new:wearer stands for a character created in this proposal or an explicitly supplied character reference; include real character records, not this placeholder."}),
+        json!({"garment":{"id":"new:shirt","typeId":preset.id,"name":"Linen work shirt","description":"","visualDescription":"","components":components},"links":[{"id":"new:shirt-worn","typeId":"core.worn-by","sourceId":"new:shirt","targetId":"new:wearer","description":""}],"note":"new:wearer stands for a real proposed character or supplied character ID. This demonstrates structured detail and sparse optional values, not a complete outfit."}),
     )
 }
 fn proposal_warnings(candidate: &NodeCandidate, request: &AuthoringRequest) -> Vec<String> {
@@ -724,6 +779,11 @@ fn candidate_world(
             return Err("Duplicate proposal node ID.".into());
         }
         if create {
+            if !request.creation_type_ids.is_empty()
+                && !request.creation_type_ids.contains(&node.type_id)
+            {
+                return Err("This proposal includes a node type outside the selected creation types. Remove it or start a request with that type selected.".into());
+            }
             if request
                 .group_type_id
                 .as_ref()
@@ -1006,6 +1066,9 @@ fn candidate_world(
         }
     }
     crate::sources::ensure_manual_event_sources(&mut world);
+    if create {
+        creation::include_narration(&mut world, source, request, &mut changes)?;
+    }
     world.validate()?;
     Ok((world, changes))
 }
@@ -1121,6 +1184,8 @@ impl Project {
         record.version += 1;
         record.request = AuthoringRequest {
             link_target_ids: vec![],
+            include_narration: None,
+            creation_type_ids: vec![],
             link_fields: vec![],
             mode: AuthoringMode::Create,
             direction: String::new(),
@@ -1509,6 +1574,11 @@ impl Project {
 }
 
 pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<String, String> {
+    let scoped = creation::schema_world(world, request);
+    let world = &scoped;
+    if let Some(candidate) = creation::demo_world(world, request) {
+        return serde_json::to_string_pretty(&candidate).map_err(|e| e.to_string());
+    }
     if request.mode == AuthoringMode::Create && request.creation_scope == Some(CreationScope::Group)
     {
         let preset = world
