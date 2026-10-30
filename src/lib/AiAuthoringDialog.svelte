@@ -34,7 +34,14 @@
     }catch(caught){error=describe(caught);try{await list();}catch{}}finally{working=false;}
   }
   function report(){onRun(currentId,view?.status==='running');}
-  async function refresh(){view=unwrap(await commands.getAuthoring(project.storyId,currentId));version=view.version;report();if(view.status==='running'){poll=setTimeout(()=>{void refresh().catch((caught)=>{error=describe(caught);});},800);}else{request=structuredClone($state.snapshot(view.request));candidateText=view.candidateText;await list();}}
+  async function refresh(){
+    const requestedId=currentId,readEdits=edits,next=unwrap(await commands.getAuthoring(project.storyId,requestedId));
+    if(currentId!==requestedId||(view?.id===requestedId&&next.version<version))return;
+    const preserveLocal=!!pending||savedEdits<edits||edits!==readEdits;
+    view=next;version=next.version;report();
+    if(next.status==='running'){poll=setTimeout(()=>{void refresh().catch((caught)=>{error=describe(caught);});},800);}
+    else{if(!preserveLocal){request=structuredClone($state.snapshot(next.request));candidateText=next.candidateText;}await list();}
+  }
   function touch(){if(!loaded||!['draft','review'].includes(status))return;edits++;saveStatus='Unsaved proposal';clearTimeout(timer);timer=setTimeout(()=>{void flushDraft().catch(()=>{});},350);}
   export async function flushDraft(){
     clearTimeout(timer);if(flight)return flight;if(!loaded)return;
@@ -52,8 +59,8 @@
       touch();await flushDraft();await list();onRun(currentId,false);
     }catch(caught){error=describe(caught);}finally{working=false;}
   }
-  async function generate(){working=true;error='';try{await flushDraft();const current=await onBeforeAction();view=unwrap(await commands.startAuthoring(project.storyId,currentId,version,current.revision));version=view.version;report();await refresh();}catch(caught){error=describe(caught);try{await refresh();}catch{}}finally{working=false;}}
-  async function apply(){working=true;error='';try{await flushDraft();await onBeforeAction();const result=unwrap(await commands.applyAuthoring(project.storyId,currentId,version));view=result.proposal;version=view.version;await onApply(result);onClose();}catch(caught){error=describe(caught);try{await refresh();}catch{}}finally{working=false;}}
+  async function generate(){working=true;error='';let actionStarted=false;try{await flushDraft();const current=await onBeforeAction();actionStarted=true;view=unwrap(await commands.startAuthoring(project.storyId,currentId,version,current.revision));version=view.version;report();await refresh();}catch(caught){error=describe(caught);if(actionStarted){try{await refresh();}catch{}}}finally{working=false;}}
+  async function apply(){working=true;error='';let actionStarted=false;try{await flushDraft();await onBeforeAction();actionStarted=true;const result=unwrap(await commands.applyAuthoring(project.storyId,currentId,version));view=result.proposal;version=view.version;await onApply(result);onClose();}catch(caught){error=describe(caught);if(actionStarted){try{await refresh();}catch{}}}finally{working=false;}}
   async function close(settings:'llm'|'prompts'|null=null){try{await flushDraft();if(settings)onSettings(settings);else onClose();}catch{}}
   function toggleContext(id:string){request.contextIds=request.contextIds.includes(id)?request.contextIds.filter((v)=>v!==id):[...request.contextIds,id];touch();}
   function narration(enabled:boolean){request.creationScope='world';request.includeNarration=enabled;if(enabled&&request.creationTypeIds?.length&&!world.nodeTypes.some(t=>request.creationTypeIds!.includes(t.id)&&t.components.includes('core.narration-style'))){const type=world.nodeTypes.find(t=>t.components.includes('core.narration-style'));if(type)request.creationTypeIds.push(type.id);}touch();}

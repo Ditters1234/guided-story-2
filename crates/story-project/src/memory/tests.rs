@@ -1,4 +1,5 @@
 use super::*;
+mod provider_scope;
 #[test]
 fn ai_context_changes_stale_pending_memory_and_future_context_is_not_copied_into_earlier_forks() {
     let (dir, p) = fixture();
@@ -834,6 +835,7 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
         false,
     );
     let candidate = id();
+    let candidate_prose = "Mara waited beside the glasshouse window. ".repeat(500);
     p.save_passage(
         &candidate,
         0,
@@ -842,7 +844,7 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
                 direction: "Wait by the window.".into(),
                 ..p.next_passage_plan().unwrap()
             },
-            prose: "Mara waited beside the glasshouse window. ".repeat(500),
+            prose: candidate_prose.clone(),
             effects_text: empty_effects(),
             close_chapter: false,
             approved_effects: vec![],
@@ -851,14 +853,25 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
     .unwrap();
     let mut configured = settings();
     configured.max_tokens = 1024;
+    // Search through the configured local-model window: the exact effects
+    // grammar is required input, so a fixed 22k ceiling can reject every case
+    // before optional memory allocation is reached.
+    let context_ceiling = configured.context_tokens;
     let mut found = false;
-    for limit in (8000..22000).step_by(500) {
+    let mut rejected_required_context = false;
+    for limit in (8000..=context_ceiling).step_by(500) {
         configured.context_tokens = limit;
         match p.start_passage(&candidate, 1, p.view().unwrap().revision, true, &configured) {
-            Err(error) => assert!(error.contains("budget")),
-            Ok(_) => {
+            Err(error) => {
+                assert!(error.contains("budget"), "{error}");
+                rejected_required_context = true;
+            }
+            Ok(prepared) => {
+                assert!(rejected_required_context);
+                let input: serde_json::Value = serde_json::from_str(&prepared.user).unwrap();
+                assert_eq!(input["prose"], candidate_prose);
                 let running = p.passage_view(&candidate, &configured).unwrap();
-                assert!(running.memory.coverage.byte_budget < 6000);
+                assert!(running.memory.coverage.byte_budget < default_memory_budget());
                 p.finish_passage(
                     &candidate,
                     true,
@@ -876,7 +889,7 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
     }
     assert!(
         found,
-        "An in-budget extraction should fit after optional memory is narrowed."
+        "An extraction should fit within the {context_ceiling}-token window after optional memory is narrowed."
     );
 }
 

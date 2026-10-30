@@ -8,7 +8,14 @@ fn creation_request_budget_audit() {
     request.creation_type_ids = creation::foundation_types(&w);
     let prepared = prepare_authoring(&w, &request, &settings()).unwrap();
     let user: Value = serde_json::from_str(&prepared.user).unwrap();
-    assert!(prepared.estimated_input_tokens < 10000);
+    // JSON/prompt mode spells out each keyed group's compact shape; field
+    // semantics stay in the shared catalogue. Keep that cost bounded well
+    // below the configured 32k window without changing production budgets.
+    assert!(
+        prepared.estimated_input_tokens < 13000,
+        "{}",
+        prepared.estimated_input_tokens
+    );
     assert!(
         user["responseBudget"]["suggestedMaxNewNodes"]
             .as_u64()
@@ -77,8 +84,9 @@ fn compact_json_contract_keeps_catalogue_semantics_and_full_native_schema() {
         assert_eq!(custom["fields"][0]["required"], true);
         assert_eq!(custom["fields"][0]["help"], "Usable condition of the tool");
         assert_eq!(
-            p.response_schema["properties"]["nodes"]["items"]["anyOf"][0]["properties"]
-                ["components"]["properties"]["custom.tool"]["properties"]["condition"]["enum"],
+            p.response_schema["properties"]["nodes"]["properties"]["core.item"]["items"]
+                ["properties"]["components"]["properties"]["custom.tool"]["properties"]
+                ["condition"]["enum"],
             json!(["sound", "worn"])
         );
         if mode == StructuredOutput::Schema {
@@ -86,9 +94,9 @@ fn compact_json_contract_keeps_catalogue_semantics_and_full_native_schema() {
         } else {
             assert!(input["responseSchema"].get("$defs").is_none());
             assert_eq!(
-                input["responseSchema"]["properties"]["nodes"]["items"]["properties"]["typeId"]
-                    ["enum"],
-                json!(["core.item"])
+                input["responseSchema"]["properties"]["nodes"]["properties"]["core.item"]["items"]
+                    ["properties"]["typeId"]["const"],
+                "core.item"
             );
         }
         assert!(input["responseBudget"]
@@ -128,15 +136,8 @@ fn concrete_schemas_do_not_offer_unrelated_capabilities_and_revisions_bind_actua
     let mut w = World::default();
     let req = world_request(&w);
     let prepared = prepare_authoring(&w, &req, &settings()).unwrap();
-    let schemas = prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
-        .as_array()
-        .unwrap();
-    let components = |type_id: &str| {
-        &schemas
-            .iter()
-            .find(|v| v["properties"]["typeId"]["const"] == type_id)
-            .unwrap()["properties"]["components"]
-    };
+    let schemas = &prepared.response_schema["properties"]["nodes"]["properties"];
+    let components = |type_id: &str| &schemas[type_id]["items"]["properties"]["components"];
     assert!(components("core.place")["properties"]
         .get("core.character")
         .is_none());
@@ -148,7 +149,7 @@ fn concrete_schemas_do_not_offer_unrelated_capabilities_and_revisions_bind_actua
         .is_some());
     assert!(components("core.item")["properties"]
         .get("core.container")
-        .is_some());
+        .is_none());
     assert_eq!(
         components("core.narration-style")["properties"]
             .as_object()
@@ -324,9 +325,14 @@ fn single_type_group_has_a_focused_schema_with_inventory_extensions_and_custom_f
     );
     assert_eq!(input["nodeTypes"].as_array().unwrap().len(), 1);
     assert!(input["creationGuide"].get("placeStructure").is_none());
-    let caps = &prepared.response_schema["properties"]["nodes"]["items"]["anyOf"][0]["properties"]
-        ["components"]["properties"];
-    assert!(caps.get("core.container").is_some());
+    let node =
+        &prepared.response_schema["properties"]["nodes"]["properties"]["custom.supply"]["items"];
+    let caps = &node["properties"]["components"]["properties"];
+    assert!(caps.get("core.container").is_none());
+    assert_eq!(
+        node["properties"]["capabilityFlags"]["properties"]["core.container"]["type"],
+        "boolean"
+    );
     assert!(caps.get("core.wearable").is_some());
     assert!(caps.get("detail.voice").is_none());
     assert!(caps["custom.tool"]["properties"]
@@ -350,11 +356,16 @@ fn selected_creation_types_are_enforced_in_schema_candidates_and_native_apply() 
     };
     let prepared = prepare_authoring(&w, &req, &settings()).unwrap();
     assert_eq!(
-        prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
-            .as_array()
+        prepared.response_schema["properties"]["nodes"]["properties"]
+            .as_object()
             .unwrap()
             .len(),
         1
+    );
+    assert_eq!(
+        prepared.response_schema["properties"]["nodes"]["properties"]["core.item"]["items"]
+            ["properties"]["typeId"]["const"],
+        "core.item"
     );
     let key = id();
     p.save_authoring_draft(&key, 0, req).unwrap();

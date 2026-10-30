@@ -273,6 +273,64 @@ pub(crate) fn relationship_schema(world: &World) -> Value {
         json!({"anyOf":choices})
     }
 }
+/// Match native revision protection in the provider contract. Missing and null
+/// optional values are equivalent during review; every other protected value
+/// must be returned, including empty strings/arrays, zero and false.
+fn revision_properties_schema(
+    fields: &[FieldDefinition],
+    previous: &BTreeMap<String, PropertyValue>,
+    editable: impl Fn(&str) -> bool,
+) -> Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for field in fields {
+        let selected = editable(&field.key);
+        let old = previous.get(&field.key);
+        let protected_value = !selected && old.is_some_and(|v| v != &PropertyValue::Null);
+        let schema = if selected {
+            field_schema(field)
+        } else if protected_value {
+            json!({"const":old.unwrap()})
+        } else {
+            json!({"type":"null"})
+        };
+        if field.required || protected_value {
+            required.push(&field.key);
+        }
+        properties.insert(field.key.clone(), schema);
+    }
+    json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
+}
+fn revision_relationship_schema(world: &World, request: &AuthoringRequest) -> Value {
+    let choices: Vec<_> = world
+        .edges
+        .iter()
+        .filter(|edge| request.link_target_ids.contains(&edge.id))
+        .filter_map(|edge| {
+            let definition = world.relation_types.iter().find(|r| r.id == edge.type_id)?;
+            let properties = revision_properties_schema(
+                &definition.fields,
+                &edge.properties,
+                |key| link_selected(request, &edge.id, Some(key)),
+            );
+            let mut required = vec!["id", "typeId", "sourceId", "targetId", "description"];
+            if properties["required"].as_array().is_some_and(|fields| !fields.is_empty()) {
+                required.push("properties");
+            }
+            Some(json!({"type":"object","properties":{
+                "id":{"const":edge.id},"typeId":{"const":edge.type_id},
+                "sourceId":{"const":edge.source_id},"targetId":{"const":edge.target_id},
+                "description":if link_selected(request,&edge.id,None){json!({"type":"string","maxLength":16000})}else{json!({"const":edge.description})},
+                "properties":properties
+            },"required":required,"additionalProperties":false}))
+        })
+        .collect();
+    if choices.is_empty() {
+        json!({"not":{}})
+    } else {
+        json!({"anyOf":choices})
+    }
+}
 fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
     let mut choices = vec![];
     let component_properties:BTreeMap<String,Value>=world.component_types.iter().map(|d| {
@@ -313,43 +371,105 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
             vec![(None, preset.components.clone())]
         };
         for (node_id, required) in variants {
+            let previous = node_id
+                .as_ref()
+                .and_then(|id| world.nodes.iter().find(|n| &n.id == id));
             let mut allowed: BTreeSet<_> = required.iter().cloned().collect();
             if request.mode == AuthoringMode::Create {
-                if allowed.contains("core.item") {
-                    allowed.extend([
-                        "core.container".into(),
-                        "core.wearable".into(),
-                        "detail.wearable".into(),
-                    ]);
-                }
-                if character {
-                    allowed.insert("detail.anatomy".into());
-                }
+                allowed.extend(creation::offered_components(world, preset));
             };
             let properties: serde_json::Map<_, _> = allowed
                 .iter()
                 .filter_map(|id| {
-                    component_properties
-                        .get(id)
-                        .map(|value| (id.clone(), value.clone()))
+                    if let Some(previous) = previous {
+                        let definition = world.component_types.iter().find(|d| &d.id == id)?;
+                        let values = previous.components.get(id)?;
+                        Some((
+                            id.clone(),
+                            revision_properties_schema(&definition.fields, values, |key| {
+                                selected(request, &previous.id, Some(id), key)
+                            }),
+                        ))
+                    } else {
+                        component_properties
+                            .get(id)
+                            .map(|value| (id.clone(), value.clone()))
+                    }
                 })
                 .collect();
-            choices.push(json!({"type":"object","properties":{
-            "id":node_id.map_or_else(||json!({"type":"string"}),|id|json!({"const":id})),"typeId":{"const":preset.id},"name":{"type":"string","minLength":1,"maxLength":200,"description":if request.mode==AuthoringMode::Revise{"Preserve the existing name unless Name is editable and the author asks to change it."}else if character{"A personal name, unless the author explicitly wants an unnamed person. Age/role labels belong in descriptions, not as placeholder names."}else{"A specific name for this record."}},
-            "description":{"type":"string","maxLength":16000},"visualDescription":{"type":"string","maxLength":16000},
+            let name = if let Some(old) =
+                previous.filter(|n| !selected(request, &n.id, None, "name"))
+            {
+                json!({"const":old.name})
+            } else {
+                json!({"type":"string","minLength":1,"maxLength":200,"description":if request.mode==AuthoringMode::Revise{"Preserve the existing name unless Name is editable and the author asks to change it."}else if character{"A personal name, unless the author explicitly wants an unnamed person. Age/role labels belong in descriptions, not as placeholder names."}else{"A specific name for this record."}})
+            };
+            let description = previous
+                .filter(|n| !selected(request, &n.id, None, "description"))
+                .map_or_else(
+                    || json!({"type":"string","maxLength":16000}),
+                    |old| json!({"const":old.description}),
+                );
+            let visible = previous
+                .filter(|n| !selected(request, &n.id, None, "visualDescription"))
+                .map_or_else(
+                    || json!({"type":"string","maxLength":16000}),
+                    |old| json!({"const":old.visual_description}),
+                );
+            let mut node_schema = json!({"type":"object","properties":{
+            "id":node_id.map_or_else(||if !request.bundle&&request.type_id.as_ref()==Some(&preset.id){json!({"const":"new:root"})}else{creation::new_alias_schema()},|id|json!({"const":id})),"typeId":{"const":preset.id},"name":name,
+            "description":description,"visualDescription":visible,
             "components":{"type":"object","properties":properties,"required":required,"additionalProperties":false}
-        },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false}));
+        },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
+            if request.mode == AuthoringMode::Create {
+                creation::add_marker_flags(
+                    &mut node_schema,
+                    &creation::optional_markers(world, preset),
+                );
+            }
+            choices.push(node_schema);
         }
     }
+    let root_schema = if creation::typed_bundle(request) {
+        choices
+            .iter()
+            .find(|c| c["properties"]["typeId"]["const"].as_str() == request.type_id.as_deref())
+            .cloned()
+            .map(|mut root| {
+                root["properties"]["id"] = json!({"const":"new:root"});
+                root
+            })
+    } else {
+        None
+    };
     let node_schema = if choices.is_empty() {
         json!({"type":"object","properties":{},"additionalProperties":false})
     } else {
         json!({"anyOf":choices})
     };
-    json!({"type":"object","properties":{
-        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group)||request.target_ids.is_empty(){0}else{1},"maxItems":if request.mode==AuthoringMode::Revise{request.target_ids.len()}else{20},"items":node_schema},
-        "edges":{"type":"array","maxItems":if request.mode==AuthoringMode::Revise{request.link_target_ids.len()}else{80},"items":relationship_schema(world)}
-    },"required":["nodes","edges"],"additionalProperties":false})
+    let mut schema = json!({"type":"object","properties":{
+        "nodes":{"type":"array","minItems":if request.mode==AuthoringMode::Revise{request.target_ids.len()}else if request.creation_scope==Some(CreationScope::Group){0}else{1},"maxItems":if request.mode==AuthoringMode::Revise{request.target_ids.len()}else if !request.bundle{1}else{20},"items":node_schema},
+        "edges":{"type":"array","minItems":if request.mode==AuthoringMode::Revise{request.link_target_ids.len()}else{0},"maxItems":if request.mode==AuthoringMode::Revise{request.link_target_ids.len()}else{80},"items":if request.mode==AuthoringMode::Revise{revision_relationship_schema(world,request)}else{relationship_schema(world)}}
+    },"required":["nodes","edges"],"additionalProperties":false});
+    if let Some(root) = root_schema {
+        creation::add_root_property(&mut schema, root);
+    }
+    if request.mode == AuthoringMode::Create && request.bundle {
+        let related = schema["properties"]["nodes"]["items"]["anyOf"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        creation::group_related_nodes(&mut schema, related);
+    }
+    if request.mode == AuthoringMode::Create {
+        if let Some(links) = schema["properties"]["edges"]["items"]["anyOf"].as_array_mut() {
+            for link in links {
+                link["properties"]["id"] = creation::new_alias_schema();
+                link["properties"]["sourceId"] = creation::new_alias_schema();
+            }
+        }
+    }
+    schema
 }
 pub fn prepare_authoring(
     world: &World,
@@ -503,6 +623,12 @@ pub fn prepare_authoring(
         );
     }
     let mut response_schema = output_schema(&model_schema, request);
+    creation::limit_foundation_fields(
+        &mut response_schema,
+        &model_schema,
+        request,
+        settings.max_tokens,
+    );
     creation::strip_schema_help(&mut response_schema);
     let mut system = settings.system_prompt(TextPromptTask::World);
     let mut effective_request = request.clone();
@@ -561,7 +687,7 @@ pub fn prepare_authoring(
         response_schema.to_string().len()
     } else {
         input["responseSchema"] = if request.mode == AuthoringMode::Create {
-            creation::prompt_schema(&model_schema)
+            creation::prompt_schema(&model_schema, request)
         } else {
             response_schema.clone()
         };
@@ -593,7 +719,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v9-compact-contract",
+        "world-authoring-v13-creation-capability-groups",
         &system,
         &user,
         &response_schema,
@@ -742,7 +868,9 @@ fn candidate_world(
     source: &World,
     record: &mut AuthoringRecord,
 ) -> Result<(World, Vec<String>), String> {
-    let mut candidate: NodeCandidate = serde_json::from_str(&record.candidate_text)
+    let candidate_text =
+        creation::materialize_text(source, &record.request, &record.candidate_text)?;
+    let mut candidate: NodeCandidate = serde_json::from_str(&candidate_text)
         .map_err(|e| format!("Candidate JSON needs editing: {e}"))?;
     if candidate.nodes.is_empty()
         && record.request.creation_scope == Some(CreationScope::Group)
@@ -1385,7 +1513,6 @@ impl Project {
                     return Err("Model output exceeds its saved-response limit.".into());
                 }
                 record.raw_response = text.clone();
-                record.candidate_text = text;
                 record.status = AuthoringStatus::Review;
                 let source: World = self.read_record(
                     "worlds",
@@ -1394,6 +1521,8 @@ impl Project {
                         .as_ref()
                         .ok_or("Missing proposal source.")?,
                 )?;
+                record.candidate_text =
+                    creation::materialize_text(&source, &record.request, &text).unwrap_or(text);
                 record.error = candidate_world(&source, &mut record)
                     .err()
                     .unwrap_or_default();
@@ -1420,6 +1549,23 @@ impl Project {
             return Err("Candidate text exceeds its size limit.".into());
         }
         let mut record = self.read_authoring(id)?;
+        let source: World = self.read_record(
+            "worlds",
+            record
+                .source_world_ref
+                .as_ref()
+                .ok_or("Missing proposal source.")?,
+        )?;
+        let text = creation::materialize_text(&source, &record.request, &text).unwrap_or(text);
+        let original = creation::materialize_text(&source, &record.request, &record.raw_response)
+            .unwrap_or_else(|_| record.raw_response.clone());
+        let edited = match (
+            serde_json::from_str::<Value>(&text),
+            serde_json::from_str::<Value>(&original),
+        ) {
+            (Ok(candidate), Ok(original)) => candidate != original,
+            _ => text != original,
+        };
         if record.status == AuthoringStatus::Review
             && record.version == expected + 1
             && record.candidate_text == text
@@ -1429,18 +1575,11 @@ impl Project {
         if record.version != expected || record.status != AuthoringStatus::Review {
             return Err("The candidate changed. Reload before editing.".into());
         }
-        if text != record.raw_response {
+        if edited {
             record.incomplete = false;
         }
         record.candidate_text = text;
         record.apply_attempt = None;
-        let source: World = self.read_record(
-            "worlds",
-            record
-                .source_world_ref
-                .as_ref()
-                .ok_or("Missing proposal source.")?,
-        )?;
         record.error = candidate_world(&source, &mut record)
             .err()
             .unwrap_or_default();

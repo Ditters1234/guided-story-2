@@ -59,11 +59,15 @@ fn world_group_and_node_contracts_are_distinct_and_group_schemas_honor_custom_ty
         assert_eq!(input["creationIntent"], "group");
         assert_eq!(input["allowedNewTypeIds"], json!([kind]));
         assert!(input.get("clothingExample").is_none());
-        let choices = prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
-            .as_array()
+        let choices = prepared.response_schema["properties"]["nodes"]["properties"]
+            .as_object()
             .unwrap();
         assert_eq!(choices.len(), 1);
-        assert_eq!(choices[0]["properties"]["typeId"]["const"], kind);
+        assert_eq!(
+            choices[kind]["items"]["properties"]["typeId"]["const"],
+            kind
+        );
+        assert_eq!(choices[kind]["maxItems"], 20);
         let demo: NodeCandidate =
             serde_json::from_str(&demo_authoring(&world, &req).unwrap()).unwrap();
         assert_eq!(demo.nodes.len(), 2);
@@ -72,12 +76,19 @@ fn world_group_and_node_contracts_are_distinct_and_group_schemas_honor_custom_ty
     }
     let mixed = prepare_authoring(&world, &group(None), &settings()).unwrap();
     assert_eq!(
-        mixed.response_schema["properties"]["nodes"]["items"]["anyOf"]
-            .as_array()
+        mixed.response_schema["properties"]["nodes"]["properties"]
+            .as_object()
             .unwrap()
             .len(),
         world.node_types.len()
     );
+    for preset in &world.node_types {
+        assert_eq!(
+            mixed.response_schema["properties"]["nodes"]["properties"][&preset.id]["items"]
+                ["properties"]["typeId"]["const"],
+            preset.id
+        );
+    }
     assert!(
         mixed.system.contains("creationIntent=group")
             && mixed

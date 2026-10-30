@@ -3,6 +3,8 @@ mod authoring;
 mod connections;
 mod image_workflow;
 mod knowledge;
+#[cfg(test)]
+mod live_tools;
 mod media;
 mod memory;
 mod model;

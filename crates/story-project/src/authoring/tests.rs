@@ -4,8 +4,11 @@ mod creation_quality;
 mod creation_scopes;
 mod deletion;
 mod existing_context;
+mod foundation_budget;
+mod protection_schema;
 mod quality_probe;
 mod relationships;
+mod typed_bundle;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -72,12 +75,9 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
         .unwrap();
     let req = group_request();
     let prepared = prepare_authoring(&world, &req, &settings()).unwrap();
-    let character = prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|n| n["properties"]["typeId"]["const"] == "core.character")
-        .unwrap();
+    let character =
+        &prepared.response_schema["properties"]["nodes"]["properties"]["core.character"]["items"];
+    assert_eq!(character["properties"]["typeId"]["const"], "core.character");
     let required = character["properties"]["components"]["required"]
         .as_array()
         .unwrap();

@@ -795,12 +795,18 @@ impl Project {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v9-situated-claims",
+            "passage-source-v11-grouped-effect-contracts",
             &input,
             &context.node_types,
             &context.component_types,
             &context.relation_types,
             &context.source_annotations,
+            [
+                settings.system_prompt(TextPromptTask::Passage),
+                settings.system_prompt(TextPromptTask::Effects),
+                settings.system_prompt(TextPromptTask::Wording),
+            ],
+            effects_schema(&prose_effect_schema(&context)),
             settings,
         ))?;
         if let Some(included) = story_ai_context_stamp(world)? {
@@ -860,8 +866,8 @@ impl Project {
         if checking {
             input["prose"] = json!(d.edits.prose);
             input["nodeTypes"] = json!(effect_schema_context.node_types);
-            input["capabilities"] = json!(effect_schema_context.component_types);
-            input["relationships"] = json!(effect_schema_context.relation_types);
+            input["capabilities"] = effects_capabilities(&effect_schema_context);
+            input["relationships"] = effects_relationships(&effect_schema_context);
         }
         let source_world_data: World = self.read_record("worlds", &source_world)?;
         let included = if checking {
@@ -997,6 +1003,7 @@ impl Project {
         {
             return Err("The passage request is no longer running.".into());
         }
+        let mut response_error = String::new();
         match result {
             Ok(text) => {
                 if text.len() > if checking { 500000 } else { 100000 } {
@@ -1005,7 +1012,13 @@ impl Project {
                 if checking {
                     d.edits.approved_effects.clear();
                     d.original_effects = text.clone();
-                    d.edits.effects_text = text;
+                    d.edits.effects_text = match materialize_effects_text(&text) {
+                        Ok(materialized) => materialized,
+                        Err(error) => {
+                            response_error = format!("Effects JSON needs editing: {error}");
+                            text
+                        }
+                    };
                 } else {
                     d.edits.approved_effects.clear();
                     d.original_prose = text.clone();
@@ -1023,7 +1036,7 @@ impl Project {
                     "The response was cut off. Its retained text requires editing/rechecking."
                         .into()
                 } else {
-                    String::new()
+                    response_error
                 };
             }
             Err(error) => {
@@ -1037,7 +1050,7 @@ impl Project {
         }
         d.version += 1;
         self.write_passage_draft(&d)?;
-        if checking && d.stage == PassageStage::NeedsCheck && !incomplete {
+        if checking && d.stage == PassageStage::NeedsCheck && !incomplete && d.error.is_empty() {
             let matching = self
                 .draft_input(&d, settings)
                 .is_ok_and(|(_, _, _, fp, _)| {

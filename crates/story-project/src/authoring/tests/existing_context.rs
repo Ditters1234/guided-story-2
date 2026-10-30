@@ -320,10 +320,15 @@ fn duplicate_names_are_advisory_and_no_addition_groups_do_not_need_invented_reco
     let key = id();
     p.save_authoring_draft(&key, 0, req.clone()).unwrap();
     let prepared = p.start_authoring(&key, 1, 0, &settings()).unwrap();
+    let nodes_schema = &prepared.response_schema["properties"]["nodes"];
+    assert_eq!(nodes_schema["type"], "object");
+    assert_eq!(nodes_schema["additionalProperties"], false);
     assert_eq!(
-        prepared.response_schema["properties"]["nodes"]["minItems"],
-        0
+        nodes_schema["required"].as_array().unwrap().len(),
+        nodes_schema["properties"].as_object().unwrap().len()
     );
+    assert_eq!(nodes_schema["properties"].as_object().unwrap().len(), 1);
+    assert_eq!(nodes_schema["properties"]["core.item"]["maxItems"], 20);
     p.finish_authoring(
         &key,
         Ok(serde_json::to_string(&NodeCandidate {

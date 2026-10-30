@@ -8,6 +8,7 @@ mod prompts;
 mod relationships;
 mod review;
 mod revisions;
+mod source_contract;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }

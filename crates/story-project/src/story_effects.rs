@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 use specta::Type;
 use std::collections::{BTreeMap, BTreeSet};
 mod diagnostics;
+mod schema;
 pub(crate) use diagnostics::effect_record_issues;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -19,6 +20,62 @@ pub struct PassageEffects {
     pub changes: Vec<PassageEffect>,
     pub notes: Vec<ContinuityNote>,
     pub suggest_chapter_end: bool,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProviderEffectGroups {
+    put_nodes: Vec<PassageEffect>,
+    put_links: Vec<PassageEffect>,
+    remove_links: Vec<PassageEffect>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProviderEffects {
+    changes: ProviderEffectGroups,
+    notes: Vec<ContinuityNote>,
+    suggest_chapter_end: bool,
+}
+/// Provider operation groups avoid a mixed-kind array grammar. They are only a
+/// transport shape: manual/retained flat text and native review stay unchanged.
+pub(crate) fn materialize_effects_text(text: &str) -> Result<String, String> {
+    let value: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    if value.get("changes").is_some_and(Value::is_array) {
+        return Ok(text.to_owned());
+    }
+    let grouped: ProviderEffects = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    let ProviderEffectGroups {
+        put_nodes,
+        put_links,
+        remove_links,
+    } = grouped.changes;
+    if put_nodes
+        .iter()
+        .any(|effect| !matches!(effect, PassageEffect::PutNode { .. }))
+    {
+        return Err("changes.putNodes may contain only putNode effects.".into());
+    }
+    if put_links
+        .iter()
+        .any(|effect| !matches!(effect, PassageEffect::PutLink { .. }))
+    {
+        return Err("changes.putLinks may contain only putLink effects.".into());
+    }
+    if remove_links
+        .iter()
+        .any(|effect| !matches!(effect, PassageEffect::RemoveLink { .. }))
+    {
+        return Err("changes.removeLinks may contain only removeLink effects.".into());
+    }
+    let effects = PassageEffects {
+        changes: put_nodes
+            .into_iter()
+            .chain(put_links)
+            .chain(remove_links)
+            .collect(),
+        notes: grouped.notes,
+        suggest_chapter_end: grouped.suggest_chapter_end,
+    };
+    serde_json::to_string(&effects).map_err(|e| e.to_string())
 }
 pub(crate) fn planning_only(field: &FieldDefinition) -> bool {
     !field.used_for(FieldUse::Story) && !field.used_for(FieldUse::Visual)
@@ -379,11 +436,11 @@ pub(crate) fn preview_passage_effects(
     Ok((world, labels))
 }
 pub(crate) fn effects_schema(world: &World) -> Value {
-    let quote = json!({"type":"string","minLength":8,"maxLength":600,"description":"Copy one continuous excerpt verbatim from the current supplied prose, preserving words, capitalization and punctuation. No paraphrase, inserted ellipses, joined excerpts or quotes from earlier passages."});
-    let node = json!({"type":"object","properties":{"id":{"type":"string"},"typeId":{"type":"string"},"name":{"type":"string"},"description":{"type":"string"},"visualDescription":{"type":"string"},"components":{"type":"object"}},"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
-    let link = crate::authoring::relationship_schema(world);
-    json!({"type":"object","properties":{"changes":{"type":"array","maxItems":80,"items":{"anyOf":[
-        {"type":"object","properties":{"kind":{"const":"putNode"},"node":node,"evidence":quote},"required":["kind","node","evidence"],"additionalProperties":false},
-        {"type":"object","properties":{"kind":{"const":"putLink"},"link":link,"evidence":quote},"required":["kind","link","evidence"],"additionalProperties":false},
-        {"type":"object","properties":{"kind":{"const":"removeLink"},"id":{"type":"string"},"evidence":quote},"required":["kind","id","evidence"],"additionalProperties":false}]}},"notes":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string"},"evidence":quote,"nodeIds":{"type":"array","items":{"type":"string"}}},"required":["text","evidence","nodeIds"],"additionalProperties":false}},"suggestChapterEnd":{"type":"boolean"}},"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false})
+    schema::effects_schema(world)
+}
+pub(crate) fn effects_capabilities(world: &World) -> Value {
+    schema::capabilities(world)
+}
+pub(crate) fn effects_relationships(world: &World) -> Value {
+    schema::relationships(world)
 }

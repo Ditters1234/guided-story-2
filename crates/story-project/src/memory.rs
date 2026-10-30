@@ -409,7 +409,7 @@ impl Project {
         let mut nodes = BTreeMap::new();
         for source in sources {
             let passage: AcceptedPassage = self.read_record("passages", &source.record)?;
-            let ids: BTreeSet<_> = passage
+            let mut ids: BTreeSet<String> = passage
                 .plan
                 .viewpoint_id
                 .iter()
@@ -417,11 +417,44 @@ impl Project {
                 .chain(&passage.plan.participant_ids)
                 .chain(&passage.plan.reference_ids)
                 .chain(passage.effects.notes.iter().flat_map(|n| &n.node_ids))
+                .cloned()
                 .collect();
-            if ids.is_empty() {
+            if ids.is_empty() && passage.effects.changes.is_empty() {
                 continue;
             }
             let world: World = self.read_record("worlds", &passage.after_world)?;
+            // Accepted effects retain temporary aliases. Derive their canonical
+            // subjects from the immutable acceptance boundary instead of draft
+            // allocations or today's world (which may contain future facts).
+            if !passage.effects.changes.is_empty()
+                && passage.before_world.sha256 != passage.after_world.sha256
+            {
+                let before: World = self.read_record("worlds", &passage.before_world)?;
+                let old_nodes: BTreeMap<_, _> = before.nodes.iter().map(|n| (&n.id, n)).collect();
+                let old_links: BTreeMap<_, _> = before.edges.iter().map(|e| (&e.id, e)).collect();
+                let new_links: BTreeMap<_, _> = world.edges.iter().map(|e| (&e.id, e)).collect();
+                ids.extend(
+                    world
+                        .nodes
+                        .iter()
+                        .filter(|n| old_nodes.get(&n.id).is_none_or(|old| *old != *n))
+                        .map(|n| n.id.clone()),
+                );
+                for link in world
+                    .edges
+                    .iter()
+                    .filter(|e| old_links.get(&e.id).is_none_or(|old| *old != *e))
+                    .chain(
+                        before
+                            .edges
+                            .iter()
+                            .filter(|e| new_links.get(&e.id).is_none_or(|new| *new != *e)),
+                    )
+                {
+                    ids.insert(link.source_id.clone());
+                    ids.insert(link.target_id.clone());
+                }
+            }
             for node in &world.nodes {
                 if ids.contains(&node.id) {
                     nodes.insert(node.id.clone(), node.name.clone());
@@ -527,8 +560,9 @@ impl Project {
             passages
                 .push(json!({"id":source.passage_id,"title":source.title,"prose":record.prose}));
         }
-        let schema = memory_schema();
-        let mut input = json!({"chapter":draft.title,"direction":draft.edits.direction,"passages":passages,"nodes":self.memory_nodes(&draft.sources)?});
+        let nodes = self.memory_nodes(&draft.sources)?;
+        let schema = memory_schema(&draft.sources, &nodes);
+        let mut input = json!({"chapter":draft.title,"direction":draft.edits.direction,"passages":passages,"nodes":nodes});
         if settings.structured_output != StructuredOutput::Schema {
             input["responseSchema"] = schema.clone();
         }
@@ -742,8 +776,18 @@ impl Project {
     }
 }
 
-fn memory_schema() -> Value {
-    json!({"type":"object","properties":{"points":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string","maxLength":1000},"passageId":{"type":"string"},"evidence":{"type":"string","minLength":8,"maxLength":600},"nodeIds":{"type":"array","maxItems":12,"items":{"type":"string"}}},"required":["text","passageId","evidence","nodeIds"],"additionalProperties":false}},"noLastingFacts":{"type":"boolean"}},"required":["points","noLastingFacts"],"additionalProperties":false})
+fn memory_schema(sources: &[MemorySource], nodes: &[MemoryNode]) -> Value {
+    let node_ids = if nodes.is_empty() {
+        json!({"type":"array","maxItems":0,"items":{"type":"string"}})
+    } else {
+        json!({"type":"array","maxItems":12,"items":{"type":"string","enum":nodes.iter().map(|n|&n.id).collect::<Vec<_>>()}})
+    };
+    let passage_ids = if sources.is_empty() {
+        json!({"type":"string"})
+    } else {
+        json!({"type":"string","enum":sources.iter().map(|s|&s.passage_id).collect::<Vec<_>>()})
+    };
+    json!({"type":"object","properties":{"points":{"type":"array","maxItems":if sources.is_empty(){0}else{12},"items":{"type":"object","properties":{"text":{"type":"string","maxLength":1000},"passageId":passage_ids,"evidence":{"type":"string","minLength":8,"maxLength":600},"nodeIds":node_ids},"required":["text","passageId","evidence","nodeIds"],"additionalProperties":false}},"noLastingFacts":{"type":"boolean"}},"required":["points","noLastingFacts"],"additionalProperties":false})
 }
 
 #[cfg(test)]
