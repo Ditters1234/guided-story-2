@@ -26,6 +26,8 @@ pub struct PassagePlan {
     pub participant_ids: Vec<String>,
     pub reference_ids: Vec<String>,
     pub target_words: u32,
+    #[serde(default, skip_serializing_if = "crate::knowledge::default_perspective")]
+    pub knowledge_perspective: KnowledgePerspective,
 }
 impl Default for PassagePlan {
     fn default() -> Self {
@@ -39,6 +41,7 @@ impl Default for PassagePlan {
             participant_ids: vec![],
             reference_ids: vec![],
             target_words: 450,
+            knowledge_perspective: KnowledgePerspective::Viewpoint,
         }
     }
 }
@@ -259,6 +262,8 @@ pub struct PassageView {
     pub suggested_chapter_end: bool,
     pub context_nodes: Vec<String>,
     pub recent_passages: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::knowledge::is_zero")]
+    pub knowledge_history_omissions: u32,
     pub original_prose: String,
     pub original_effects: String,
 }
@@ -381,6 +386,8 @@ pub(crate) fn scene_world(world: &World, plan: &PassagePlan) -> Result<World, St
         .iter()
         .chain(&plan.participant_ids)
         .collect();
+    let claims = crate::knowledge::relevant_claims(world, plan, &ids);
+    ids.extend(claims.into_iter().take(20));
     for e in &world.edges {
         if (e.type_id == "core.stored-in" || e.type_id == "core.worn-by")
             && actors.contains(&e.target_id)
@@ -726,8 +733,12 @@ impl Project {
         memory_budget: u32,
     ) -> Result<(World, Value, String, Vec<String>), String> {
         let context = scene_world(world, plan)?;
+        let knowledge = preview_knowledge(world, plan)?;
+        let excluded = crate::knowledge::excluded_claims(world, plan);
+        let excluded_passages = crate::knowledge::excluded_claim_passages(world, plan);
         let mut recent = vec![];
         let mut ids = vec![];
+        let mut withheld_recent = 0;
         for entry in index
             .passages
             .iter()
@@ -738,6 +749,12 @@ impl Project {
             .rev()
         {
             let passage: AcceptedPassage = self.read_record("passages", &entry.record)?;
+            if excluded_passages.contains(&entry.id)
+                || crate::knowledge::mentions_excluded(&passage.effects, &excluded)?
+            {
+                withheld_recent += 1;
+                continue;
+            }
             ids.push(entry.id.clone());
             recent.push(json!({"id":entry.id,"version":entry.record,"title":passage.plan.title,"prose":passage.prose,"notes":passage.effects.notes,"evidenceFromEarlierWording":passage.evidence_source.is_some()}));
         }
@@ -745,10 +762,40 @@ impl Project {
             .chapters
             .last()
             .map(|ch| json!({"id":ch.id,"title":ch.title,"plan":ch.plan,"closed":ch.closed}));
-        let memory = self.memory_context(index, plan, &context, memory_budget)?;
-        let input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        let mut memory = self.memory_context(index, plan, &context, memory_budget)?;
+        let mut kept = vec![];
+        for point in memory.points.drain(..) {
+            let summary_blocked = if let Some(r) = &point.summary {
+                let summary = self.read_record::<ChapterMemory>("memories", r)?;
+                summary
+                    .sources
+                    .iter()
+                    .any(|s| excluded_passages.contains(&s.passage_id))
+                    || summary
+                        .ai_context
+                        .as_ref()
+                        .is_some_and(|c| c.iter().any(|s| excluded.contains(&s.node_id)))
+            } else {
+                false
+            };
+            if excluded_passages.contains(&point.passage_id)
+                || point.node_ids.iter().any(|id| excluded.contains(id))
+                || summary_blocked
+            {
+                memory.coverage.selected_points -= 1;
+                memory.coverage.omitted_points += 1;
+            } else {
+                kept.push(point);
+            }
+        }
+        memory.points = kept;
+        let mut input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        if !knowledge.decisions.is_empty() || knowledge.omitted_by_limit > 0 || withheld_recent > 0
+        {
+            input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
+        }
         let mut fingerprint = story_hash(&(
-            "passage-source-v8-prose-field-scope",
+            "passage-source-v9-situated-claims",
             &input,
             &context.node_types,
             &context.component_types,
@@ -817,19 +864,27 @@ impl Project {
             input["relationships"] = json!(effect_schema_context.relation_types);
         }
         let source_world_data: World = self.read_record("worlds", &source_world)?;
-        let included = resolve_ai_context(&source_world_data, task)?;
+        let included = if checking {
+            resolve_ai_context(&source_world_data, task)?
+        } else {
+            crate::knowledge::resolve_narrative_context(&source_world_data, task, &d.edits.plan)?
+        };
         append_ai_context(&included, &mut system, &mut input);
         if !checking {
-            input["records"] = json!(context
-                .nodes
-                .iter()
-                .map(|node| narrative_record(&context, node))
-                .collect::<Vec<_>>());
-            input["links"] = json!(context
-                .edges
-                .iter()
-                .map(|edge| narrative_link(&context, edge))
-                .collect::<Vec<_>>());
+            crate::knowledge::project_records(&context, &mut input);
+            let excluded = crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan);
+            if wording {
+                if let Some(revision) = &d.revision {
+                    let base: AcceptedPassage = self.read_record("passages", &revision.source)?;
+                    if crate::knowledge::excluded_claim_passages(&source_world_data, &d.edits.plan)
+                        .contains(&base.id)
+                        || crate::knowledge::mentions_excluded(&base.effects, &excluded)?
+                    {
+                        return Err("This wording source contains a claim omitted by the saved perspective. Revise manually or change access in a new story branch; the required original text was not silently trimmed.".into());
+                    }
+                }
+            }
+            crate::knowledge::scrub_references(&mut input, &excluded);
         }
         let schema = checking.then(|| effects_schema(&effect_schema_context));
         if settings.structured_output != StructuredOutput::Schema && checking {
@@ -861,16 +916,11 @@ impl Project {
             fingerprint = expanded_fingerprint;
         }
         if !checking {
-            input["records"] = json!(context
-                .nodes
-                .iter()
-                .map(|node| narrative_record(&context, node))
-                .collect::<Vec<_>>());
-            input["links"] = json!(context
-                .edges
-                .iter()
-                .map(|edge| narrative_link(&context, edge))
-                .collect::<Vec<_>>());
+            crate::knowledge::project_records(&context, &mut input);
+            crate::knowledge::scrub_references(
+                &mut input,
+                &crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan),
+            );
         }
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
@@ -1147,6 +1197,13 @@ impl Project {
             )?
         };
         let approved = effects_review.entries.iter().all(|entry| entry.approved);
+        let knowledge_history_omissions = prepared
+            .as_ref()
+            .ok()
+            .and_then(|(_, _, input, _, _)| {
+                input["situatedKnowledge"]["withheldRecentPassages"].as_u64()
+            })
+            .unwrap_or(0) as u32;
         let memory = prepared
             .as_ref()
             .ok()
@@ -1158,6 +1215,7 @@ impl Project {
             .map(|(ctx, _, _, _, recent)| (ctx.nodes.into_iter().map(|n| n.name).collect(), recent))
             .unwrap_or_default();
         Ok(PassageView {
+            knowledge_history_omissions,
             effects_review,
             memory,
             revision,

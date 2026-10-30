@@ -24,6 +24,7 @@ export const commands = {
 	readNodeSource: (storyId: string, world: World_Deserialize, id: string) => typedError<SourceReading, string>(__TAURI_INVOKE("read_node_source", { storyId, world, id })),
 	previewAiContext: (world: World_Deserialize, task: TextPromptTask) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_ai_context", { world, task })),
 	previewImageContext: (world: World_Deserialize) => typedError<AiContextPreview, string>(__TAURI_INVOKE("preview_image_context", { world })),
+	previewKnowledge: (world: World_Deserialize, plan: PassagePlan_Deserialize) => typedError<KnowledgePreview_Serialize, string>(__TAURI_INVOKE("preview_knowledge", { world, plan })),
 	refreshImageGuidance: (storyId: string, id: string, version: number) => typedError<MediaView_Serialize, string>(__TAURI_INVOKE("refresh_image_guidance", { storyId, id, version })),
 	previewImagePreparation: (storyId: string, id: string, accepted: boolean) => typedError<ImagePreparationPreview, string>(__TAURI_INVOKE("preview_image_preparation", { storyId, id, accepted })),
 	loadPreferences: () => typedError<Preferences, string>(__TAURI_INVOKE("load_preferences")),
@@ -311,6 +312,67 @@ export type ChapterMemoryStatus = {
 	status: MemoryStatus,
 	points: number,
 	error: string,
+};
+
+export type ClaimContext = ClaimContext_Serialize | ClaimContext_Deserialize;
+
+export type ClaimContext_Deserialize = {
+	nodeId: string,
+	name: string,
+	proposition: string,
+	notes: string,
+	details: ClaimDetail[],
+	authorAssessment: string,
+	readerDisclosed: boolean,
+	viewpointStance?: string | null,
+	holders: ClaimHolder_Deserialize[],
+	sources: SourceAnnotation_Deserialize[],
+	editedSinceSource: boolean,
+};
+
+export type ClaimContext_Serialize = {
+	nodeId: string,
+	name: string,
+	proposition: string,
+	notes: string,
+	details: ClaimDetail[],
+	authorAssessment: string,
+	readerDisclosed: boolean,
+	viewpointStance: string | null,
+	holders: ClaimHolder_Serialize[],
+	sources: SourceAnnotation_Serialize[],
+	editedSinceSource: boolean,
+};
+
+export type ClaimDetail = {
+	capability: string,
+	label: string,
+	value: PropertyValue,
+};
+
+export type ClaimHolder = ClaimHolder_Serialize | ClaimHolder_Deserialize;
+
+export type ClaimHolder_Deserialize = {
+	nodeId: string,
+	name: string,
+	stance: string,
+	acquisition: string,
+	sourceId?: string | null,
+};
+
+export type ClaimHolder_Serialize = {
+	nodeId: string,
+	name: string,
+	stance: string,
+	acquisition: string,
+	sourceId: string | null,
+};
+
+export type ClaimPreview = {
+	nodeId: string,
+	name: string,
+	included: boolean,
+	reason: string,
 };
 
 export type CommitResult = CommitResult_Serialize | CommitResult_Deserialize;
@@ -719,6 +781,22 @@ export type ImageWorkflowRequest_Serialize = {
 	cfg: number | null,
 };
 
+export type KnowledgePerspective = "viewpoint" | "author";
+
+export type KnowledgePreview = KnowledgePreview_Serialize | KnowledgePreview_Deserialize;
+
+export type KnowledgePreview_Deserialize = {
+	included: ClaimContext_Deserialize[],
+	decisions: ClaimPreview[],
+	omittedByLimit: number,
+};
+
+export type KnowledgePreview_Serialize = {
+	included: ClaimContext_Serialize[],
+	decisions: ClaimPreview[],
+	omittedByLimit: number,
+};
+
 export type LlmConnection = LlmConnection_Serialize | LlmConnection_Deserialize;
 
 export type LlmConnection_Deserialize = {
@@ -1088,6 +1166,7 @@ export type PassagePlan_Deserialize = {
 	participantIds: string[],
 	referenceIds: string[],
 	targetWords: number,
+	knowledgePerspective?: KnowledgePerspective,
 };
 
 export type PassagePlan_Serialize = {
@@ -1100,6 +1179,7 @@ export type PassagePlan_Serialize = {
 	participantIds: string[],
 	referenceIds: string[],
 	targetWords: number,
+	knowledgePerspective?: KnowledgePerspective,
 };
 
 export type PassageReading = PassageReading_Serialize | PassageReading_Deserialize;
@@ -1195,6 +1275,7 @@ export type PassageView_Deserialize = {
 	suggestedChapterEnd: boolean,
 	contextNodes: string[],
 	recentPassages: string[],
+	knowledgeHistoryOmissions?: number,
 	originalProse: string,
 	originalEffects: string,
 };
@@ -1216,6 +1297,7 @@ export type PassageView_Serialize = {
 	suggestedChapterEnd: boolean,
 	contextNodes: string[],
 	recentPassages: string[],
+	knowledgeHistoryOmissions?: number,
 	originalProse: string,
 	originalEffects: string,
 };

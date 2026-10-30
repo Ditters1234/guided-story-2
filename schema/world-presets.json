@@ -125,6 +125,14 @@
       "components": [
         "detail.visual-style"
       ]
+    },
+    {
+      "id": "core.claim",
+      "name": "Knowledge / claim",
+      "description": "An author-assessed proposition, distinct from who believes it and what narration may receive.",
+      "components": [
+        "core.claim"
+      ]
     }
   ],
   "componentTypes": [
@@ -1416,6 +1424,79 @@
           }
         }
       ]
+    },
+    {
+      "id": "core.claim",
+      "name": "Claim",
+      "fields": [
+        {
+          "key": "proposition",
+          "label": "Proposition",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What is asserted; a belief is not automatically true.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "status",
+          "label": "Author assessment",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "unconfirmed",
+          "metadata": {
+            "help": "Truth assessed by the author, independent of character belief.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "established",
+              "unconfirmed",
+              "disproved"
+            ]
+          }
+        },
+        {
+          "key": "disclosure",
+          "label": "Narration access",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "withheld",
+          "metadata": {
+            "help": "Withheld is omitted from prose context. Narrator requires author perspective or a viewpoint stance; revealed is available to narration without granting character knowledge.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "withheld",
+              "narrator",
+              "revealed"
+            ]
+          }
+        },
+        {
+          "key": "subjects",
+          "label": "Related subjects",
+          "kind": "nodeRefs",
+          "required": false,
+          "defaultValue": [],
+          "metadata": {
+            "help": "Select relevant people, places or things; this does not establish their knowledge.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        }
+      ],
+      "description": "An author-assessed proposition with explicit narration access. Truth, belief and reader disclosure are independent."
     }
   ],
   "relationTypes": [
@@ -1719,6 +1800,64 @@
       "targetCapability": null,
       "physicalPlacement": false,
       "singleTarget": false
+    },
+    {
+      "id": "core.holds-claim",
+      "label": "held by",
+      "sourceCapability": "core.claim",
+      "targetCapability": "core.character",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "stance",
+          "label": "Character stance",
+          "kind": "choice",
+          "required": true,
+          "defaultValue": "believes",
+          "metadata": {
+            "help": "This character’s stance, independent of author assessment.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state",
+            "choices": [
+              "believes",
+              "doubts",
+              "rejects"
+            ]
+          }
+        },
+        {
+          "key": "acquisition",
+          "label": "How learned / why believed",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Author description of acquisition. Does not automatically inform any other character.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "source",
+          "label": "Acquisition reference",
+          "kind": "nodeRef",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional existing source node (such as an Event or letter). Exact proposition citations are managed through Sources on the claim.",
+            "uses": [
+              "planning"
+            ],
+            "stability": "state"
+          }
+        }
+      ],
+      "name": "Character stance"
     }
   ]
 }

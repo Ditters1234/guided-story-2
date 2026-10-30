@@ -259,6 +259,15 @@ fn preview_image_context(world: World) -> Result<story_project::AiContextPreview
     story_project::preview_image_context(&world)
 }
 
+#[tauri::command]
+#[specta::specta]
+fn preview_knowledge(
+    world: World,
+    plan: story_project::PassagePlan,
+) -> Result<story_project::KnowledgePreview, String> {
+    story_project::preview_knowledge(&world, &plan)
+}
+
 fn preferences_root(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     #[cfg(debug_assertions)]
     if let Some(path) = std::env::var_os("GUIDED_STORY_PREFERENCES_DIR") {
@@ -307,6 +316,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             read_node_source,
             preview_ai_context,
             preview_image_context,
+            preview_knowledge,
             refresh_image_guidance,
             preview_image_preparation,
             load_preferences,

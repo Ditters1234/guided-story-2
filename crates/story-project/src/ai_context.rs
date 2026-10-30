@@ -111,6 +111,9 @@ pub fn resolve_ai_context(
     world: &World,
     task: TextPromptTask,
 ) -> Result<Vec<AiContextSection>, String> {
+    if matches!(task,TextPromptTask::Passage|TextPromptTask::Wording) && world.ai_context.iter().any(|b|b.enabled&&b.tasks.contains(&task)&&world.nodes.iter().any(|n|n.id==b.node_id&&crate::knowledge::is_claim(n)&&matches!(n.components.get("core.claim").and_then(|v|v.get("disclosure")),Some(PropertyValue::Text(s)) if s=="withheld"))) {
+        return Err("Required prose context includes a withheld claim. Change its inclusion or narration access; required context was not silently dropped.".into());
+    }
     resolve_context_sections(
         world,
         |b| b.tasks.contains(&task) || (task == TextPromptTask::ImagePrompt && b.image_preparation),

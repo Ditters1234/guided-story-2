@@ -666,6 +666,27 @@ fn story_crash_child() {
     let p = Project::open(Path::new(&root)).unwrap();
     let v = p.view().unwrap();
     let mut world = v.world;
+    if std::env::var_os("STORY_KNOWLEDGE_CRASH").is_some() {
+        let claim = world
+            .nodes
+            .iter_mut()
+            .find(|n| n.components.contains_key("core.claim"))
+            .unwrap();
+        claim
+            .components
+            .get_mut("core.claim")
+            .unwrap()
+            .insert("disclosure".into(), PropertyValue::Text("revealed".into()));
+        let claim_id = claim.id.clone();
+        world.edges.push(WorldEdge {
+            id: id(),
+            type_id: "core.holds-claim".into(),
+            source_id: claim_id,
+            target_id: world.nodes[1].id.clone(),
+            description: String::new(),
+            properties: BTreeMap::from([("stance".into(), PropertyValue::Text("believes".into()))]),
+        });
+    }
     if std::env::var_os("STORY_SOURCE_CRASH").is_some() {
         let entry = p.story_index().unwrap().passages[0].clone();
         let reading = p.read_passage(&entry.id).unwrap();
@@ -785,6 +806,63 @@ fn process_exit_cannot_publish_half_a_source_annotation_and_story_index() {
         assert_eq!(
             view.world.nodes[0].name == "After transaction",
             p.story_index().unwrap().chapters[0].title == "After transaction"
+        );
+    }
+}
+
+#[test]
+fn process_exit_keeps_claim_disclosure_stance_and_story_publication_atomic() {
+    for phase in ["after-world", "before-head", "after-head"] {
+        let (_dir, p) = fixture();
+        let mut v = p.view().unwrap();
+        v.world
+            .nodes
+            .push(node(&v.world, "core.claim", "Pump backstory"));
+        p.commit(v.revision, id(), v.title, v.world).unwrap();
+        accept(&p, edits(&p, "Mara waited beside the window."));
+        let path = p.folder_path();
+        drop(p);
+        let result = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "story::tests::story_crash_child",
+                "--nocapture",
+            ])
+            .env("STORY_PASSAGE_CRASH_ROOT", &path)
+            .env("STORY_PASSAGE_CRASH_PHASE", phase)
+            .env("STORY_KNOWLEDGE_CRASH", "1")
+            .output()
+            .unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(86),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let p = Project::open(Path::new(&path)).unwrap();
+        let v = p.view().unwrap();
+        let claim = v
+            .world
+            .nodes
+            .iter()
+            .find(|n| n.components.contains_key("core.claim"))
+            .unwrap();
+        let changed = phase == "after-head";
+        assert_eq!(
+            claim.components["core.claim"]["disclosure"],
+            PropertyValue::Text(if changed { "revealed" } else { "withheld" }.into())
+        );
+        assert_eq!(
+            v.world
+                .edges
+                .iter()
+                .any(|e| e.type_id == "core.holds-claim"),
+            changed
+        );
+        assert_eq!(
+            p.story_index().unwrap().chapters[0].title == "After transaction",
+            changed
         );
     }
 }

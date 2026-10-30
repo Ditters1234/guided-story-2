@@ -22,6 +22,8 @@ Choose an AI tool in **Preview**. Cards show the selected source content in auth
 
 A narration node can be Instructions for Passage writing and Wording edits, while magic rules can be Reference facts for world creation, passages and extraction. The standard preset uses the same node/capability/binding records; it does not add a separate narration collection. A bound node is not automatically a permitted edit target, a present participant or knowledge shared by every character. Apply/Accept and the native task schemas still validate proposed changes.
 
+Claim nodes additionally obey the scene’s narration-access/perspective rules for prose and wording. A required binding to an excluded claim blocks the request rather than overriding access or silently dropping a required section. **Claim context** in Scene settings previews the applicable propositions/stances; this manager’s general preview has no scene perspective. Author-review and explicitly selected image context keep their own scopes. See [claims and filtering limits](KNOWLEDGE.md).
+
 ## Budgets and history
 
 Included material is required context. It is added before optional story memory is budgeted and is never silently truncated/dropped. Requests that cannot fit report the included source names. Empty selected content blocks the matching request with a named repair message; an unfinished note can be filled in, excluded from that tool or disabled. There is also a 128 KB aggregate required-content bound.

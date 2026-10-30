@@ -339,6 +339,7 @@ impl World {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        crate::knowledge::validate_knowledge(self)?;
         crate::ai_context::validate_ai_context(self)?;
         crate::sources::validate_annotation_shapes(self)?;
         // Extensions use their own IDs rather than weakening built-in behavior.

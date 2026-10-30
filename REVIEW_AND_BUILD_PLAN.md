@@ -34,7 +34,7 @@ Implement in these ordered slices:
 
 Each slice must cover native validation, UI, AI schemas/protections, context fingerprints and history where relevant. Use the fictional end-to-end fixture and completion criteria in the node specification. Richer schemas alone do not establish narrative quality. Keep advanced genre bundles, live inheritance, faction simulation and workflow engines outside this pass.
 
-Current checkpoint: the capability/default bundles, typed custom forms and shared task/media projections are implemented, together with Organization/Lore/World rule/Story brief. Typed relationships and Event/source annotations are now implemented; Visual style bindings and situated knowledge remain the next slices. See [verified evidence](FOUNDATION_STATUS.md).
+Current checkpoint: the capability/default bundles, typed custom forms and shared task/media projections are implemented, together with Organization/Lore/World rule/Story brief, typed relationships, Event/source annotations and Visual style bindings. Initial shared claims, character stances and narration-access filtering are implemented with explicit author controls; automatic acquisition/disclosure inference remains later work. See [verified evidence](FOUNDATION_STATUS.md).
 
 ## Findings resolved in the proposal
 
@@ -147,4 +147,4 @@ Mac/Linux releases, browser/mobile access, collaboration/cloud sync, generic wor
 
 ## Readiness boundary
 
-Continue from the implemented capability/default-preset, typed-relationship, Event/source and Visual style/direct-image slices into situated knowledge and disclosure. Shared story/media projections are already connected to structured fields. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.
+The initial capability/default-preset, typed-relationship, Event/source, Visual style/direct-image and situated-claim slices are implemented. Continue with end-to-end manual testing and remaining explicit authoring gaps; automatic acquisition/disclosure proposals are separate work. Representative provider validation remains explicit later evidence, not an assumption supplied by a design document. The foundation checkpoint distinguishes tested storage/domain/UI behavior from real-provider compatibility, sustained-story quality and release readiness.

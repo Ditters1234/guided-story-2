@@ -50,6 +50,8 @@ This revision uses **story format 2**. Start a new story folder; older prototype
 
 **Event** records established occurrences or authored backstory. **Sources** in the shared inspector manages author notes and exact passage-version citations, with earlier-wording labels and read-only historical evidence. Event creation never replays its effects. See [Events and sources](SOURCES.md).
 
+**Knowledge / claim** separates author assessment, character stances and narration access. Shared held-by links record belief/acquisition without making it world truth. Story’s Claim context preview explains inclusion for the chosen perspective. See [knowledge and its filtering limits](KNOWLEDGE.md).
+
 ## Design and build documents
 
 - [Product design](DESIGN_REVIEW.md): confirmed decisions, authoring flows, records, media and history.
@@ -59,7 +61,7 @@ This revision uses **story format 2**. Start a new story folder; older prototype
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
 
-The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note, Event and Visual style presets. Rich typed relationships, [Event/source citations](SOURCES.md) and image guidance use the shared tools. Presets are available without populating empty stories. Situated knowledge remains a later slice.
+The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note, Event, Visual style and Knowledge / claim presets. Rich typed relationships, [Event/source citations](SOURCES.md), image guidance and initial situated claims use the shared tools. Presets are available without populating empty stories. Automatic acquisition/disclosure inference remains later work.
 
 ## Technical direction
 
@@ -69,7 +71,7 @@ The node revision includes Character, Place, Item, Wearable item, Thread, Organi
 - **Images:** configurable ComfyUI workflow API targeting Krea 2, Z-Image and MOSS families. Guided Story's Krea 2 templates, preflight, explicit submission/result checks and accepted project-local images are implemented. Separate workflow profiles preserve model-specific graphs. Real-provider compatibility remains unverified.
 - **Storage:** versioned JSON with atomic revision publication, recovery and per-project locking. Binary images remain separate files.
 
-The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows; optional LLM shot/prompt suggestions require review and Apply to an image draft. Validated folder backups preserve history, images and saved drafts in a separate restored copy. Knowledge controls, real-provider probes and release validation remain pending.
+The prototype connects world → reviewed passage → historical state → independent fork, with immutable text revisions and guarded latest-event replacement. Chapter memory adds reviewed older context with coverage tracking. Media captures exact source states, outfits and submitted workflows; optional LLM shot/prompt suggestions require review and Apply to an image draft. Validated folder backups preserve history, images and saved drafts in a separate restored copy. Initial claim/stance context controls are implemented; broader knowledge automation, real-provider probes and release validation remain pending.
 
 ## References and reuse
 

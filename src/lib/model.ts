@@ -13,7 +13,8 @@ export function withBuiltinNodeType(world:World,typeId:string):World {
   if(world.nodeTypes.some(t=>t.id===typeId))return world;
   const preset=presets.nodeTypes.find(t=>t.id===typeId);if(!preset)return world;
   const capabilities=presets.componentTypes.filter(d=>preset.components.includes(d.id)&&!world.componentTypes.some(c=>c.id===d.id));
-  return {...world,nodeTypes:[...world.nodeTypes,structuredClone(preset)],componentTypes:[...world.componentTypes,...structuredClone(capabilities)]} as World;
+  const relationships=presets.relationTypes.filter(d=>d.id==='core.holds-claim'&&preset.components.includes('core.claim')&&!world.relationTypes.some(r=>r.id===d.id));
+  return {...world,nodeTypes:[...world.nodeTypes,structuredClone(preset)],componentTypes:[...world.componentTypes,...structuredClone(capabilities)],relationTypes:[...world.relationTypes,...structuredClone(relationships)]} as World;
 }
 export function makeNode(world: World, typeId: string, name: string, id: string = crypto.randomUUID()): WorldEntity {
   const preset = world.nodeTypes.find((d) => d.id === typeId);
