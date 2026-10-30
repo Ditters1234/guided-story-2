@@ -8,7 +8,7 @@ fn creation_request_budget_audit() {
     request.creation_type_ids = creation::foundation_types(&w);
     let prepared = prepare_authoring(&w, &request, &settings()).unwrap();
     let user: Value = serde_json::from_str(&prepared.user).unwrap();
-    assert!(prepared.estimated_input_tokens < 18000);
+    assert!(prepared.estimated_input_tokens < 10000);
     assert!(
         user["responseBudget"]["suggestedMaxNewNodes"]
             .as_u64()
@@ -20,15 +20,187 @@ fn creation_request_budget_audit() {
         .unwrap()
         .contains("child house, barn and field"));
     assert_eq!(user["creationGuide"]["narration"]["requested"], true);
-    assert!(
-        prepared.response_schema["$defs"]["components"]["properties"]
-            .get("core.claim")
-            .is_none()
-    );
+    assert!(!prepared.response_schema.to_string().contains("core.claim"));
     println!(
         "{}",
         json!({"inputBytes":prepared.system.len()+prepared.user.len(),"estimatedInputTokens":prepared.estimated_input_tokens,"outputTokens":settings().max_tokens,"suggestedNodes":user["responseBudget"]["suggestedMaxNewNodes"],"schemaBytes":prepared.response_schema.to_string().len()})
     );
+}
+
+#[test]
+fn compact_json_contract_keeps_catalogue_semantics_and_full_native_schema() {
+    let mut w = World::default();
+    w.component_types.push(ComponentDefinition {
+        id: "custom.tool".into(),
+        name: "Tool details".into(),
+        description: "Project-defined semantics".into(),
+        fields: vec![FieldDefinition {
+            key: "condition".into(),
+            label: "Condition".into(),
+            kind: FieldKind::Choice,
+            required: true,
+            default_value: PropertyValue::Text("sound".into()),
+            metadata: Some(FieldMetadata {
+                choices: vec!["sound".into(), "worn".into()],
+                help: Some("Usable condition of the tool".into()),
+                ..Default::default()
+            }),
+        }],
+    });
+    let preset = w
+        .node_types
+        .iter_mut()
+        .find(|t| t.id == "core.item")
+        .unwrap();
+    preset.components.push("custom.tool".into());
+    let req = AuthoringRequest {
+        creation_scope: Some(CreationScope::Group),
+        group_type_id: Some("core.item".into()),
+        ..group_request()
+    };
+    for mode in [
+        StructuredOutput::Json,
+        StructuredOutput::Prompt,
+        StructuredOutput::Schema,
+    ] {
+        let mut s = settings();
+        s.structured_output = mode;
+        let p = prepare_authoring(&w, &req, &s).unwrap();
+        let input: Value = serde_json::from_str(&p.user).unwrap();
+        let custom = input["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == "custom.tool")
+            .unwrap();
+        assert_eq!(custom["fields"][0]["choices"], json!(["sound", "worn"]));
+        assert_eq!(custom["fields"][0]["required"], true);
+        assert_eq!(custom["fields"][0]["help"], "Usable condition of the tool");
+        assert_eq!(
+            p.response_schema["properties"]["nodes"]["items"]["anyOf"][0]["properties"]
+                ["components"]["properties"]["custom.tool"]["properties"]["condition"]["enum"],
+            json!(["sound", "worn"])
+        );
+        if mode == StructuredOutput::Schema {
+            assert!(input.get("responseSchema").is_none());
+        } else {
+            assert!(input["responseSchema"].get("$defs").is_none());
+            assert_eq!(
+                input["responseSchema"]["properties"]["nodes"]["items"]["properties"]["typeId"]
+                    ["enum"],
+                json!(["core.item"])
+            );
+        }
+        assert!(input["responseBudget"]
+            .get("foundationDetailAllowance")
+            .is_none());
+    }
+    let (_dir, p) = create();
+    p.commit(0, id(), "Fictional tools".into(), w.clone())
+        .unwrap();
+    let key = id();
+    p.save_authoring_draft(&key, 0, req).unwrap();
+    p.start_authoring(&key, 1, 1, &settings()).unwrap();
+    let mut tool = proposed_node(&w, "core.item", "new:tool", "Wrench");
+    tool.components.get_mut("custom.tool").unwrap().insert(
+        "condition".into(),
+        PropertyValue::Text("invented choice".into()),
+    );
+    p.finish_authoring(
+        &key,
+        Ok(serde_json::to_string(&NodeCandidate {
+            nodes: vec![tool],
+            edges: vec![],
+        })
+        .unwrap()),
+        false,
+        false,
+    )
+    .unwrap();
+    let v = p.authoring_view(&key, &settings()).unwrap();
+    assert!(!v.error.is_empty());
+    assert!(p.apply_authoring(&key, v.version, &settings()).is_err());
+    assert!(p.view().unwrap().world.nodes.is_empty());
+}
+
+#[test]
+fn concrete_schemas_do_not_offer_unrelated_capabilities_and_revisions_bind_actual_nodes() {
+    let mut w = World::default();
+    let req = world_request(&w);
+    let prepared = prepare_authoring(&w, &req, &settings()).unwrap();
+    let schemas = prepared.response_schema["properties"]["nodes"]["items"]["anyOf"]
+        .as_array()
+        .unwrap();
+    let components = |type_id: &str| {
+        &schemas
+            .iter()
+            .find(|v| v["properties"]["typeId"]["const"] == type_id)
+            .unwrap()["properties"]["components"]
+    };
+    assert!(components("core.place")["properties"]
+        .get("core.character")
+        .is_none());
+    assert!(components("core.place")["properties"]
+        .get("core.narration-style")
+        .is_none());
+    assert!(components("core.character")["properties"]
+        .get("detail.anatomy")
+        .is_some());
+    assert!(components("core.item")["properties"]
+        .get("core.container")
+        .is_some());
+    assert_eq!(
+        components("core.narration-style")["properties"]
+            .as_object()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(!prepared.response_schema.to_string().contains("$ref"));
+    assert!(!prepared.response_schema.to_string().contains("allOf"));
+    let a = proposed_node(&w, "core.character", &id(), "Nora");
+    let mut b = proposed_node(&w, "core.character", &id(), "Elias");
+    b.components.remove("core.character");
+    let ids = vec![a.id.clone(), b.id.clone()];
+    let expected = [a.clone(), b.clone()];
+    w.nodes = vec![a, b];
+    let req = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        type_id: None,
+        bundle: false,
+        target_ids: ids.clone(),
+        fields: ids
+            .iter()
+            .map(|id| EditableField {
+                node_id: id.clone(),
+                component_id: None,
+                key: "description".into(),
+            })
+            .collect(),
+        ..request()
+    };
+    let p = prepare_authoring(&w, &req, &settings()).unwrap();
+    let schemas = p.response_schema["properties"]["nodes"]["items"]["anyOf"]
+        .as_array()
+        .unwrap();
+    assert_eq!(schemas.len(), 2);
+    for node in expected {
+        let schema = schemas
+            .iter()
+            .find(|s| s["properties"]["id"]["const"] == node.id)
+            .unwrap();
+        assert_eq!(
+            schema["properties"]["components"]["required"],
+            json!(node.components.keys().collect::<Vec<_>>())
+        );
+        assert_eq!(
+            schema["properties"]["components"]["properties"]
+                .as_object()
+                .unwrap()
+                .len(),
+            node.components.len()
+        );
+    }
 }
 fn world_request(w: &World) -> AuthoringRequest {
     AuthoringRequest {
@@ -152,7 +324,8 @@ fn single_type_group_has_a_focused_schema_with_inventory_extensions_and_custom_f
     );
     assert_eq!(input["nodeTypes"].as_array().unwrap().len(), 1);
     assert!(input["creationGuide"].get("placeStructure").is_none());
-    let caps = &prepared.response_schema["$defs"]["components"]["properties"];
+    let caps = &prepared.response_schema["properties"]["nodes"]["items"]["anyOf"][0]["properties"]
+        ["components"]["properties"];
     assert!(caps.get("core.container").is_some());
     assert!(caps.get("core.wearable").is_some());
     assert!(caps.get("detail.voice").is_none());

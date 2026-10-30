@@ -275,7 +275,7 @@ pub(crate) fn relationship_schema(world: &World) -> Value {
 }
 fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
     let mut choices = vec![];
-    let component_properties:serde_json::Map<String,Value>=world.component_types.iter().map(|d| {
+    let component_properties:BTreeMap<String,Value>=world.component_types.iter().map(|d| {
         let fields:serde_json::Map<String,Value>=d.fields.iter().map(|f|(f.key.clone(),field_schema(f))).collect();
         (d.id.clone(),json!({"type":"object","properties":fields,"required":d.fields.iter().filter(|f|f.required).map(|f|&f.key).collect::<Vec<_>>(),"additionalProperties":false}))
     }).collect();
@@ -297,23 +297,56 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
         .collect();
     for preset in types {
         let character = preset.components.iter().any(|id| id == "core.character");
-        let required = if request.mode == AuthoringMode::Create {
-            preset.components.clone()
+        let variants: Vec<_> = if request.mode == AuthoringMode::Revise {
+            world
+                .nodes
+                .iter()
+                .filter(|n| request.target_ids.contains(&n.id) && n.type_id == preset.id)
+                .map(|n| {
+                    (
+                        Some(n.id.clone()),
+                        n.components.keys().cloned().collect::<Vec<_>>(),
+                    )
+                })
+                .collect()
         } else {
-            vec![]
+            vec![(None, preset.components.clone())]
         };
-        choices.push(json!({"type":"object","properties":{
-            "id":{"type":"string"},"typeId":{"const":preset.id},"name":{"type":"string","minLength":1,"maxLength":200,"description":if request.mode==AuthoringMode::Revise{"Preserve the existing name unless Name is editable and the author asks to change it."}else if character{"A personal name, unless the author explicitly wants an unnamed person. Age/role labels belong in descriptions, not as placeholder names."}else{"A specific name for this record."}},
+        for (node_id, required) in variants {
+            let mut allowed: BTreeSet<_> = required.iter().cloned().collect();
+            if request.mode == AuthoringMode::Create {
+                if allowed.contains("core.item") {
+                    allowed.extend([
+                        "core.container".into(),
+                        "core.wearable".into(),
+                        "detail.wearable".into(),
+                    ]);
+                }
+                if character {
+                    allowed.insert("detail.anatomy".into());
+                }
+            };
+            let properties: serde_json::Map<_, _> = allowed
+                .iter()
+                .filter_map(|id| {
+                    component_properties
+                        .get(id)
+                        .map(|value| (id.clone(), value.clone()))
+                })
+                .collect();
+            choices.push(json!({"type":"object","properties":{
+            "id":node_id.map_or_else(||json!({"type":"string"}),|id|json!({"const":id})),"typeId":{"const":preset.id},"name":{"type":"string","minLength":1,"maxLength":200,"description":if request.mode==AuthoringMode::Revise{"Preserve the existing name unless Name is editable and the author asks to change it."}else if character{"A personal name, unless the author explicitly wants an unnamed person. Age/role labels belong in descriptions, not as placeholder names."}else{"A specific name for this record."}},
             "description":{"type":"string","maxLength":16000},"visualDescription":{"type":"string","maxLength":16000},
-            "components":{"allOf":[{"$ref":"#/$defs/components"}],"required":required}
+            "components":{"type":"object","properties":properties,"required":required,"additionalProperties":false}
         },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false}));
+        }
     }
     let node_schema = if choices.is_empty() {
         json!({"type":"object","properties":{},"additionalProperties":false})
     } else {
         json!({"anyOf":choices})
     };
-    json!({"type":"object","$defs":{"components":{"type":"object","properties":component_properties,"additionalProperties":false}},"properties":{
+    json!({"type":"object","properties":{
         "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group)||request.target_ids.is_empty(){0}else{1},"maxItems":if request.mode==AuthoringMode::Revise{request.target_ids.len()}else{20},"items":node_schema},
         "edges":{"type":"array","maxItems":if request.mode==AuthoringMode::Revise{request.link_target_ids.len()}else{80},"items":relationship_schema(world)}
     },"required":["nodes","edges"],"additionalProperties":false})
@@ -527,7 +560,11 @@ pub fn prepare_authoring(
     let schema_bytes = if settings.structured_output == StructuredOutput::Schema {
         response_schema.to_string().len()
     } else {
-        input["responseSchema"] = response_schema.clone();
+        input["responseSchema"] = if request.mode == AuthoringMode::Create {
+            creation::prompt_schema(&model_schema)
+        } else {
+            response_schema.clone()
+        };
         0
     };
     let mut existing_context = None;
@@ -556,7 +593,7 @@ pub fn prepare_authoring(
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
     let fingerprint = hash(&(
-        "world-authoring-v8-developed-creation",
+        "world-authoring-v9-compact-contract",
         &system,
         &user,
         &response_schema,
@@ -576,7 +613,8 @@ fn clothing_example(world: &World) -> Option<Value> {
     let preset = world
         .node_types
         .iter()
-        .find(|d| d.components.iter().any(|c| c == "core.item"))?;
+        .filter(|d| d.components.iter().any(|c| c == "core.item"))
+        .min_by_key(|d| !d.components.iter().any(|c| c == "core.wearable"))?;
     if !world
         .component_types
         .iter()
@@ -612,26 +650,10 @@ fn clothing_example(world: &World) -> Option<Value> {
     wearable.insert("layer".into(), PropertyValue::Number(1.0));
     components.insert("core.wearable".into(), wearable);
     for (component, key, text) in [
-        (
-            "detail.item",
-            "function",
-            "Durable workwear for outdoor chores.",
-        ),
-        (
-            "detail.design",
-            "form",
-            "Long sleeves and a button front; repaired right cuff.",
-        ),
-        (
-            "detail.design",
-            "materials",
-            "Soft, repeatedly mended linen",
-        ),
-        (
-            "detail.design",
-            "colours",
-            "Faded indigo with cream repairs",
-        ),
+        ("detail.item", "function", "Outdoor workwear"),
+        ("detail.design", "form", "Long sleeves; repaired right cuff"),
+        ("detail.design", "materials", "Mended linen"),
+        ("detail.design", "colours", "Faded indigo; cream repairs"),
     ] {
         if world
             .component_types
@@ -644,8 +666,50 @@ fn clothing_example(world: &World) -> Option<Value> {
             }
         }
     }
+    let shirt = WorldNode {
+        id: "new:shirt".into(),
+        type_id: preset.id.clone(),
+        name: "Linen work shirt".into(),
+        description: String::new(),
+        visual_description: String::new(),
+        components,
+    };
+    let mut nodes = vec![shirt.clone()];
+    for (id, name, regions, form, materials) in [
+        (
+            "trousers",
+            "Work trousers",
+            "waist, hips, legs",
+            "Straight legs; patched knees",
+            "Heavy canvas",
+        ),
+        (
+            "boots",
+            "Work boots",
+            "feet",
+            "Ankle-high lace-up pair",
+            "Leather, rubber soles",
+        ),
+    ] {
+        let mut n = shirt.clone();
+        n.id = format!("new:{id}");
+        n.name = name.into();
+        n.components
+            .get_mut("core.wearable")?
+            .insert("regions".into(), PropertyValue::Text(regions.into()));
+        if let Some(values) = n.components.get_mut("detail.design") {
+            values.insert("form".into(), PropertyValue::Text(form.into()));
+            values.insert("materials".into(), PropertyValue::Text(materials.into()));
+            values.insert(
+                "colours".into(),
+                PropertyValue::Text("Weathered brown".into()),
+            );
+        }
+        nodes.push(n);
+    }
+    let edges:Vec<_>=nodes.iter().map(|n|json!({"id":format!("{}-worn",n.id),"typeId":"core.worn-by","sourceId":n.id,"targetId":"new:wearer","description":""})).collect();
     Some(
-        json!({"garment":{"id":"new:shirt","typeId":preset.id,"name":"Linen work shirt","description":"","visualDescription":"","components":components},"links":[{"id":"new:shirt-worn","typeId":"core.worn-by","sourceId":"new:shirt","targetId":"new:wearer","description":""}],"note":"new:wearer stands for a real proposed character or supplied character ID. This demonstrates structured detail and sparse optional values, not a complete outfit."}),
+        json!({"nodes":nodes,"edges":edges,"note":"A complete practical starting outfit, not one example garment. Adapt every piece to the story. new:wearer stands for an actual proposed person or supplied character ID; never create this placeholder."}),
     )
 }
 fn proposal_warnings(candidate: &NodeCandidate, request: &AuthoringRequest) -> Vec<String> {

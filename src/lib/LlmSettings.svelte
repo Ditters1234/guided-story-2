@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import { commands,desktop,unwrap } from './native';
   import type { ApiKeyUpdate,ConnectionView,LlmConnection } from './bindings';
+  import {applyLlmPreset,type LlmPreset} from './llm-presets';
   let {onStatus=()=>{}}:{onStatus?:(status:ConnectionStatus)=>void}=$props();
   let view=$state<ConnectionView|null>(null),draft=$state<LlmConnection|null>(null);
   let models=$state<string[]>([]);
@@ -14,9 +15,9 @@
   onMount(()=>{void load();});
   function changed(){dirty=true;notice='';}
   function forgetModels(){models=[];}
-  function samplingPreset(qwen:boolean){
+  function samplingPreset(preset:LlmPreset){
     if(!draft)return;
-    Object.assign(draft,qwen?{temperature:0.7,topP:0.8,topK:20,minP:0,thinking:'chatTemplateOff'}:{temperature:0.8,topP:1,topK:null,minP:null,thinking:'provider'});
+    draft=applyLlmPreset(draft,preset);
     changed();
   }
   export async function flushConnection(){
@@ -54,7 +55,7 @@
       {#if view?.hasApiKey}<label class="check-field"><input type="checkbox" bind:checked={clearKey} onchange={forgetModels} /><span>Remove the saved key</span></label>{/if}
       <div class="connection-grid"><label class="field">Temperature<input type="number" bind:value={draft.temperature} min={0} max={2} step={0.1} /></label><label class="field">Output tokens<input type="number" bind:value={draft.maxTokens} min={64} max={32768} /></label><label class="field">Context tokens<input type="number" bind:value={draft.contextTokens} min={2048} max={262144} /></label><label class="field">Timeout (seconds)<input type="number" bind:value={draft.timeoutSeconds} min={10} max={600} /></label></div>
       <details class="connection-advanced"><summary>Sampling & API compatibility</summary>
-        <div class="sampling-presets"><button type="button" class="secondary-button" onclick={()=>samplingPreset(true)}>Use Qwen 30B defaults</button><button type="button" class="secondary-button" onclick={()=>samplingPreset(false)}>Use generic API defaults</button></div>
+        <div class="sampling-presets"><button type="button" class="secondary-button" onclick={()=>samplingPreset('qwen')}>Use Qwen 30B defaults</button><button type="button" class="secondary-button" onclick={()=>samplingPreset('generic')}>Use generic API defaults</button><button type="button" class="secondary-button" onclick={()=>samplingPreset('unsloth-gguf')}>Use Unsloth GGUF compatibility</button></div><p class="field-help">Unsloth GGUF selects JSON Schema, direct thinking-off and max_tokens. Model, key, sampling and token budgets stay as configured. Save to apply.</p>
         <div class="connection-grid">
           <label class="field">Top P<input type="number" bind:value={draft.topP} min={0.01} max={1} step={0.01} /></label>
           <label class="field">Top K<input type="number" value={draft.topK??''} min={1} max={1000} placeholder="Server default" oninput={(event)=>{draft!.topK=event.currentTarget.value===''?null:Number(event.currentTarget.value);}} /></label>

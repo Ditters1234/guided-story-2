@@ -1,6 +1,14 @@
 # Desktop foundation checkpoint
 
-Updated October 29, 2026. Desktop/storage foundation and a bounded world → passage → historical state → fork authoring loop. This is not the completed product or a release-ready application.
+Updated October 30, 2026. Desktop/storage foundation and a bounded world → passage → historical state → fork authoring loop. This is not the completed product or a release-ready application.
+
+## October 30 real-provider creation checkpoint
+
+- Reproduced full-task failures with the local Unsloth/Qwen-class 27B API. A tiny authenticated JSON completion passed; large outputs overran budgets, JSON mode invented an unsupported empty field, and the old shared `$ref`/`allOf` schema expanded every capability on each node. Restricted-environment timeouts from the previous pass are not treated as provider performance evidence.
+- World schemas now use concrete components per preset, with relevant container/wearable/anatomy extensions; revisions bind actual target IDs/components. Custom preset fields/kinds/choices and the complete native validator remain intact. JSON/prompt modes avoid duplicating every formal field contract. Whole-record detail allowances and a complete shirt/trousers/boots example reserve coverage before optional props/briefs. Existing output and manual edits remain retained, with explicit Apply and no automatic retries.
+- **Final real checks passed:** the short premise produced 13 nodes in ~105 seconds and the fuller premise 15 in ~117 seconds. Each produced four linked places, two named/developed adults, six worn garments covering upper/lower/feet and narration guidance. Native validation/Apply and image outfit capture passed. A three-item group reused the established barn in ~36 seconds, preserving all existing nodes/links. These are two world samples and one group, not broad provider certification. Semantic review still matters; one generated narration instruction contradicted its tense field.
+- An explicit Unsloth GGUF compatibility preset selects Schema/direct thinking-off/max_tokens while preserving connection identity, keys, sampling, budgets and prompt edits. Native errors name unsupported node fields and invalid relation endpoints. Proposed unsupported fields can be explicitly removed through the shared editor without editing JSON or changing canonical facts.
+- **265 native tests pass (13 opt-in/helper probes ignored), 84 frontend tests pass.** Coverage includes concrete/custom schema scope, actual revision capabilities, full-outfit example publication/image capture and protected unsupported-field repair. Existing process-interruption/publication checks pass. Headless checks at 1,440×940/100% and 1,000×720/140% verify field repair, preserved text, unchanged canon, explicit preset/save behavior, preserved API fields/key handling, no inference on preset selection and visible footer controls; these use mock IPC. No new native GUI walkthrough or semantic quality guarantee is claimed.
 
 ## October 29 developed-creation checkpoint
 

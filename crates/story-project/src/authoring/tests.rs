@@ -61,6 +61,9 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
     let mut world = p.view().unwrap().world;
     world
         .node_types
+        .retain(|t| !t.components.iter().any(|c| c == "core.wearable"));
+    world
+        .node_types
         .iter_mut()
         .find(|t| t.id == "core.item")
         .unwrap()
@@ -86,8 +89,9 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
         .as_u64()
         .is_some_and(|n| (10..=20).contains(&n)));
     let example = &input["clothingExample"];
-    let garment: WorldNode = serde_json::from_value(example["garment"].clone()).unwrap();
-    assert_eq!(garment.type_id, "custom.possession");
+    let garments: Vec<WorldNode> = serde_json::from_value(example["nodes"].clone()).unwrap();
+    assert!(garments.iter().all(|g| g.type_id == "custom.possession"));
+    assert_eq!(garments.len(), 3);
     let person = proposed_node(&world, "core.character", "new:wearer", "Nora Hale");
     let rid = id();
     p.save_authoring_draft(&rid, 0, req).unwrap();
@@ -95,8 +99,8 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
     p.finish_authoring(
         &rid,
         Ok(serde_json::to_string(&NodeCandidate {
-            nodes: vec![person, garment],
-            edges: serde_json::from_value(example["links"].clone()).unwrap(),
+            nodes: std::iter::once(person).chain(garments).collect(),
+            edges: serde_json::from_value(example["edges"].clone()).unwrap(),
         })
         .unwrap()),
         false,
@@ -131,8 +135,11 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
             },
         )
         .unwrap();
-    assert_eq!(image.draft.source.facts[0].outfit.len(), 1);
-    assert!(image.draft.source.facts[0].outfit[0].contains("Linen work shirt"));
+    assert_eq!(image.draft.source.facts[0].outfit.len(), 3);
+    assert!(image.draft.source.facts[0]
+        .outfit
+        .iter()
+        .any(|g| g.contains("Linen work shirt")));
 }
 #[test]
 fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() {
@@ -202,7 +209,14 @@ fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_pr
     let prepared = prepare_authoring(&world, &req, &settings()).unwrap();
     let required = &prepared.response_schema["properties"]["nodes"]["items"]["anyOf"][0]
         ["properties"]["components"]["required"];
-    assert!(required.as_array().unwrap().is_empty());
+    assert_eq!(
+        required,
+        &json!(world.nodes[0].components.keys().collect::<Vec<_>>())
+    );
+    assert!(!required
+        .as_array()
+        .unwrap()
+        .contains(&json!("core.character")));
     assert!(!prepared.user.contains("clothingExample"));
 }
 fn generated(p: &Project, request: AuthoringRequest) -> String {

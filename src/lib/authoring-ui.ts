@@ -48,6 +48,18 @@ export function addCandidateNode(world:World,candidate:NodeCandidate,typeId:stri
   return {...candidate,nodes:[...candidate.nodes,node]};
 }
 export function editCandidateNode(candidate:NodeCandidate,id:string,change:(node:WorldNode)=>WorldNode):NodeCandidate{return {...candidate,nodes:candidate.nodes.map((node)=>node.id===id?change(node):node)};}
+export function unsupportedCandidateFields(world:World,node:WorldNode){
+  return Object.entries(node.components).flatMap(([componentId,values])=>{
+    const definition=world.componentTypes.find(d=>d.id===componentId);
+    if(!definition)return [{componentId,key:null as string|null,label:componentId,value:JSON.stringify(values,null,2)}];
+    return Object.entries(values).filter(([key])=>!definition.fields.some(f=>f.key===key)).map(([key,value])=>({componentId,key:key as string|null,label:definition.name+' / '+key,value:JSON.stringify(value,null,2)}));
+  });
+}
+export function removeUnsupportedCandidateField(world:World,candidate:NodeCandidate,nodeId:string,componentId:string,key:string|null):NodeCandidate{
+  const node=candidate.nodes.find(n=>n.id===nodeId);
+  if(!node||!unsupportedCandidateFields(world,node).some(f=>f.componentId===componentId&&f.key===key))throw Error('Choose an unsupported proposed field.');
+  return editCandidateNode(candidate,nodeId,n=>{const components={...n.components};if(key===null)delete components[componentId];else{components[componentId]={...components[componentId]};delete components[componentId][key];}return {...n,components};});
+}
 export function parseCandidateForEditor(text:string):NodeCandidate|null{
   const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
   const property=(value:unknown)=>value===null||['string','number','boolean'].includes(typeof value)||(Array.isArray(value)&&value.every((v)=>typeof v==='string'));

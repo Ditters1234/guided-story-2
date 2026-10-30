@@ -5,7 +5,7 @@
   import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
   import NodeFields from './NodeFields.svelte';
-  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes } from './authoring-ui';
+  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField } from './authoring-ui';
   let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
   let linksOpen=$state(untrack(()=>request.mode==='revise'));
@@ -15,6 +15,7 @@
   const allowedTypes=$derived(candidateNodeTypes(schema,request));
   const garmentTypes=$derived(allowedTypes.map(t=>t.id));
   const canAddGarment=$derived(!!wornItemType(schema,garmentTypes));
+  const unsupported=$derived(node?unsupportedCandidateFields(schema,node):[]);
   const allowed=(id:string,componentId:string|null,key:string)=>request.mode==='create'||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);
   function edit(key:'name'|'description'|'visualDescription',value:string){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,[key]:value})));}
   function property(componentId:string,key:string,value:PropertyValue){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,components:{...n.components,[componentId]:{...n.components[componentId],[key]:value}}})));}
@@ -23,6 +24,7 @@
 <nav class="candidate-node-tabs" aria-label="Proposed nodes">{#each candidate.nodes as entry}<button class:active={node?.id===entry.id} onclick={()=>{selected=entry.id;}}>{entry.name||'Unnamed node'}</button>{/each}</nav>
 {#if node}
   <div class="candidate-type">{schema.nodeTypes.find((d)=>d.id===node.typeId)?.name??node.typeId}</div>
+  {#if request.mode==='create'&&unsupported.length}<details class="capability" open><summary>Unsupported fields ({unsupported.length})</summary><p class="field-help">These keys are not in this project's schema. Move useful text into a declared field, then remove the unsupported field.</p>{#each unsupported as field}<div><strong>{field.label}</strong><pre class="unsupported-value">{field.value}</pre><button class="text-action danger-text" onclick={()=>onChange(removeUnsupportedCandidateField(schema,candidate,node!.id,field.componentId,field.key))}>Remove {field.label}</button></div>{/each}</details>{/if}
   <label class="field">Name<input value={node.name} maxlength={200} disabled={!allowed(node.id,null,'name')} oninput={(event)=>edit('name',event.currentTarget.value)} /></label>
   <label class="field">Story notes<textarea value={node.description} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'description')} oninput={(event)=>edit('description',event.currentTarget.value)}></textarea></label>
   <label class="field">Visible description<textarea value={node.visualDescription} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'visualDescription')} oninput={(event)=>edit('visualDescription',event.currentTarget.value)}></textarea></label>
@@ -30,6 +32,7 @@
   <NodeFields world={schema} {node} nodes={references} canEdit={(componentId,key)=>allowed(node!.id,componentId,key)} onChange={property}/>
   {#if request.mode==='create'}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
 {/if}
+<style>.unsupported-value{white-space:pre-wrap;overflow-wrap:anywhere;max-height:10rem;overflow:auto;font-size:.85rem;}</style>
 {#if request.mode==='create'&&request.bundle}
   <div class="candidate-group-actions"><select aria-label="Add a proposed node" value="" onchange={(event)=>{if(event.currentTarget.value){onChange(addCandidateNode(schema,candidate,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add proposed node…</option>{#each allowedTypes as type}<option value={type.id}>{type.name}</option>{/each}</select>{#if node&&node.id!=='new:root'}<button class="text-action danger-text" onclick={()=>{onChange({nodes:candidate.nodes.filter((n)=>n.id!==node!.id),edges:candidate.edges.filter((e)=>e.sourceId!==node!.id&&e.targetId!==node!.id)});}}>Remove proposed node</button>{/if}</div>
 {/if}

@@ -1,5 +1,7 @@
 use crate::{LlmConnection, StructuredOutput, ThinkingControl, TokenParameter};
 use serde_json::{json, Value};
+#[cfg(test)]
+mod live_probe;
 
 pub struct CompletionText {
     pub text: String,

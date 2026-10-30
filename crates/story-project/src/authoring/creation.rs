@@ -84,6 +84,18 @@ pub(super) fn wire_capabilities(world: &World) -> Value {
         }).collect::<Vec<_>>()})
     }).collect::<Vec<_>>())
 }
+
+/// JSON/prompt-mode servers need an output shape, not a second copy of every
+/// field contract. Schema mode still receives the full generated JSON Schema;
+/// the complete saved schema always owns native candidate validation.
+pub(super) fn prompt_schema(world: &World) -> Value {
+    json!({"type":"object","required":["nodes","edges"],"additionalProperties":false,"properties":{
+        "nodes":{"type":"array","maxItems":20,"items":{"type":"object","required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false,"properties":{
+            "id":{"type":"string"},"typeId":{"enum":world.node_types.iter().map(|t|&t.id).collect::<Vec<_>>()},"name":{"type":"string"},"description":{"type":"string"},"visualDescription":{"type":"string"},"components":{"type":"object","propertyNames":{"enum":world.component_types.iter().map(|c|&c.id).collect::<Vec<_>>()},"additionalProperties":{"type":"object"},"description":"Use exact capability and field keys from capabilities. Include every capability listed by the chosen nodeType; unused optional fields may be omitted and unused preset capabilities may be empty objects. Required fields, kinds and choices are defined in capabilities."}
+        }}},
+        "edges":{"type":"array","maxItems":80,"items":{"type":"object","required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false,"properties":{"id":{"type":"string"},"typeId":{"enum":world.relation_types.iter().map(|r|&r.id).collect::<Vec<_>>()},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string"},"properties":{"type":"object","description":"Only declared relationship field keys, kinds and required values from relationships."}}}}
+    }})
+}
 pub(super) fn strip_schema_help(v: &mut Value) {
     match v {
         Value::Object(m) => {
@@ -145,7 +157,11 @@ pub(super) fn budget(world: &World, request: &AuthoringRequest, tokens: u32) -> 
                 + (fields.len().min(8) as u32) * 10
         })
         .unwrap_or(240);
-    json!({"outputTokens":tokens,"suggestedMaxNewNodes":(tokens.saturating_sub(512)/node_cost).clamp(1,20),"nodeLimitIsAdvisory":true,"priority":"Cover the requested distinct places/people/items and necessary links first; develop their useful structured details. Reduce optional extras and repeated text before collapsing requested entities. Never fill every optional field with null or boilerplate."})
+    let mut value = json!({"outputTokens":tokens,"suggestedMaxNewNodes":(tokens.saturating_sub(512)/node_cost).clamp(1,20),"nodeLimitIsAdvisory":true,"priority":"Finish the entire connected proposal within outputTokens. Cover requested distinct places, people, inventory and narration first. Use compact JSON and short specific phrases; omit unneeded optional fields and leave unused preset capabilities as {}. Do not repeat facts in notes, descriptions and structured fields."});
+    if request.type_id.is_none() && request.creation_scope != Some(CreationScope::Group) {
+        value["foundationDetailAllowance"] = json!({"characterWords":80,"placeWords":40,"itemWords":20,"narrationWords":60,"instruction":"Approximate TOTAL descriptive words per record across all its fields, not per field. Spend them on premise-specific motives/contradiction/voice/appearance, usable place features or recognisable item design. Use several concise fields rather than paragraphs in every field. Respect explicit author requests; this is an initial foundation, with deeper development available through node revision."});
+    }
+    value
 }
 pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
     let is_world =
@@ -167,6 +183,7 @@ pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
     if is_world {
         v["foundationTypeIds"] = json!(foundation_types(world));
         v["narration"] = json!({"requested":request.include_narration==Some(true),"presetIds":world.node_types.iter().filter(|t|t.components.iter().any(|c|c=="core.narration-style")).map(|t|&t.id).collect::<Vec<_>>(),"rule":"When requested, create a narration-style node with person, tense and several concrete instructions suited to this premise: viewpoint discipline, tone, pace, dialogue and descriptive focus. Respect explicit user choices; otherwise third person and past tense are a starting point. Apply will include the proposed style for passage writing/wording. This is guidance, not an accomplished event."});
+        v["startingOutfits"] = json!({"preferredTypeIds":world.node_types.iter().filter(|t|t.components.iter().any(|c|c=="core.wearable")).map(|t|&t.id).collect::<Vec<_>>(),"rule":"Unless explicitly unclothed or otherwise directed, give EACH humanoid person practical coverage for upper body, lower body and feet. Usually use three separate pieces: shirt, trousers and shoes/boots; a suitable one-piece garment can replace top and trousers. A jacket plus shirt leaves the lower body uncovered; boots are not trousers. Use the complete clothingExample as a structural pattern. Reserve outfit records and links before optional equipment, world rules or a story brief. Preserve distinct requested places and requested narration. Do not replace missing garments with wardrobe prose."});
     }
     v
 }

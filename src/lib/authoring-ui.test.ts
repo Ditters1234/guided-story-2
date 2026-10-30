@@ -1,7 +1,13 @@
 import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
-import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes,foundationCreationTypes,toggleCreationType } from './authoring-ui';
+import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes,foundationCreationTypes,toggleCreationType,unsupportedCandidateFields,removeUnsupportedCandidateField } from './authoring-ui';
 describe('shared AI node editor',()=>{
+  it('exposes unsupported generated fields for explicit removal while protecting declared fields and source data',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Elias Thorne','new:elias');person.components['detail.profile'].background='A retired engineer.';person.components['detail.profile'].background2='';person.components['unknown.capability']={note:'Keep this text for review.'};const candidate={nodes:[person],edges:[]},before=structuredClone(candidate);
+    expect(unsupportedCandidateFields(world,person).map(f=>f.label)).toEqual(['Profile / background2','unknown.capability']);
+    const fixed=removeUnsupportedCandidateField(world,candidate,person.id,'detail.profile','background2');expect(fixed.nodes[0].components['detail.profile'].background).toBe('A retired engineer.');expect(fixed.nodes[0].components['detail.profile'].background2).toBeUndefined();expect(fixed.nodes[0].components['unknown.capability']).toEqual(person.components['unknown.capability']);expect(candidate).toEqual(before);
+    expect(()=>removeUnsupportedCandidateField(world,candidate,person.id,'detail.profile','background')).toThrow();expect(unsupportedCandidateFields(world,removeUnsupportedCandidateField(world,fixed,person.id,'unknown.capability',null).nodes[0])).toEqual([]);
+  });
   it('offers narration creation explicitly for a new world and clears it for groups/typed nodes',()=>{
     const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.includeNarration).toBe(true);
     const group=changeCreationType(world,request,'@group');expect(group.includeNarration).toBeUndefined();expect(group.creationScope).toBe('group');

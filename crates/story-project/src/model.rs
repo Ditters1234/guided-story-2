@@ -529,11 +529,14 @@ impl World {
                 let definition = components
                     .get(id.as_str())
                     .ok_or("A node capability has no saved definition.")?;
-                if values
+                if let Some(key) = values
                     .keys()
-                    .any(|key| !definition.fields.iter().any(|f| &f.key == key))
+                    .find(|key| !definition.fields.iter().any(|f| &f.key == *key))
                 {
-                    return Err("A capability property has no field definition.".into());
+                    return Err(format!(
+                        "{} / {} has unknown field “{}”. Remove it or use a declared field.",
+                        node.name, definition.name, key
+                    ));
                 }
                 for field in &definition.fields {
                     match values.get(&field.key) {
@@ -631,7 +634,7 @@ impl World {
                     .as_ref()
                     .is_some_and(|id| !capability(target, id))
             {
-                return Err("A relation endpoint lacks its required capability.".into());
+                return Err(format!("A relation endpoint lacks its required capability: {} → {} ({}) needs {} on the source and {} on the target.",source.name,target.name,relation.name,relation.source_capability.as_deref().unwrap_or("no specific capability"),relation.target_capability.as_deref().unwrap_or("no specific capability")));
             }
             if relation.single_target && !single.insert((&edge.type_id, &edge.source_id)) {
                 return Err("This relation allows only one target per node.".into());

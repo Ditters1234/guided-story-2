@@ -2,6 +2,140 @@
 use super::*;
 use std::{path::Path, time::Instant};
 
+#[test]
+#[ignore = "explicitly save a compatibility profile after reviewing a real fictional probe"]
+fn apply_verified_local_profile() {
+    if std::env::var("STORY_CREATION_PROFILE_APPLY").as_deref() != Ok("json-schema-direct-off") {
+        return;
+    }
+    let config = std::env::var("STORY_CREATION_QUALITY_CONFIG").unwrap();
+    let proof = std::env::var("STORY_CREATION_PROFILE_PROOF").unwrap();
+    let root = Path::new(&proof);
+    let profile: Value =
+        serde_json::from_slice(&fs::read(root.join("profile.json")).unwrap()).unwrap();
+    assert_eq!(profile["structuredOutput"], "schema");
+    assert_eq!(profile["thinking"], "directOff");
+    let connection = load_connection(Path::new(&config)).unwrap().settings;
+    let endpoint = url::Url::parse(&connection.base_url).unwrap();
+    assert!(match endpoint.host() {
+        Some(url::Host::Domain(s)) => s.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        _ => false,
+    });
+    let p = Project::open(&root.join("project")).unwrap();
+    let w = p.view().unwrap().world;
+    assert_eq!(
+        w.nodes
+            .iter()
+            .filter(|n| n.components.contains_key("core.character"))
+            .count(),
+        2
+    );
+    assert!(
+        w.nodes
+            .iter()
+            .filter(|n| n.components.contains_key("core.place"))
+            .count()
+            >= 4
+    );
+    assert!(!resolve_ai_context(&w, TextPromptTask::Passage)
+        .unwrap()
+        .is_empty());
+    for person in w
+        .nodes
+        .iter()
+        .filter(|n| n.components.contains_key("core.character"))
+    {
+        let garments: Vec<_> = w
+            .edges
+            .iter()
+            .filter(|e| e.type_id == "core.worn-by" && e.target_id == person.id)
+            .filter_map(|e| w.nodes.iter().find(|n| n.id == e.source_id))
+            .collect();
+        assert!(garments.len() >= 2);
+        let names = garments
+            .iter()
+            .map(|n| n.name.to_lowercase())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            names.contains("trouser")
+                || names.contains("pants")
+                || names.contains("dress")
+                || names.contains("skirt")
+        );
+        assert!(names.contains("boot") || names.contains("shoe"));
+    }
+    assert!(p
+        .authoring_list()
+        .unwrap()
+        .iter()
+        .any(|r| r.status == AuthoringStatus::Applied && r.provider_label == connection.model));
+    let key_before = connection_api_key(Path::new(&config), &connection).unwrap();
+    let backup = root.join("connection-before-profile.private.json");
+    assert!(!backup.exists());
+    fs::write(&backup, serde_json::to_vec_pretty(&connection).unwrap()).unwrap();
+    let mut next = connection.clone();
+    next.structured_output = StructuredOutput::Schema;
+    next.thinking = ThinkingControl::DirectOff;
+    let after = save_connection(
+        Path::new(&config),
+        connection.version,
+        next.clone(),
+        ApiKeyUpdate::Keep,
+    )
+    .unwrap();
+    next.version = after.settings.version;
+    assert!(after.settings == next);
+    assert!(connection_api_key(Path::new(&config), &after.settings).unwrap() == key_before);
+    let receipt = json!({"structuredOutput":after.settings.structured_output,"thinking":after.settings.thinking,"version":after.settings.version,"preservedKey":true,"preservedPrompts":true,"preservedEndpointModelSamplingBudgets":true});
+    fs::write(
+        root.join("profile-save-receipt.json"),
+        serde_json::to_vec_pretty(&receipt).unwrap(),
+    )
+    .unwrap();
+    println!("{receipt}");
+}
+
+#[tokio::test]
+#[ignore = "explicit bounded local-provider transport check"]
+async fn local_provider_transport_check() {
+    let Ok(config) = std::env::var("STORY_CREATION_QUALITY_CONFIG") else {
+        return;
+    };
+    let output =
+        std::env::var("STORY_CREATION_QUALITY_ROOT").expect("Choose a new isolated folder");
+    let root = Path::new(&output);
+    fs::create_dir(root).unwrap();
+    let mut connection = load_connection(Path::new(&config)).unwrap().settings;
+    let endpoint = url::Url::parse(&connection.base_url).unwrap();
+    assert!(match endpoint.host() {
+        Some(url::Host::Domain(s)) => s.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        _ => false,
+    });
+    connection.timeout_seconds = 30;
+    let key = connection_api_key(Path::new(&config), &connection).unwrap();
+    let started = Instant::now();
+    let models = discover_models(&connection, key.as_deref()).await;
+    fs::write(root.join("catalogue.json"),json!({"seconds":started.elapsed().as_secs_f64(),"models":models.as_ref().ok(),"error":models.as_ref().err()}).to_string()).unwrap();
+    assert!(models.unwrap().contains(&connection.model));
+    let started = Instant::now();
+    let result=complete_text(&connection,key.as_deref(),"Return a JSON object only.","Return {\"ok\":true}.",Some(&json!({"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false})),32).await;
+    fs::write(root.join("ping.json"),json!({"seconds":started.elapsed().as_secs_f64(),"text":result.as_ref().ok().map(|r|&r.text),"incomplete":result.as_ref().ok().map(|r|r.incomplete),"error":result.as_ref().err()}).to_string()).unwrap();
+    let result = result.unwrap();
+    println!(
+        "{}",
+        json!({"seconds":started.elapsed().as_secs_f64(),"text":result.text,"incomplete":result.incomplete})
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&result.text).unwrap(),
+        json!({"ok":true})
+    );
+}
+
 #[tokio::test]
 #[ignore = "explicit two-request fictional local-model quality check"]
 async fn developed_world_and_group_quality() {
@@ -25,7 +159,13 @@ async fn developed_world_and_group_quality() {
         "Only the configured local provider is permitted"
     );
     connection.max_tokens = connection.max_tokens.min(4096);
-    connection.timeout_seconds = connection.timeout_seconds.min(180);
+    connection.timeout_seconds = connection.timeout_seconds.min(300);
+    if std::env::var_os("STORY_CREATION_QUALITY_DIRECT_OFF").is_some() {
+        connection.thinking = ThinkingControl::DirectOff;
+    }
+    if std::env::var_os("STORY_CREATION_QUALITY_SCHEMA").is_some() {
+        connection.structured_output = StructuredOutput::Schema;
+    }
     let key = connection_api_key(Path::new(&config), &connection).unwrap();
     let p = Project::create(
         &root.join("project"),
@@ -35,8 +175,12 @@ async fn developed_world_and_group_quality() {
     )
     .unwrap();
     let mut request=AuthoringRequest{creation_scope:Some(CreationScope::World),include_narration:Some(true),direction:"An older man and a younger adult woman share an isolated forested homestead with a house, a barn and cultivated fields. It is late autumn, the water pump is unreliable, and they disagree about leaving before winter. Develop a usable starting world, giving both adults their own reasons, ways of speaking and practical clothing.".into(),..group_request()};
+    if let Ok(direction) = std::env::var("STORY_CREATION_QUALITY_DIRECTION") {
+        request.direction = direction;
+    }
     request.creation_type_ids = creation::foundation_types(&p.view().unwrap().world);
     let world_id = id();
+    fs::write(root.join("profile.json"),json!({"thinking":connection.thinking,"structuredOutput":connection.structured_output,"maxTokens":connection.max_tokens,"timeoutSeconds":connection.timeout_seconds}).to_string()).unwrap();
     p.save_authoring_draft(&world_id, 0, request).unwrap();
     let prepared = p.start_authoring(&world_id, 1, 0, &connection).unwrap();
     fs::write(root.join("world-request.json"),json!({"system":prepared.system,"user":serde_json::from_str::<Value>(&prepared.user).unwrap(),"estimatedInputTokens":prepared.estimated_input_tokens,"outputTokens":connection.max_tokens}).to_string()).unwrap();
@@ -97,6 +241,72 @@ async fn developed_world_and_group_quality() {
         "Expected separate site, house, barn and field"
     );
     assert_eq!(people.len(), 2);
+    for person in &people {
+        let worn = world
+            .edges
+            .iter()
+            .filter(|e| e.type_id == "core.worn-by" && e.target_id == person.id)
+            .count();
+        assert!(
+            worn >= 2,
+            "{} needs a usable item-based outfit, got {worn} worn items",
+            person.name
+        );
+        let garments: Vec<_> = world
+            .edges
+            .iter()
+            .filter(|e| e.type_id == "core.worn-by" && e.target_id == person.id)
+            .filter_map(|e| world.nodes.iter().find(|n| n.id == e.source_id))
+            .collect();
+        let names = garments
+            .iter()
+            .map(|n| n.name.to_lowercase())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let regions = garments
+            .iter()
+            .filter_map(|n| n.components.get("core.wearable"))
+            .filter_map(|v| v.get("regions"))
+            .filter_map(|v| match v {
+                PropertyValue::Text(t) => Some(t.to_lowercase()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(
+            regions.contains("torso") || regions.contains("upper") || regions.contains("chest"),
+            "{} lacks upper-body coverage: {names}",
+            person.name
+        );
+        assert!(
+            names.contains("trouser")
+                || names.contains("pants")
+                || names.contains("dress")
+                || names.contains("skirt")
+                || regions.contains("hips")
+                || regions.contains("waist"),
+            "{} lacks lower-body clothing: {names}",
+            person.name
+        );
+        assert!(
+            names.contains("boot") || names.contains("shoe") || regions.contains("feet"),
+            "{} lacks footwear: {names}",
+            person.name
+        );
+        let capture = p
+            .create_media(
+                &id(),
+                MediaTarget {
+                    guidance_source: None,
+                    node_id: Some(person.id.clone()),
+                    passage_id: None,
+                    moment: ImageMoment::After,
+                    subject_ids: vec![],
+                },
+            )
+            .unwrap();
+        assert_eq!(capture.draft.source.facts[0].outfit.len(), worn);
+    }
     assert!(world
         .ai_context
         .iter()
