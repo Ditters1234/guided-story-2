@@ -3,7 +3,7 @@
   import {commands,unwrap} from './native';
   import {PassageSession} from './passage-session.svelte';
   import {diffProse} from './prose-diff';
-  import {scenePlan} from './scene-plan';
+  import {scenePlan,sceneStartingPositions} from './scene-plan';
   import {parseEffects} from './effects-ui';
   import EffectsReviewEditor from './EffectsReviewEditor.svelte';
   import KnowledgeContext from './KnowledgeContext.svelte';
@@ -37,6 +37,7 @@
   const replacing=$derived(session.view?.revision?.kind==='events');
   const actors=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.character']));
   const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
+  const offsiteActors=$derived(session.value?.plan.locationId?sceneStartingPositions(sceneWorld,session.value.plan).filter(p=>p.status==='elsewhere'||p.status==='unplaced'):[]);
   const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
   const hasProse=$derived(!!session.value?.prose.trim());
@@ -130,7 +131,7 @@
     <h2>Passage details</h2>
     <p class="field-help">{reading.passage.plan.chapterTitle} · {reading.passage.plan.title}</p>
     <button class="secondary-button" disabled={working} onclick={()=>onImage(reading!,moment)}>Illustrate passage…</button>
-    <dl class="passage-facts"><dt>Viewpoint</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.viewpointId)?.name??'Ensemble / unspecified'}</dd><dt>Location</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.locationId)?.name??'Unspecified'}</dd></dl>
+    <dl class="passage-facts"><dt>Viewpoint</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.viewpointId)?.name??'Ensemble / unspecified'}</dd><dt>Scene focus</dt><dd>{reading.after.nodes.find((n)=>n.id===reading?.passage.plan.locationId)?.name??'Unspecified'}</dd></dl>
     {#if reading.passage.plan.chapterPlan}<details><summary>Chapter direction</summary><p class="story-plan-text">{reading.passage.plan.chapterPlan}</p></details>{/if}
     <div class="passage-revision-actions"><button class="secondary-button" disabled={blocked||otherBusy} onclick={()=>{void revise('wording');}}>Edit wording</button>
       {#if selection===index.passages.length-1}<button class="secondary-button" disabled={blocked||otherBusy||!!reading.replacementError} title={reading.replacementError||'Rewrite from this passage’s saved before-state'} onclick={()=>{void revise('events');}}>Replace latest events</button>{#if reading.replacementError}<p class="field-help">{reading.replacementError}</p>{/if}{/if}
@@ -154,7 +155,8 @@
       <label class="field">Viewpoint<select bind:value={session.value.plan.viewpointId} onchange={()=>session.touch()}><option value={null}>Ensemble / unspecified</option>{#each actors as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
       <label class="field">Claim perspective<select value={session.value.plan.knowledgePerspective??'viewpoint'} onchange={e=>{session.value!.plan.knowledgePerspective=e.currentTarget.value==='author'?'author':undefined;session.touch();}}><option value="viewpoint">Viewpoint / reader</option><option value="author">Author / omniscient</option></select></label>
       {#if sceneWorld.nodes.some(n=>n.components['core.claim'])}<KnowledgeContext world={sceneWorld} plan={session.value.plan}/>{/if}
-      <label class="field">Location<select bind:value={session.value.plan.locationId} onchange={()=>session.touch()}><option value={null}>Unspecified</option>{#each places as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
+      <label class="field">Scene focus<select bind:value={session.value.plan.locationId} onchange={()=>session.touch()}><option value={null}>Unspecified</option>{#each places as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
+      {#if offsiteActors.length}<p class="story-warning" role="status">{offsiteActors.map(p=>`${p.name} — ${p.placeName??'location not established'}`).join('; ')}. Show any arrival before placing them in this scene.</p>{/if}
       <details class="scene-resources"><summary>Participants & references</summary><input aria-label="Find scene resources" placeholder="Find a world node…" bind:value={referenceSearch} />
         <div class="scene-resource-list">{#each sceneWorld.nodes.filter((n)=>n.name.toLowerCase().includes(referenceSearch.toLowerCase())).slice(0,100) as node}<div><span>{node.name}</span>{#if node.components['core.character']&&node.id!==session.value.plan.viewpointId}<label><input type="checkbox" checked={session.value.plan.participantIds.includes(node.id)} disabled={session.value.plan.participantIds.length>=12&&!session.value.plan.participantIds.includes(node.id)} onchange={()=>references(node.id,true)} />Participant</label>{/if}<label><input type="checkbox" checked={session.value.plan.referenceIds.includes(node.id)} disabled={session.value.plan.referenceIds.length>=12&&!session.value.plan.referenceIds.includes(node.id)} onchange={()=>references(node.id)} />Reference</label></div>{/each}</div>
       </details>

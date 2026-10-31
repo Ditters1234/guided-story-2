@@ -375,6 +375,17 @@ pub(crate) fn project_records(context: &World, input: &mut serde_json::Value) {
         .iter()
         .filter(|a| !claim_ids.contains(&a.node_id))
         .collect::<Vec<_>>());
+    let starts = input["startingState"]["people"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if let Some(records) = input["records"].as_array_mut() {
+        for record in records {
+            if let Some(start) = starts.iter().find(|p| p["id"] == record["id"]) {
+                record["startingPosition"] = json!({"currentPlace":start["currentPlace"],"relativeToIntendedFocus":start["relativeToFocus"]});
+            }
+        }
+    }
 }
 #[cfg(test)]
 mod tests;

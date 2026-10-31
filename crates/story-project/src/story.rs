@@ -13,6 +13,7 @@ mod revisions;
 pub use revisions::*;
 mod review;
 pub use review::*;
+mod starting_state;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -789,13 +790,24 @@ impl Project {
             }
         }
         memory.points = kept;
-        let mut input = json!({"storyTitle":self.view()?.title,"plan":plan,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        let mut intent = serde_json::to_value(plan).map_err(|e| e.to_string())?;
+        let object = intent.as_object_mut().ok_or("Invalid scene plan.")?;
+        for (key, label) in [
+            ("locationId", "intendedLocationId"),
+            ("participantIds", "intendedParticipantIds"),
+        ] {
+            if let Some(value) = object.remove(key) {
+                object.insert(label.into(), value);
+            }
+        }
+        let mut input = json!({"storyTitle":self.view()?.title,"plan":intent,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        input["startingState"] = starting_state::starting_state(&context, plan);
         if !knowledge.decisions.is_empty() || knowledge.omitted_by_limit > 0 || withheld_recent > 0
         {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v11-grouped-effect-contracts",
+            "passage-source-v13-physical-start-and-intent",
             &input,
             &context.node_types,
             &context.component_types,

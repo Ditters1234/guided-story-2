@@ -340,7 +340,210 @@ async fn real_ai_tools_pass() {
     let key = connection_api_key(Path::new(&config), &s).unwrap();
     let f = fixture(root);
     let original = f.p.view().unwrap().world;
+    let mut checked_revision = None;
     match case.as_str() {
+        "scene-effects" => {
+            s.max_tokens = s.max_tokens.min(2000);
+            let source = std::path::PathBuf::from(std::env::var("STORY_AI_SCENE_SOURCE").unwrap())
+                .canonicalize()
+                .unwrap();
+            assert!(source.starts_with(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../..")
+                    .join("test-results")
+                    .canonicalize()
+                    .unwrap()
+            ));
+            let p = Project::open(&source).unwrap();
+            let before = p.view().unwrap();
+            let draft = p.list_passage_drafts().unwrap().first().unwrap().id.clone();
+            let view = p.passage_view(&draft, &s).unwrap();
+            let prepared = p
+                .start_passage(&draft, view.version, before.revision, true, &s)
+                .unwrap();
+            let result = call(
+                root,
+                "scene-effects",
+                &s,
+                key.as_deref(),
+                &prepared.system,
+                &prepared.user,
+                prepared.schema.as_ref(),
+                prepared.output_tokens,
+            )
+            .await;
+            let incomplete = result.as_ref().is_ok_and(|r| r.incomplete);
+            p.finish_passage(&draft, true, result.map(|r| r.text), false, incomplete, &s)
+                .unwrap();
+            let view = p.passage_view(&draft, &s).unwrap();
+            fs::write(
+                root.join("effects-review.json"),
+                serde_json::to_vec_pretty(&view).unwrap(),
+            )
+            .unwrap();
+            assert!(view.error.is_empty(), "{}", view.error);
+            assert_eq!(p.view().unwrap().world, before.world);
+            let ready = p.approve_passage_for_test(&draft, &s).unwrap();
+            p.accept_passage(&draft, ready.version, &s).unwrap();
+            let after = p.view().unwrap().world;
+            let barn = after
+                .nodes
+                .iter()
+                .find(|n| n.name == "Barn")
+                .unwrap()
+                .id
+                .clone();
+            for name in ["Silas Thorne", "Elara Vane"] {
+                let person = after.nodes.iter().find(|n| n.name == name).unwrap();
+                assert!(after.edges.iter().any(|e| e.source_id == person.id
+                    && e.target_id == barn
+                    && e.type_id == "core.present-at"));
+            }
+            let reading = p.read_passage(&draft).unwrap();
+            assert_eq!(reading.before, before.world);
+            assert_eq!(reading.after, after);
+            checked_revision = Some(p.view().unwrap().revision);
+            fs::write(
+                root.join("accepted.json"),
+                serde_json::to_vec_pretty(&reading).unwrap(),
+            )
+            .unwrap();
+        }
+        "scene-start" | "scene-start-refined" => {
+            s.max_tokens = s.max_tokens.min(1400);
+            let mut w = original.clone();
+            let homestead = w
+                .nodes
+                .iter()
+                .find(|n| n.name == "Ridgeway Lodge")
+                .unwrap()
+                .id
+                .clone();
+            let house = node(&w, "core.place", "Main House");
+            let house_id = house.id.clone();
+            let yard = node(&w, "core.place", "Yard");
+            let yard_id = yard.id.clone();
+            w.nodes.extend([house, yard]);
+            w.edges.extend([
+                link("core.inside", &house_id, &homestead),
+                link("core.inside", &yard_id, &homestead),
+            ]);
+            for n in &mut w.nodes {
+                n.name = n
+                    .name
+                    .replace("Nora Hale", "Silas Thorne")
+                    .replace("Otis Reed", "Elara Vane")
+                    .replace("Ridgeway Lodge", "Thorne Homestead");
+                if n.id == f.room {
+                    n.name = "Barn".into();
+                    text(
+                        n,
+                        "detail.place",
+                        "layout",
+                        "Timber stalls, a workbench and wide doors opening onto the Yard.",
+                    );
+                }
+                if n.id == f.nora {
+                    text(n, "detail.profile", "age", "68");
+                }
+                if n.id == f.otis {
+                    text(n, "detail.profile", "age", "29");
+                }
+                if n.id == f.style {
+                    text(n,"core.narration-style","instructions","Write close third person from Silas's viewpoint, in past tense. Use restrained dialogue and concrete actions.");
+                }
+            }
+            for e in &mut w.edges {
+                if e.type_id == "core.present-at" && e.source_id == f.nora {
+                    e.target_id = house_id.clone();
+                }
+                if e.type_id == "core.present-at" && e.source_id == f.otis {
+                    e.target_id = yard_id.clone();
+                }
+            }
+            f.p.commit(0, id(), "Fictional separated homestead".into(), w.clone())
+                .unwrap();
+            let draft = id();
+            let mut e = edits(&f, "");
+            e.plan.title = "The barn".into();
+            e.plan.direction = String::new();
+            e.plan.chapter_plan =
+                "A quiet, tense moment between Silas and Elara at the isolated homestead.".into();
+            e.plan.target_words = 160;
+            f.p.save_passage(&draft, 0, e).unwrap();
+            let prepared = f.p.start_passage(&draft, 1, 1, false, &s).unwrap();
+            let mut baseline: Value = serde_json::from_str(&prepared.user).unwrap();
+            assert_eq!(
+                baseline["startingState"]["people"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                2
+            );
+            assert!(baseline["startingState"]["people"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|p| p["relativeToFocus"] == "elsewhere"));
+            baseline.as_object_mut().unwrap().remove("startingState");
+            for record in baseline["records"].as_array_mut().unwrap() {
+                record.as_object_mut().unwrap().remove("startingPosition");
+            }
+            let old_plan = baseline["plan"].as_object_mut().unwrap();
+            for (key, label) in [
+                ("intendedLocationId", "locationId"),
+                ("intendedParticipantIds", "participantIds"),
+            ] {
+                if let Some(value) = old_plan.remove(key) {
+                    old_plan.insert(label.into(), value);
+                }
+            }
+            let old = std::process::Command::new("git")
+                .args([
+                    "show",
+                    "eaebc1403b012ace6b123da3d9cb21a16f357529:crates/story-project/src/prompts/passage.txt",
+                ])
+                .output()
+                .unwrap();
+            assert!(old.status.success());
+            if case == "scene-start" {
+                let _baseline = call(
+                    root,
+                    "scene-baseline",
+                    &s,
+                    key.as_deref(),
+                    std::str::from_utf8(&old.stdout).unwrap(),
+                    &baseline.to_string(),
+                    None,
+                    prepared.output_tokens,
+                )
+                .await;
+            }
+            let result = call(
+                root,
+                "scene-start",
+                &s,
+                key.as_deref(),
+                &prepared.system,
+                &prepared.user,
+                None,
+                prepared.output_tokens,
+            )
+            .await;
+            let incomplete = result.as_ref().is_ok_and(|r| r.incomplete);
+            f.p.finish_passage(&draft, false, result.map(|r| r.text), false, incomplete, &s)
+                .unwrap();
+            let view = f.p.passage_view(&draft, &s).unwrap();
+            assert!(!incomplete);
+            assert!(view.edits.prose.split_whitespace().count() > 40);
+            assert_eq!(f.p.view().unwrap().world, w);
+            assert!(f.p.story_index().unwrap().passages.is_empty());
+            fs::write(
+                root.join("scene-review.json"),
+                serde_json::to_vec_pretty(&view).unwrap(),
+            )
+            .unwrap();
+        }
         "root-shape" => {
             s.max_tokens = s.max_tokens.min(128);
             let root_node = json!({"type":"object","properties":{"id":{"const":"new:root"},"typeId":{"const":"core.character"}},"required":["id","typeId"],"additionalProperties":false});
@@ -684,6 +887,6 @@ async fn real_ai_tools_pass() {
         }
         _ => panic!("Unknown explicit probe case"),
     }
-    fs::write(root.join("passed.json"),serde_json::to_vec_pretty(&json!({"case":case,"provider":s.model,"revision":f.p.view().unwrap().revision,"passed":true})).unwrap()).unwrap();
+    fs::write(root.join("passed.json"),serde_json::to_vec_pretty(&json!({"case":case,"provider":s.model,"revision":checked_revision.unwrap_or_else(||f.p.view().unwrap().revision),"passed":true})).unwrap()).unwrap();
     println!("PASS {case}");
 }
