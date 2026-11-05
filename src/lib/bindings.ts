@@ -1277,7 +1277,7 @@ export type PassageView_Deserialize = {
 	changes: string[],
 	canAccept: boolean,
 	suggestedChapterEnd: boolean,
-	contextNodes: string[],
+	sceneContext: SceneContextPreview,
 	recentPassages: string[],
 	knowledgeHistoryOmissions?: number,
 	originalProse: string,
@@ -1299,7 +1299,7 @@ export type PassageView_Serialize = {
 	changes: string[],
 	canAccept: boolean,
 	suggestedChapterEnd: boolean,
-	contextNodes: string[],
+	sceneContext: SceneContextPreview,
 	recentPassages: string[],
 	knowledgeHistoryOmissions?: number,
 	originalProse: string,
@@ -1408,6 +1408,20 @@ export type RememberedPoint_Serialize = {
 	summary: RecordRef | null,
 	reason: string,
 };
+
+export type SceneContextPreview = {
+	resources: SceneResource[],
+	guidance: AiContextSection[],
+	error: string,
+};
+
+export type SceneResource = {
+	nodeId: string,
+	name: string,
+	role: SceneResourceRole,
+};
+
+export type SceneResourceRole = "focus" | "viewpoint" | "participant" | "reference" | "inventory" | "containingPlace" | "placement" | "claim";
 
 export type ShotFact = {
 	nodeId: string,

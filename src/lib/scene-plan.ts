@@ -78,10 +78,14 @@ export function scenePlan(world:World,base:PassagePlan,selectedId:string|null,pr
   const physicalPlaces=placementResolver(world);
   const selectedCharacter=selected?.components['core.character']?selected:undefined;
   plan.viewpointId=(selectedCharacter??character(previous?.viewpointId))?.id??null;
-  plan.locationId=(selected?.components['core.place']?selected:(selectedCharacter?physicalPlaces(selectedCharacter.id)[0]:undefined)??place(previous?.locationId)??physicalPlaces(plan.viewpointId)[0]??world.nodes.find(n=>n.components['core.place']))?.id??null;
+  const selectedPlace=selected?.components['core.place']?selected:physicalPlaces(selected?.id)[0];
+  plan.locationId=(selectedPlace??physicalPlaces(plan.viewpointId)[0]??place(previous?.locationId)??(!previous?world.nodes.find(n=>n.components['core.place']):undefined))?.id??null;
   const directCast=world.nodes.filter(n=>n.components['core.character']&&physicalPlaces(n.id)[0]?.id===plan.locationId);
   const cast=!previous&&!selectedCharacter?nearbySceneCast(world,plan.locationId):directCast;
   if(!previous&&!plan.viewpointId)plan.viewpointId=cast[0]?.id??null;
   plan.participantIds=(previous?previous.participantIds.filter(id=>character(id)):cast.map(n=>n.id)).filter(id=>id!==plan.viewpointId).slice(0,12);
+  const references=new Set(previous?.referenceIds.filter(id=>world.nodes.some(n=>n.id===id)));
+  if(selected&&!selectedCharacter&&!selected.components['core.place']&&!selected.components['core.claim'])references.add(selected.id);
+  plan.referenceIds=[...references].filter(id=>id!==plan.locationId&&id!==plan.viewpointId&&!plan.participantIds.includes(id)).slice(0,12);
   return plan;
 }

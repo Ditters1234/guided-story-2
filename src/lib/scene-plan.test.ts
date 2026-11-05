@@ -57,20 +57,26 @@ describe('canonical starting positions',()=>{
     expect(world).toEqual(before);
     expect(plan.participantIds).toEqual([elara.id,silas.id]);
   });
-  it('follows an explicitly selected character while retaining prior scene focus as intent',()=>{
+  it('continues where the viewpoint is now placed and allows an explicit new focus',()=>{
     const {world,house,yard,barn,silas,elara}=homestead();
     const previous={...base(),locationId:barn.id,viewpointId:elara.id,participantIds:[silas.id]};
     const selected=scenePlan(world,base(),silas.id,previous);
     expect(selected.viewpointId).toBe(silas.id);
     expect(selected.locationId).toBe(house.id);
-    expect(scenePlan(world,base(),null,{...previous,viewpointId:silas.id,participantIds:[elara.id]})).toMatchObject({locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(scenePlan(world,base(),null,{...previous,viewpointId:silas.id,participantIds:[elara.id]})).toMatchObject({locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]});
     const continuation={...base(),locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]};
     world.edges.find(e=>e.sourceId===silas.id)!.targetId=yard.id;
     const continued=scenePlan(world,base(),null,continuation);
-    expect(continued).toMatchObject({locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]});
-    expect(sceneStartingPositions(world,continued).find(p=>p.nodeId===silas.id)).toMatchObject({placeId:yard.id,placeName:yard.name,status:'elsewhere'});
+    expect(continued).toMatchObject({locationId:yard.id,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(sceneStartingPositions(world,continued).find(p=>p.nodeId===silas.id)).toMatchObject({placeId:yard.id,placeName:yard.name,status:'at'});
     expect(scenePlan(world,base(),barn.id,continuation)).toMatchObject({locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id]});
     expect(world.edges.find(e=>e.sourceId===silas.id)?.targetId).toBe(yard.id);
+  });
+  it('stages a selected item as an editable reference and carries valid prior references forward',()=>{
+    const {world,house,barn}=homestead(),key=makeNode(world,'core.item','Key');world.nodes.push(key);
+    world.edges.push({id:crypto.randomUUID(),typeId:'core.stored-in',sourceId:key.id,targetId:barn.id,description:''});
+    expect(scenePlan(world,base(),key.id)).toMatchObject({locationId:barn.id,referenceIds:[key.id]});
+    expect(scenePlan(world,base(),null,{...base(),locationId:house.id,referenceIds:['removed',key.id]})).toMatchObject({locationId:house.id,referenceIds:[key.id]});
   });
   it('uses custom physical links and nested holders while keeping sibling places distinct',()=>{
     const {world,estate,house,yard,barn,silas,elara}=homestead();

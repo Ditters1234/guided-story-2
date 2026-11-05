@@ -342,6 +342,49 @@ async fn real_ai_tools_pass() {
     let original = f.p.view().unwrap().world;
     let mut checked_revision = None;
     match case.as_str() {
+        "scene-continuation" => {
+            let accepted = manual_passage(&f, &s);
+            let draft = id();
+            let mut e = edits(&f, "");
+            e.plan = f.p.next_passage_plan().unwrap();
+            assert!(e.plan.direction.is_empty());
+            assert_eq!(e.plan.viewpoint_id.as_ref(), Some(&f.nora));
+            assert_eq!(e.plan.participant_ids, [f.otis.clone()]);
+            f.p.save_passage(&draft, 0, e).unwrap();
+            let before = f.p.view().unwrap();
+            let prepared =
+                f.p.start_passage(&draft, 1, before.revision, false, &s)
+                    .unwrap();
+            let input: Value = serde_json::from_str(&prepared.user).unwrap();
+            assert_eq!(input["recentPassages"][0]["id"], accepted);
+            assert!(input["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|record| record["id"] == f.key && record["sceneRole"] == "inventory"));
+            assert!(input["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|link| link["sourceId"] == f.key && link["targetId"] == f.otis));
+            let response = call(
+                root,
+                "scene-continuation",
+                &s,
+                key.as_deref(),
+                &prepared.system,
+                &prepared.user,
+                None,
+                prepared.output_tokens,
+            )
+            .await
+            .unwrap();
+            assert!(!response.incomplete);
+            f.p.finish_passage(&draft, false, Ok(response.text), false, false, &s)
+                .unwrap();
+            assert_eq!(f.p.view().unwrap().world, before.world);
+            assert_eq!(f.p.story_index().unwrap().passages.len(), 1);
+        }
         "scene-effects" => {
             s.max_tokens = s.max_tokens.min(2000);
             let source = std::path::PathBuf::from(std::env::var("STORY_AI_SCENE_SOURCE").unwrap())

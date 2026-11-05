@@ -78,8 +78,34 @@ fn separated_people_keep_named_actual_starts_in_narration_and_extraction() {
     let mut edit = edits(&p, "");
     edit.plan = plan;
     p.save_passage(&key, 0, edit).unwrap();
+    let preview = p.passage_view(&key, &settings()).unwrap().scene_context;
+    assert!(preview.error.is_empty());
+    assert!(preview
+        .resources
+        .iter()
+        .any(|record| record.name == "Yard" && record.role == SceneResourceRole::ContainingPlace));
     let generated = p.start_passage(&key, 1, 0, false, &settings()).unwrap();
     let request: Value = serde_json::from_str(&generated.user).unwrap();
+    assert_eq!(
+        preview
+            .resources
+            .iter()
+            .map(|record| (&record.node_id, json!(record.role)))
+            .collect::<BTreeMap<_, _>>(),
+        request["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|record| {
+                let id = preview
+                    .resources
+                    .iter()
+                    .find(|entry| Some(entry.node_id.as_str()) == record["id"].as_str())
+                    .unwrap();
+                (&id.node_id, record["sceneRole"].clone())
+            })
+            .collect()
+    );
     let state = &request["startingState"];
     assert!(request["plan"].get("locationId").is_none());
     assert_eq!(
@@ -307,10 +333,13 @@ fn empty_cast_named_by_guidance_blocks_before_job_start_and_explicit_references_
     let mut edit = edits(&p, "");
     edit.plan = plan;
     p.save_passage(&key, 0, edit).unwrap();
+    let preview = p.passage_view(&key, &settings()).unwrap().scene_context;
     let error = p
         .start_passage(&key, 1, before.revision, false, &settings())
         .err()
         .expect("unscoped cast should block narration");
+    assert_eq!(preview.error, error);
+    assert_eq!(preview.guidance.len(), 1);
     assert!(
         error.contains("Silas Thorne") && error.contains("Elara Vane"),
         "{error}"

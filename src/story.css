@@ -34,7 +34,11 @@
 .scene-resource-list { max-height: 250px; overflow: auto; margin: 10px 0 20px; }
 .scene-resource-list>div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .85rem; }
 .scene-resource-list>div>span { width: 100%; }
-.scene-resource-list label { display: flex; align-items: center; gap: 5px; }
+.scene-included { list-style: none; padding: 0; margin: 0 0 8px; }
+.scene-included li { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: .85rem; overflow-wrap: anywhere; }
+.scene-included label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.scene-included small { color: var(--muted); margin-inline-start: 7px; font-size: .8rem; }
+.scene-included summary { padding: 0; }
 .effects-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0; }
 .passage-toolbar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .passage-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .85rem; }

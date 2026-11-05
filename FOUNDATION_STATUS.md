@@ -2,6 +2,12 @@
 
 Updated October 30, 2026. Desktop/storage foundation and a bounded world → passage → historical state → fork authoring loop. This is not the completed product or a release-ready application.
 
+## November 5 scene resource and continuation checkpoint
+
+- The composer separates checked participants and references from automatic prose context. Native scope supplies role labels for inventory, placement, eligible claims and story-wide guidance. Tests compare preview roles with the provider payload and verify that withheld claims stay out of both. Mocked IPC checks in headless Edge confirmed that removing an explicit reference leaves an item visible under automatic context when its inventory link still includes it.
+- New continuations use the last accepted cast and references. The composer follows the viewpoint's current mapped location when available. The default prompt builds a single beat from the latest accepted passage. Two short local-model samples continued from an accepted key handoff with the key still held by the recipient. After tightening the short-passage and viewpoint instructions, the second sample stayed with the viewpoint and came in at 114 words for a target of 160, compared with 287 in the first sample.
+- **306 native tests passed** (14 probes ignored by default), and **96 frontend tests passed** with a clean Svelte check.
+
 ## November 5 empty-cast continuity checkpoint
 
 - An empty-cast plan could send named narration instructions without the corresponding character records. New plans can select nearby cast through a bounded physical search. Saved drafts expose **Use nearby cast**, and generation pauses when explicit guidance names an existing character outside the captured scene context. A selected reference supplies starting facts and direct inventory without requiring an appearance.

@@ -340,6 +340,8 @@ fn older_notes_and_reviewed_summaries_are_retrieved_without_sending_the_whole_hi
         PassageEdits {
             plan: PassagePlan {
                 direction: "Continue.".into(),
+                viewpoint_id: None,
+                participant_ids: vec![],
                 reference_ids: vec![current.world.nodes[2].id.clone()],
                 ..plan
             },

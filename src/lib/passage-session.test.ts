@@ -4,7 +4,7 @@ const api=vi.hoisted(()=>({get:vi.fn(),save:vi.fn(),clone:vi.fn()}));
 vi.mock('./native',()=>({commands:{getPassageDraft:api.get,savePassageDraft:api.save,clonePassageDraft:api.clone},unwrap:(r:{status:string;data?:unknown;error?:string})=>{if(r.status!=='ok')throw Error(r.error);return r.data;}}));
 import {PassageSession} from './passage-session.svelte';
 const edits=():PassageEdits=>({plan:{chapterTitle:'Chapter 1',chapterPlan:'',title:'At the window',direction:'Wait for the rain.',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450},prose:'First sentence.',effectsText:'{"changes":[],"notes":[],"suggestChapterEnd":false}',closeChapter:false});
-const view=(value=edits(),version=1):PassageView_Serialize=>({effectsReview:{checked:true,entries:[]},memory:{points:[],coverage:{olderPassages:0,closedChapters:0,currentSummaries:0,missingSummaries:0,staleSummaries:0,unavailableSummaries:0,unrepresentedPassages:0,availablePoints:0,selectedPoints:0,omittedPoints:0,byteBudget:6000}},revision:null,id:'10000000-0000-4000-8000-000000000001',version,stage:'ready',edits:value,error:'',stale:false,changes:[],canAccept:true,suggestedChapterEnd:false,contextNodes:[],recentPassages:[],originalProse:'',originalEffects:'',narrationProvider:'',effectsProvider:''});
+const view=(value=edits(),version=1):PassageView_Serialize=>({effectsReview:{checked:true,entries:[]},memory:{points:[],coverage:{olderPassages:0,closedChapters:0,currentSummaries:0,missingSummaries:0,staleSummaries:0,unavailableSummaries:0,unrepresentedPassages:0,availablePoints:0,selectedPoints:0,omittedPoints:0,byteBudget:6000}},revision:null,id:'10000000-0000-4000-8000-000000000001',version,stage:'ready',edits:value,error:'',stale:false,changes:[],canAccept:true,suggestedChapterEnd:false,sceneContext:{resources:[],guidance:[],error:""},recentPassages:[],originalProse:'',originalEffects:'',narrationProvider:'',effectsProvider:''});
 const ok=(data:PassageView_Serialize)=>({status:'ok',data});
 describe('passage draft queue',()=>{
   beforeEach(()=>{vi.useFakeTimers();api.clone.mockReset();api.get.mockReset().mockResolvedValue(ok(view()));api.save.mockReset().mockImplementation(async(_story:string,_id:string,version:number,value:PassageEdits)=>ok(view(value,version+1)));});
@@ -25,6 +25,14 @@ describe('passage draft queue',()=>{
     const session=new PassageSession('story');await session.open(view().id);let finish!:(v:ReturnType<typeof ok>)=>void;api.get.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
     const refreshing=session.refresh();await Promise.resolve();await Promise.resolve();session.value!.prose='Typing while the source refreshes.';session.touch();finish(ok(view()));await refreshing;
     expect(session.value!.prose).toBe('Typing while the source refreshes.');expect(session.dirty).toBe(true);await session.flush();
+  });
+  it('keeps the saved resource selection when an older context refresh finishes late',async()=>{
+    const session=new PassageSession('story');await session.open(view().id);
+    let finish!:(v:ReturnType<typeof ok>)=>void;api.get.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+    const refreshing=session.refresh();await Promise.resolve();await Promise.resolve();
+    session.value!.plan.referenceIds=['prop'];session.touch();await session.flush();
+    finish(ok(view()));await refreshing;
+    expect(session.view?.version).toBe(2);expect(session.value?.plan.referenceIds).toEqual(['prop']);
   });
   it('saves the current candidate before rerolling and keeps the native revision purpose',async()=>{
     const session=new PassageSession('story');await session.open(view().id);

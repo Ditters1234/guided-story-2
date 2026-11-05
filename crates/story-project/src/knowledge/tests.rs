@@ -191,6 +191,15 @@ fn actual_request_excludes_hidden_records_links_citations_and_sends_labelled_cla
     plan.reference_ids = vec![hidden, false_claim];
     commit(&p, w);
     let key = save(&p, &plan, "");
+    let preview = p.passage_view(&key, &text()).unwrap().scene_context;
+    assert!(preview
+        .resources
+        .iter()
+        .all(|entry| entry.name != "WITHHELD_RECORD"));
+    assert!(preview
+        .resources
+        .iter()
+        .any(|entry| entry.name == "The pump is cursed" && entry.role == SceneResourceRole::Claim));
     let req = p
         .start_passage(&key, 1, p.view().unwrap().revision, false, &text())
         .unwrap();

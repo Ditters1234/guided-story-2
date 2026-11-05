@@ -14,6 +14,8 @@ pub use revisions::*;
 mod review;
 pub use review::*;
 mod cast_scope;
+mod scene_context;
+pub use scene_context::*;
 mod starting_state;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -262,7 +264,7 @@ pub struct PassageView {
     pub changes: Vec<String>,
     pub can_accept: bool,
     pub suggested_chapter_end: bool,
-    pub context_nodes: Vec<String>,
+    pub scene_context: SceneContextPreview,
     pub recent_passages: Vec<String>,
     #[serde(default, skip_serializing_if = "crate::knowledge::is_zero")]
     pub knowledge_history_omissions: u32,
@@ -383,26 +385,13 @@ pub(crate) fn scene_world(world: &World, plan: &PassagePlan) -> Result<World, St
             return Err("A selected scene resource no longer exists.".into());
         }
     }
-    let actors: BTreeSet<_> = plan
-        .viewpoint_id
-        .iter()
-        .chain(&plan.participant_ids)
-        .chain(plan.reference_ids.iter().filter(|id| {
-            world
-                .nodes
-                .iter()
-                .any(|n| &n.id == *id && n.components.contains_key("core.character"))
-        }))
-        .collect();
     let claims = crate::knowledge::relevant_claims(world, plan, &ids);
     ids.extend(claims.into_iter().take(20));
-    for e in &world.edges {
-        if (e.type_id == "core.stored-in" || e.type_id == "core.worn-by")
-            && actors.contains(&e.target_id)
-        {
-            ids.insert(e.source_id.clone());
-        }
-    }
+    ids.extend(
+        scene_context::inventory_ids(world, plan)
+            .into_iter()
+            .cloned(),
+    );
     let physical: BTreeSet<_> = world
         .relation_types
         .iter()
@@ -513,14 +502,24 @@ impl Project {
     pub fn next_passage_plan(&self) -> Result<PassagePlan, String> {
         let index = self.story_index()?;
         let active = index.chapters.last().filter(|ch| !ch.closed);
-        Ok(PassagePlan {
+        let mut plan = PassagePlan {
             chapter_title: active
                 .map(|c| c.title.clone())
                 .unwrap_or_else(|| format!("Chapter {}", index.chapters.len() + 1)),
             chapter_plan: active.map(|c| c.plan.clone()).unwrap_or_default(),
             title: format!("Passage {}", index.passages.len() + 1),
             ..Default::default()
-        })
+        };
+        if let Some(entry) = index.passages.last() {
+            let last: AcceptedPassage = self.read_record("passages", &entry.record)?;
+            plan.location_id = last.plan.location_id;
+            plan.viewpoint_id = last.plan.viewpoint_id;
+            plan.participant_ids = last.plan.participant_ids;
+            plan.reference_ids = last.plan.reference_ids;
+            plan.knowledge_perspective = last.plan.knowledge_perspective;
+            plan.target_words = last.plan.target_words;
+        }
+        Ok(plan)
     }
     fn passage_path(&self, id: &str) -> Result<std::path::PathBuf, String> {
         validate_id(id)?;
@@ -814,7 +813,7 @@ impl Project {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v14-cast-scope",
+            "passage-source-v15-scene-roles",
             &input,
             &context.node_types,
             &context.component_types,
@@ -895,19 +894,17 @@ impl Project {
             crate::knowledge::resolve_narrative_context(&source_world_data, task, &d.edits.plan)?
         };
         if !checking && !wording {
-            let mut texts = vec![
-                d.edits.plan.chapter_plan.as_str(),
-                d.edits.plan.direction.as_str(),
-            ];
-            texts.extend(settings.prompts.overrides.get(&task).map(String::as_str));
-            for section in &included {
-                texts.extend([section.name.as_str(), section.content.as_str()]);
-            }
-            cast_scope::validate_named_cast_scope(&source_world_data, &context, &texts)?;
+            scene_context::validate_cast(
+                &source_world_data,
+                &context,
+                &d.edits.plan,
+                settings,
+                &included,
+            )?;
         }
         append_ai_context(&included, &mut system, &mut input);
         if !checking {
-            crate::knowledge::project_records(&context, &mut input);
+            scene_context::project_records(&context, &d.edits.plan, &mut input);
             let excluded = crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan);
             if wording {
                 if let Some(revision) = &d.revision {
@@ -952,7 +949,7 @@ impl Project {
             fingerprint = expanded_fingerprint;
         }
         if !checking {
-            crate::knowledge::project_records(&context, &mut input);
+            scene_context::project_records(&context, &d.edits.plan, &mut input);
             crate::knowledge::scrub_references(
                 &mut input,
                 &crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan),
@@ -1254,9 +1251,27 @@ impl Project {
                 serde_json::from_value(input["earlierMemory"].clone()).ok()
             })
             .unwrap_or_default();
-        let (context_nodes, recent_passages) = prepared
-            .map(|(ctx, _, _, _, recent)| (ctx.nodes.into_iter().map(|n| n.name).collect(), recent))
-            .unwrap_or_default();
+        let task = if wording {
+            TextPromptTask::Wording
+        } else {
+            TextPromptTask::Passage
+        };
+        let (scene_context, recent_passages) = match prepared {
+            Ok((ctx, _, input, _, recent)) => {
+                let world = revision.as_ref().map_or(&current.world, |r| &r.world);
+                (
+                    scene_context::preview(world, &ctx, &input, &d.edits.plan, settings, task),
+                    recent,
+                )
+            }
+            Err(error) => (
+                SceneContextPreview {
+                    error,
+                    ..Default::default()
+                },
+                vec![],
+            ),
+        };
         Ok(PassageView {
             knowledge_history_omissions,
             effects_review,
@@ -1273,7 +1288,7 @@ impl Project {
             changes,
             can_accept: checked && approved,
             suggested_chapter_end: suggested,
-            context_nodes,
+            scene_context,
             recent_passages,
             original_prose: d.original_prose,
             original_effects: d.original_effects,
