@@ -58,6 +58,131 @@ fn group_request() -> AuthoringRequest {
         ..request()
     }
 }
+
+#[test]
+fn a_saved_world_proposal_can_repair_reversed_places_and_conflicting_clothing() {
+    let (_dir, p) = create();
+    let world = p.view().unwrap().world;
+    let request = AuthoringRequest {
+        creation_scope: Some(CreationScope::World),
+        ..group_request()
+    };
+    let key = id();
+    p.save_authoring_draft(&key, 0, request).unwrap();
+    let prepared = p.start_authoring(&key, 1, 0, &settings()).unwrap();
+    let input: Value = serde_json::from_str(&prepared.user).unwrap();
+    let guide = &input["creationGuide"]["physicalPlacement"];
+    assert_eq!(guide["insideExamples"][1]["sourceId"], "new:barn");
+    assert_eq!(guide["insideExamples"][1]["targetId"], "new:homestead");
+    assert!(guide["clothing"]
+        .as_str()
+        .unwrap()
+        .contains("one worn-by edge"));
+    let mut record = p.read_authoring(&key).unwrap();
+    record.source_fingerprint = prepared.previous_placement_guide_fingerprint.unwrap();
+    p.write_authoring(&record).unwrap();
+
+    let mut candidate = NodeCandidate {
+        nodes: [
+            ("core.place", "new:homestead", "Cedar Homestead"),
+            ("core.place", "new:house", "House"),
+            ("core.place", "new:barn", "Barn"),
+            ("core.place", "new:yard", "Yard"),
+            ("core.character", "new:person", "Mara Flynn"),
+            ("core.wearable-item", "new:coat", "Work coat"),
+        ]
+        .into_iter()
+        .map(|(kind, id, name)| proposed_node(&world, kind, id, name))
+        .collect(),
+        edges: [
+            (
+                "new:house-link",
+                "core.inside",
+                "new:homestead",
+                "new:house",
+            ),
+            ("new:barn-link", "core.inside", "new:homestead", "new:barn"),
+            ("new:yard-link", "core.inside", "new:homestead", "new:yard"),
+            ("new:wear-link", "core.worn-by", "new:coat", "new:person"),
+            ("new:store-link", "core.stored-in", "new:coat", "new:person"),
+        ]
+        .into_iter()
+        .map(|(id, kind, source, target)| WorldEdge {
+            id: id.into(),
+            type_id: kind.into(),
+            source_id: source.into(),
+            target_id: target.into(),
+            description: String::new(),
+            properties: BTreeMap::new(),
+        })
+        .collect(),
+    };
+    let original = serde_json::to_string(&candidate).unwrap();
+    p.finish_authoring(&key, Ok(original.clone()), false, false)
+        .unwrap();
+    let view = p.authoring_view(&key, &settings()).unwrap();
+    assert!(!view.stale);
+    assert!(
+        view.error.contains("Cedar Homestead")
+            && view.error.contains("House and Barn")
+            && view.error.contains("child place"),
+        "{}",
+        view.error
+    );
+    let mut changed_settings = settings();
+    changed_settings.max_tokens -= 1;
+    assert!(p.authoring_view(&key, &changed_settings).unwrap().stale);
+
+    for edge in &mut candidate.edges[..3] {
+        std::mem::swap(&mut edge.source_id, &mut edge.target_id);
+    }
+    p.save_authoring_candidate(
+        &key,
+        view.version,
+        serde_json::to_string(&candidate).unwrap(),
+    )
+    .unwrap();
+    let view = p.authoring_view(&key, &settings()).unwrap();
+    assert!(
+        view.error.contains("Work coat")
+            && view.error.contains("worn by")
+            && view.error.contains("stored in"),
+        "{}",
+        view.error
+    );
+    assert!(p.apply_authoring(&key, view.version, &settings()).is_err());
+
+    candidate.edges.pop();
+    p.save_authoring_candidate(
+        &key,
+        view.version,
+        serde_json::to_string(&candidate).unwrap(),
+    )
+    .unwrap();
+    let view = p.authoring_view(&key, &settings()).unwrap();
+    assert!(view.error.is_empty(), "{}", view.error);
+    assert_eq!(view.raw_response, original);
+    assert_eq!(p.view().unwrap().world, world);
+    let applied = p.apply_authoring(&key, view.version, &settings()).unwrap();
+    let world = applied.commit.project.world;
+    assert_eq!(
+        world
+            .edges
+            .iter()
+            .filter(|edge| edge.type_id == "core.inside")
+            .count(),
+        3
+    );
+    assert_eq!(
+        world
+            .edges
+            .iter()
+            .filter(|edge| edge.type_id == "core.worn-by")
+            .count(),
+        1
+    );
+    assert_eq!(world.edges.len(), 4);
+}
 #[test]
 fn creation_contract_and_clothing_pattern_support_custom_items_through_image_preparation() {
     let (_dir, p) = create();

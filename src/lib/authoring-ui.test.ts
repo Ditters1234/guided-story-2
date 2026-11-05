@@ -1,6 +1,7 @@
 import { describe,it,expect } from 'vitest';
 import { exampleWorld,emptyWorld,makeNode } from './model';
 import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes,foundationCreationTypes,toggleCreationType,unsupportedCandidateFields,removeUnsupportedCandidateField } from './authoring-ui';
+import { candidatePlacementConflicts,repairCandidatePlacement } from './authoring-ui';
 describe('shared AI node editor',()=>{
   it('exposes unsupported generated fields for explicit removal while protecting declared fields and source data',()=>{
     const world=emptyWorld(),person=makeNode(world,'core.character','Elias Thorne','new:elias');person.components['detail.profile'].background='A retired engineer.';person.components['detail.profile'].background2='';person.components['unknown.capability']={note:'Keep this text for review.'};const candidate={nodes:[person],edges:[]},before=structuredClone(candidate);
@@ -79,5 +80,36 @@ describe('shared AI node editor',()=>{
   it('keeps malformed candidate JSON out of structured controls without throwing',()=>{
     const world=exampleWorld();const node=makeNode(world,'core.item','Coat','new:root');expect(parseCandidateForEditor(JSON.stringify({nodes:[node],edges:[]}))?.nodes[0].name).toBe('Coat');
     for(const value of ['{unfinished',JSON.stringify({nodes:[{...node,components:{'core.item':null}}],edges:[]}),JSON.stringify({nodes:[{...node,name:{bad:'value'}}],edges:[]}),JSON.stringify({nodes:[],edges:[{}]})])expect(parseCandidateForEditor(value)).toBeNull();
+  });
+});
+
+describe('candidate placement repair',()=>{
+  const link=(typeId:string,sourceId:string,targetId:string)=>({id:crypto.randomUUID(),typeId,sourceId,targetId,description:''});
+
+  it('reverses a reviewed containment fan-out and leaves other links alone',()=>{
+    const world=emptyWorld();
+    const [homestead,house,barn,yard]=['Homestead','House','Barn','Yard'].map(name=>makeNode(world,'core.place',name));
+    const unrelated=link('core.related',house.id,barn.id);
+    const candidate={nodes:[homestead,house,barn,yard],edges:[...([house,barn,yard].map(place=>link('core.inside',homestead.id,place.id))),unrelated]};
+    const [conflict]=candidatePlacementConflicts(world,candidate);
+    expect(conflict).toEqual({sourceId:homestead.id,indexes:[0,1,2],canReverse:true});
+    const repaired=repairCandidatePlacement(candidate,conflict.indexes);
+    expect(candidatePlacementConflicts(world,repaired)).toEqual([]);
+    expect(repaired.edges.slice(0,3).map(edge=>[edge.sourceId,edge.targetId])).toEqual([house,barn,yard].map(place=>[place.id,homestead.id]));
+    expect(repaired.edges[3]).toEqual(unrelated);
+    expect(candidate.edges[0].sourceId).toBe(homestead.id);
+    expect(candidatePlacementConflicts(world,{...candidate,edges:[...candidate.edges,link('core.inside',house.id,yard.id)]})[0].canReverse).toBe(false);
+    expect(candidatePlacementConflicts(world,{...candidate,edges:candidate.edges.map((edge,index)=>index===0?{...edge,description:'Keep these notes'}:edge)})[0].canReverse).toBe(false);
+  });
+
+  it('lets the author keep a worn link without deleting the garment or unrelated clothing',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Mara');
+    const coat=makeNode(world,'core.wearable-item','Coat'),boots=makeNode(world,'core.wearable-item','Boots');
+    const wear=link('core.worn-by',coat.id,person.id),carry=link('core.stored-in',coat.id,person.id);
+    const bootsLink=link('core.worn-by',boots.id,person.id);
+    const candidate={nodes:[person,coat,boots],edges:[carry,wear,bootsLink]};
+    const [conflict]=candidatePlacementConflicts(world,candidate);
+    expect(conflict).toEqual({sourceId:coat.id,indexes:[0,1],canReverse:false});
+    expect(repairCandidatePlacement(candidate,conflict.indexes,1)).toEqual({nodes:candidate.nodes,edges:[wear,bootsLink]});
   });
 });

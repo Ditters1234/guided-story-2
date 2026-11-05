@@ -154,9 +154,19 @@ pub struct PreparedAuthoring {
     pub user: String,
     pub response_schema: Value,
     pub fingerprint: String,
+    previous_placement_guide_fingerprint: Option<String>,
     pub estimated_input_tokens: u32,
     pub context: World,
     pub existing_context: Option<ExistingAuthoringContext>,
+}
+
+impl PreparedAuthoring {
+    fn matches_source(&self, record: &AuthoringRecord) -> bool {
+        (self.fingerprint == record.source_fingerprint
+            || self.previous_placement_guide_fingerprint.as_ref()
+                == Some(&record.source_fingerprint))
+            && self.existing_context == record.existing_context
+    }
 }
 
 fn hash<T: Serialize>(value: &T) -> Result<String, String> {
@@ -713,23 +723,41 @@ pub fn prepare_authoring(
         input["existingWorld"] = payload;
         existing_context = Some(selection);
     }
-    let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
-    let estimated_input_tokens = ((system.len() + user.len() + schema_bytes) / 3 + 256) as u32;
+    let mut user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
+    let estimate = |user: &str| ((system.len() + user.len() + schema_bytes) / 3 + 256) as u32;
+    let mut estimated_input_tokens = estimate(&user);
     if estimated_input_tokens + settings.max_tokens > settings.context_tokens {
         return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
     }
-    let fingerprint = hash(&(
-        "world-authoring-v13-creation-capability-groups",
-        &system,
-        &user,
-        &response_schema,
-        settings,
-    ))?;
+    let fingerprint_for = |user: &str| {
+        hash(&(
+            "world-authoring-v13-creation-capability-groups",
+            &system,
+            user,
+            &response_schema,
+            settings,
+        ))
+    };
+    let mut previous_placement_guide_fingerprint = None;
+    if input["creationIntent"] == "world" {
+        input["creationGuide"]["physicalPlacement"] = creation::placement_guide(&model_schema);
+        let guided = serde_json::to_string(&input).map_err(|e| e.to_string())?;
+        let estimate = estimate(&guided);
+        if estimate.saturating_add(settings.max_tokens) <= settings.context_tokens {
+            // This extra transport guidance changes no scope or validation rules.
+            // Retain the exact pre-guide hash so saved world proposals can be repaired.
+            previous_placement_guide_fingerprint = Some(fingerprint_for(&user)?);
+            user = guided;
+            estimated_input_tokens = estimate;
+        }
+    }
+    let fingerprint = fingerprint_for(&user)?;
     Ok(PreparedAuthoring {
         system,
         user,
         response_schema,
         fingerprint,
+        previous_placement_guide_fingerprint,
         estimated_input_tokens,
         context,
         existing_context,
@@ -1628,7 +1656,7 @@ impl Project {
             });
         let stale = !record.source_fingerprint.is_empty()
             && (prepare_authoring(&current.world, &record.request, settings)
-                .map_or(true, |p| p.fingerprint != record.source_fingerprint)
+                .map_or(true, |p| !p.matches_source(&record))
                 || prepared
                     .as_ref()
                     .map_or(true, |p| p.existing_context != record.existing_context));
@@ -1747,9 +1775,7 @@ impl Project {
         }
         let current = self.view()?;
         let prepared = prepare_authoring(&current.world, &record.request, settings)?;
-        if prepared.fingerprint != record.source_fingerprint
-            || prepared.existing_context != record.existing_context
-        {
+        if !prepared.matches_source(&record) {
             return Err("The proposal source changed. Create a new candidate from the latest world/settings.".into());
         }
         let (world, changes) = candidate_world(&current.world, &mut record)?;

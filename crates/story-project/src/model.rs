@@ -578,8 +578,8 @@ impl World {
             .map(|r| (r.id.as_str(), r))
             .collect();
         let mut edge_ids = BTreeSet::new();
-        let mut physical: BTreeMap<&str, &str> = BTreeMap::new();
-        let mut single = BTreeSet::new();
+        let mut physical: BTreeMap<&str, &WorldEdge> = BTreeMap::new();
+        let mut single = BTreeMap::new();
         let mut pairs = BTreeSet::new();
         for edge in &self.edges {
             validate_id(&edge.id)?;
@@ -623,7 +623,10 @@ impl World {
                 return Err("A node cannot link to itself.".into());
             }
             if !pairs.insert((&edge.type_id, &edge.source_id, &edge.target_id)) {
-                return Err("Duplicate world connection.".into());
+                return Err(format!(
+                    "Duplicate connection from {} to {} ({}).",
+                    source.name, target.name, relation.label
+                ));
             }
             if relation
                 .source_capability
@@ -636,20 +639,30 @@ impl World {
             {
                 return Err(format!("A relation endpoint lacks its required capability: {} → {} ({}) needs {} on the source and {} on the target.",source.name,target.name,relation.name,relation.source_capability.as_deref().unwrap_or("no specific capability"),relation.target_capability.as_deref().unwrap_or("no specific capability")));
             }
-            if relation.single_target && !single.insert((&edge.type_id, &edge.source_id)) {
-                return Err("This relation allows only one target per node.".into());
+            if relation.single_target {
+                if let Some(previous) =
+                    single.insert((&edge.type_id, &edge.source_id), target.name.as_str())
+                {
+                    let hint = if edge.type_id == "core.inside" {
+                        " An inside link runs from the child place to its containing place."
+                    } else {
+                        ""
+                    };
+                    return Err(format!("{} links to both {} and {} using ‘{}’. This relationship permits one target per source.{}", source.name, previous, target.name, relation.label, hint));
+                }
             }
-            if relation.physical_placement
-                && physical.insert(&edge.source_id, &edge.target_id).is_some()
-            {
-                return Err("A node cannot occupy two physical holders at once.".into());
+            if relation.physical_placement {
+                if let Some(previous) = physical.insert(&edge.source_id, edge) {
+                    return Err(format!("{} has conflicting physical links. It is ‘{}’ {} and ‘{}’ {}. Keep one physical placement.", source.name, relations[previous.type_id.as_str()].label, nodes[previous.target_id.as_str()].name, relation.label, target.name));
+                }
             }
         }
         for id in physical.keys() {
             let mut seen = BTreeSet::from([*id]);
             let mut next = physical.get(id);
-            while let Some(parent) = next {
-                if !seen.insert(*parent) {
+            while let Some(edge) = next {
+                let parent = edge.target_id.as_str();
+                if !seen.insert(parent) {
                     return Err("Physical containment cannot form a cycle.".into());
                 }
                 next = physical.get(parent);
@@ -657,7 +670,10 @@ impl World {
         }
         for edge in self.edges.iter().filter(|e| e.type_id == "core.worn-by") {
             let item = nodes[edge.source_id.as_str()];
-            if physical.get(edge.source_id.as_str()).copied() != Some(edge.target_id.as_str())
+            if physical
+                .get(edge.source_id.as_str())
+                .map(|placement| placement.target_id.as_str())
+                != Some(edge.target_id.as_str())
                 || (check_quantities
                     && item
                         .components

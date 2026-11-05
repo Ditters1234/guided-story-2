@@ -536,6 +536,29 @@ pub(super) fn budget(world: &World, request: &AuthoringRequest, tokens: u32) -> 
     }
     value
 }
+pub(super) fn placement_guide(world: &World) -> Value {
+    let mut guide = json!({"rule":"For each new record, use its ID as sourceId of at most ONE physical edge. The source is the thing being placed, and targetId is its immediate holder or parent. A holder can be the target of many edges. Check all physical sourceIds before returning."});
+    if world
+        .relation_types
+        .iter()
+        .any(|relation| relation.id == "core.inside")
+    {
+        guide["insideExamples"] = json!([
+            {"typeId":"core.inside","sourceId":"new:house","targetId":"new:homestead"},
+            {"typeId":"core.inside","sourceId":"new:barn","targetId":"new:homestead"},
+            {"typeId":"core.inside","sourceId":"new:yard","targetId":"new:homestead"}
+        ]);
+    }
+    if world
+        .relation_types
+        .iter()
+        .any(|relation| relation.id == "core.worn-by")
+    {
+        guide["clothing"] = json!("Each garment is a separate sourceId. Worn garments use one worn-by edge pointing to their wearer. Several different garments can point to the same wearer. A stored-in edge is only for an item that is carried or stored, never an additional link for an already worn garment.");
+    }
+    guide
+}
+
 pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
     let is_world =
         request.type_id.is_none() && request.creation_scope != Some(CreationScope::Group);

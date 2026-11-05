@@ -48,6 +48,35 @@ export function addCandidateNode(world:World,candidate:NodeCandidate,typeId:stri
   return {...candidate,nodes:[...candidate.nodes,node]};
 }
 export function editCandidateNode(candidate:NodeCandidate,id:string,change:(node:WorldNode)=>WorldNode):NodeCandidate{return {...candidate,nodes:candidate.nodes.map((node)=>node.id===id?change(node):node)};}
+
+export function candidatePlacementConflicts(world:World,candidate:NodeCandidate){
+  const physical=new Set(world.relationTypes.filter(type=>type.physicalPlacement).map(type=>type.id));
+  const places=new Set(candidate.nodes.filter(node=>node.components['core.place']).map(node=>node.id));
+  const bySource=new Map<string,number[]>();
+  candidate.edges.forEach((edge,index)=>{
+    if(!physical.has(edge.typeId))return;
+    const indexes=bySource.get(edge.sourceId)??[];
+    indexes.push(index);
+    bySource.set(edge.sourceId,indexes);
+  });
+  return [...bySource].filter(([,indexes])=>indexes.length>1).map(([sourceId,indexes])=>{
+    const links=indexes.map(index=>candidate.edges[index]);
+    const targets=new Set(links.map(link=>link.targetId));
+    const canReverse=places.has(sourceId)&&targets.size===links.length&&links.every(link=>
+      link.typeId==='core.inside'&&places.has(link.targetId)&&!bySource.has(link.targetId)
+      &&!link.description.trim()&&!Object.keys(link.properties??{}).length);
+    return {sourceId,indexes,canReverse};
+  });
+}
+
+export function repairCandidatePlacement(candidate:NodeCandidate,indexes:number[],keep?:number):NodeCandidate{
+  const conflicts=new Set(indexes);
+  const edges=keep===undefined
+    ?candidate.edges.map((edge,index)=>conflicts.has(index)?{...edge,sourceId:edge.targetId,targetId:edge.sourceId}:edge)
+    :candidate.edges.filter((_,index)=>!conflicts.has(index)||index===keep);
+  return {...candidate,edges};
+}
+
 export function unsupportedCandidateFields(world:World,node:WorldNode){
   return Object.entries(node.components).flatMap(([componentId,values])=>{
     const definition=world.componentTypes.find(d=>d.id===componentId);

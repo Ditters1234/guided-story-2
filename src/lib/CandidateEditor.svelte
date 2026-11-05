@@ -5,7 +5,7 @@
   import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
   import NodeFields from './NodeFields.svelte';
-  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField } from './authoring-ui';
+  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField,candidatePlacementConflicts,repairCandidatePlacement } from './authoring-ui';
   let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
   let linksOpen=$state(untrack(()=>request.mode==='revise'));
@@ -16,11 +16,25 @@
   const garmentTypes=$derived(allowedTypes.map(t=>t.id));
   const canAddGarment=$derived(!!wornItemType(schema,garmentTypes));
   const unsupported=$derived(node?unsupportedCandidateFields(schema,node):[]);
+  const placementConflicts=$derived(request.mode==='create'?candidatePlacementConflicts(schema,candidate):[]);
+  const nameOf=(id:string)=>references.find(node=>node.id===id)?.name||id;
   const allowed=(id:string,componentId:string|null,key:string)=>request.mode==='create'||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);
   function edit(key:'name'|'description'|'visualDescription',value:string){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,[key]:value})));}
   function property(componentId:string,key:string,value:PropertyValue){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,components:{...n.components,[componentId]:{...n.components[componentId],[key]:value}}})));}
   function edge(index:number,key:'typeId'|'sourceId'|'targetId'|'description',value:string){onChange({...candidate,edges:candidate.edges.map((e,i)=>i===index?(key==='typeId'?changeLinkType(schema,e,value):{...e,[key]:value}):e)});}
 </script>
+{#each placementConflicts as conflict (conflict.sourceId)}
+  <section class="candidate-conflict" aria-label={`Placement conflict for ${nameOf(conflict.sourceId)}`}>
+    <strong>{nameOf(conflict.sourceId)} has multiple proposed placements</strong>
+    <p class="field-help">Keep one placement to remove the other links in this group.{#if conflict.canReverse} If these places belong inside {nameOf(conflict.sourceId)}, reverse the links together.{/if}</p>
+    <ul>
+      {#each conflict.indexes as index}{@const link=candidate.edges[index]}
+        <li><span>{schema.relationTypes.find(type=>type.id===link.typeId)?.label} {nameOf(link.targetId)}</span><button class="text-action" onclick={()=>onChange(repairCandidatePlacement(candidate,conflict.indexes,index))}>Keep only this</button></li>
+      {/each}
+    </ul>
+    {#if conflict.canReverse}<button class="secondary-button" onclick={()=>onChange(repairCandidatePlacement(candidate,conflict.indexes))}>Make {nameOf(conflict.sourceId)} contain these places</button>{/if}
+  </section>
+{/each}
 <nav class="candidate-node-tabs" aria-label="Proposed nodes">{#each candidate.nodes as entry}<button class:active={node?.id===entry.id} onclick={()=>{selected=entry.id;}}>{entry.name||'Unnamed node'}</button>{/each}</nav>
 {#if node}
   <div class="candidate-type">{schema.nodeTypes.find((d)=>d.id===node.typeId)?.name??node.typeId}</div>
