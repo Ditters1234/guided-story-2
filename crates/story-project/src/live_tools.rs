@@ -409,7 +409,8 @@ async fn real_ai_tools_pass() {
             )
             .unwrap();
         }
-        "scene-start" | "scene-start-refined" => {
+        "scene-start" | "scene-start-refined" | "scene-start-empty-cast" => {
+            let empty_cast = case == "scene-start-empty-cast";
             s.max_tokens = s.max_tokens.min(1400);
             let mut w = original.clone();
             let homestead = w
@@ -450,7 +451,12 @@ async fn real_ai_tools_pass() {
                     text(n, "detail.profile", "age", "29");
                 }
                 if n.id == f.style {
-                    text(n,"core.narration-style","instructions","Write close third person from Silas's viewpoint, in past tense. Use restrained dialogue and concrete actions.");
+                    let instructions = if empty_cast {
+                        "Write close third person in past tense. Keep Silas's dialogue dry and Elara’s observations practical."
+                    } else {
+                        "Write close third person from Silas's viewpoint, in past tense. Use restrained dialogue and concrete actions."
+                    };
+                    text(n, "core.narration-style", "instructions", instructions);
                 }
             }
             for e in &mut w.edges {
@@ -470,8 +476,35 @@ async fn real_ai_tools_pass() {
             e.plan.chapter_plan =
                 "A quiet, tense moment between Silas and Elara at the isolated homestead.".into();
             e.plan.target_words = 160;
-            f.p.save_passage(&draft, 0, e).unwrap();
-            let prepared = f.p.start_passage(&draft, 1, 1, false, &s).unwrap();
+            let expected_version = if empty_cast {
+                e.plan.chapter_plan.clear();
+                e.plan.viewpoint_id = None;
+                e.plan.participant_ids.clear();
+                e.plan.target_words = 800;
+                f.p.save_passage(&draft, 0, e.clone()).unwrap();
+                let error =
+                    f.p.start_passage(&draft, 1, 1, false, &s)
+                        .err()
+                        .expect("empty cast with named instructions must fail before a request");
+                assert!(
+                    error.contains("Silas Thorne") && error.contains("Elara Vane"),
+                    "{error}"
+                );
+                assert_eq!(f.p.passage_view(&draft, &s).unwrap().version, 1);
+                assert_eq!(f.p.view().unwrap().world, w);
+                println!("Empty cast rejected before submission: {error}");
+                e.plan.viewpoint_id = Some(f.nora.clone());
+                e.plan.participant_ids = vec![f.otis.clone()];
+                e.plan.target_words = 160;
+                f.p.save_passage(&draft, 1, e).unwrap();
+                2
+            } else {
+                f.p.save_passage(&draft, 0, e).unwrap();
+                1
+            };
+            let prepared =
+                f.p.start_passage(&draft, expected_version, 1, false, &s)
+                    .unwrap();
             let mut baseline: Value = serde_json::from_str(&prepared.user).unwrap();
             assert_eq!(
                 baseline["startingState"]["people"]

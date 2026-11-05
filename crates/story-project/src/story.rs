@@ -13,6 +13,7 @@ mod revisions;
 pub use revisions::*;
 mod review;
 pub use review::*;
+mod cast_scope;
 mod starting_state;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -386,6 +387,12 @@ pub(crate) fn scene_world(world: &World, plan: &PassagePlan) -> Result<World, St
         .viewpoint_id
         .iter()
         .chain(&plan.participant_ids)
+        .chain(plan.reference_ids.iter().filter(|id| {
+            world
+                .nodes
+                .iter()
+                .any(|n| &n.id == *id && n.components.contains_key("core.character"))
+        }))
         .collect();
     let claims = crate::knowledge::relevant_claims(world, plan, &ids);
     ids.extend(claims.into_iter().take(20));
@@ -807,7 +814,7 @@ impl Project {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v13-physical-start-and-intent",
+            "passage-source-v14-cast-scope",
             &input,
             &context.node_types,
             &context.component_types,
@@ -887,6 +894,17 @@ impl Project {
         } else {
             crate::knowledge::resolve_narrative_context(&source_world_data, task, &d.edits.plan)?
         };
+        if !checking && !wording {
+            let mut texts = vec![
+                d.edits.plan.chapter_plan.as_str(),
+                d.edits.plan.direction.as_str(),
+            ];
+            texts.extend(settings.prompts.overrides.get(&task).map(String::as_str));
+            for section in &included {
+                texts.extend([section.name.as_str(), section.content.as_str()]);
+            }
+            cast_scope::validate_named_cast_scope(&source_world_data, &context, &texts)?;
+        }
         append_ai_context(&included, &mut system, &mut input);
         if !checking {
             crate::knowledge::project_records(&context, &mut input);

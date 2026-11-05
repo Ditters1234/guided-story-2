@@ -64,7 +64,6 @@ pub(super) fn starting_state(world: &World, plan: &PassagePlan) -> Value {
         .map(|p| json!({"person":p["name"],"place":p["currentPlace"]}));
     let facts: Vec<_> = people
         .iter()
-        .filter(|p| p["selectedAs"] == "viewpoint" || p["selectedAs"] == "participant")
         .map(|p| {
             if let Some(place) = p["currentPlace"]["name"].as_str() {
                 format!(

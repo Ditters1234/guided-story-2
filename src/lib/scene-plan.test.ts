@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import type {PassagePlan} from './bindings';
 import {emptyWorld,makeNode} from './model';
-import {scenePlan,sceneStartingPositions} from './scene-plan';
+import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast} from './scene-plan';
 
 const base=():PassagePlan=>({chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450});
 function fixture(){
@@ -45,10 +45,10 @@ function homestead(){
 }
 
 describe('canonical starting positions',()=>{
-  it('does not pull people from the house and yard into an empty selected barn',()=>{
+  it('visibly stages nearby people for an empty barn without moving them from the house and yard',()=>{
     const {world,barn,house,yard,silas,elara}=homestead(),before=structuredClone(world);
     const emptyBarn=scenePlan(world,base(),barn.id);
-    expect(emptyBarn).toMatchObject({locationId:barn.id,viewpointId:null,participantIds:[]});
+    expect(emptyBarn).toMatchObject({locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id]});
     const plan={...base(),locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id,silas.id],referenceIds:[house.id]};
     expect(sceneStartingPositions(world,plan)).toEqual([
       {nodeId:silas.id,name:silas.name,placeId:house.id,placeName:house.name,status:'elsewhere'},
@@ -104,5 +104,61 @@ describe('canonical starting positions',()=>{
     expect(sceneStartingPositions(world,plan).map(p=>[p.placeId,p.status])).toEqual([[null,'unplaced'],[null,'unplaced']]);
     world.edges.push({id:crypto.randomUUID(),typeId:'core.present-at',sourceId:silas.id,targetId:silas.id,description:''});
     expect(sceneStartingPositions(world,plan)[0].status).toBe('unplaced');
+  });
+});
+
+describe('bounded nearby cast suggestions',()=>{
+  it('prefers direct occupants instead of adding people from adjacent places',()=>{
+    const {world,barn,silas,elara}=homestead(),occupant=makeNode(world,'core.character','Barn keeper');
+    world.nodes.push(occupant);world.edges.push({id:crypto.randomUUID(),typeId:'core.present-at',sourceId:occupant.id,targetId:barn.id,description:''});
+    expect(nearbySceneCast(world,barn.id).map(n=>n.id)).toEqual([occupant.id]);
+    expect(scenePlan(world,base(),barn.id)).toMatchObject({viewpointId:occupant.id,participantIds:[]});
+    expect(nearbySceneCast(world,barn.id).map(n=>n.id)).not.toContain(silas.id);
+    expect(nearbySceneCast(world,barn.id).map(n=>n.id)).not.toContain(elara.id);
+  });
+  it('keeps the search inside the immediate containing place and three physical hops',()=>{
+    const {world,estate,house,barn,silas,elara}=homestead();
+    const upper=makeNode(world,'core.place','Larger world'),remote=makeNode(world,'core.place','Unrelated town'),study=makeNode(world,'core.place','House study');
+    const upperActor=makeNode(world,'core.character','World traveler'),remoteActor=makeNode(world,'core.character','Town resident'),deepActor=makeNode(world,'core.character','Study resident'),unplaced=makeNode(world,'core.character','Unplaced friend');
+    world.nodes.push(upper,remote,study,upperActor,remoteActor,deepActor,unplaced);
+    for(const [typeId,sourceId,targetId]of [
+      ['core.inside',estate.id,upper.id],['core.inside',study.id,house.id],
+      ['core.present-at',upperActor.id,upper.id],['core.present-at',remoteActor.id,remote.id],['core.present-at',deepActor.id,study.id],
+      ['story.feels-toward',unplaced.id,barn.id]
+    ])world.edges.push({id:crypto.randomUUID(),typeId,sourceId,targetId,description:''});
+    expect(nearbySceneCast(world,barn.id).map(n=>n.id)).toEqual([silas.id,elara.id]);
+  });
+  it('supports custom physical definitions and subrooms without following social associations',()=>{
+    const {world,house,barn,silas,elara}=homestead(),study=makeNode(world,'core.place','House study');
+    world.nodes.push(study);world.edges.find(e=>e.sourceId===silas.id)!.targetId=study.id;
+    world.edges.push({id:crypto.randomUUID(),typeId:'core.inside',sourceId:study.id,targetId:house.id,description:''});
+    world.relationTypes.push({id:'custom.physical',name:'Attached',label:'attached',physicalPlacement:true,singleTarget:true,sourceCapability:null,targetCapability:null});
+    world.edges=world.edges.map(e=>({...e,typeId:'custom.physical'}));
+    const friend=makeNode(world,'core.character','Remote friend');world.nodes.push(friend);world.edges.push({id:crypto.randomUUID(),typeId:'story.feels-toward',sourceId:friend.id,targetId:barn.id,description:''});
+    expect(nearbySceneCast(world,house.id).map(n=>n.id)).toEqual([silas.id,elara.id]);
+    expect(sceneStartingPositions(world,{...base(),locationId:house.id,viewpointId:silas.id})[0]).toMatchObject({placeId:study.id,status:'within'});
+  });
+  it('applies suggested roles explicitly while preserving focus, references, direction and world facts',()=>{
+    const {world,house,barn,silas,elara}=homestead(),before=structuredClone(world);
+    const empty={...base(),locationId:barn.id,direction:'Begin quietly.',referenceIds:[house.id],chapterPlan:'Preserve the premise.'},original=structuredClone(empty);
+    expect(scenePlan(world,base(),barn.id,empty)).toMatchObject({viewpointId:null,participantIds:[]});
+    const selected=withNearbySceneCast(world,empty);
+    expect(selected).toEqual({...empty,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(empty).toEqual(original);expect(world).toEqual(before);
+    expect(sceneStartingPositions(world,selected).map(p=>p.status)).toEqual(['elsewhere','elsewhere']);
+  });
+  it('bounds the nearby fallback to thirteen people and twelve participants',()=>{
+    const {world,house,barn}=homestead();
+    for(let i=0;i<20;i++){const n=makeNode(world,'core.character',`Nearby visitor ${i}`);world.nodes.push(n);world.edges.push({id:crypto.randomUUID(),typeId:'core.present-at',sourceId:n.id,targetId:house.id,description:''});}
+    const people=nearbySceneCast(world,barn.id),plan=scenePlan(world,base(),barn.id);
+    expect(people).toHaveLength(13);expect(plan.participantIds).toHaveLength(12);expect(new Set([plan.viewpointId,...plan.participantIds]).size).toBe(13);
+  });
+  it('does not substitute nearby roles for an explicitly selected or deliberately empty cast',()=>{
+    const {world,estate,barn,silas}=homestead();
+    world.edges=world.edges.filter(e=>e.sourceId!==silas.id);
+    expect(scenePlan(world,base(),silas.id)).toMatchObject({locationId:estate.id,viewpointId:silas.id,participantIds:[]});
+    expect(scenePlan(world,base(),barn.id,{...base(),locationId:barn.id})).toMatchObject({locationId:barn.id,viewpointId:null,participantIds:[]});
+    expect(nearbySceneCast(world,null)).toEqual([]);expect(nearbySceneCast(world,'missing')).toEqual([]);
+    expect(withNearbySceneCast(world,{...base(),locationId:'missing'})).toEqual({...base(),locationId:'missing'});
   });
 });

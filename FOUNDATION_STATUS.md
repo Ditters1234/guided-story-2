@@ -2,6 +2,12 @@
 
 Updated October 30, 2026. Desktop/storage foundation and a bounded world → passage → historical state → fork authoring loop. This is not the completed product or a release-ready application.
 
+## November 5 empty-cast continuity checkpoint
+
+- An empty-cast plan could send named narration instructions without the corresponding character records. New plans can select nearby cast through a bounded physical search. Saved drafts expose **Use nearby cast**, and generation pauses when explicit guidance names an existing character outside the captured scene context. A selected reference supplies starting facts and direct inventory without requiring an appearance.
+- An isolated local-model probe confirmed that the empty-cast request stopped before submission. After selecting the cast, an initial sample still moved the secondary character off-page. With the revised first-appearance instruction, the next 31-second sample showed Silas in the Main House and Elara in the Yard, then showed both entering the Barn. This sample checks placement in the prose. Canonical placement remained unchanged.
+- **306 native tests passed** (14 probes ignored by default), and **94 frontend tests passed** with a clean Svelte check. The Story UI, using fictional mocked IPC in headless Edge, kept Scene settings open and saved the suggested cast while preserving focus, prose and world state at 1,440 × 940/100% text and 1,000 × 720/140% text.
+
 ## October 30 separated-cast continuity checkpoint
 
 - Reproduced the reported House/Yard/Barn contradiction with an isolated fictional local-model probe: the previous request opened with both people in the Barn. The earlier handoff probe had both characters already together and did not cover this. A named summary alone still misplaced one person, so the final request also puts actual starting positions beside character profiles and labels scene-plan location/participants as intent.

@@ -272,3 +272,117 @@ fn shared_deep_placement_paths_are_sent_once() {
         .iter()
         .all(|p| p["relativeToFocus"] == "elsewhere"));
 }
+
+#[test]
+fn empty_cast_named_by_guidance_blocks_before_job_start_and_explicit_references_supply_facts() {
+    let (_dir, p, mut plan) = homestead();
+    let original = p.view().unwrap();
+    let mut w = original.world;
+    let silas = plan.viewpoint_id.clone().unwrap();
+    let elara = plan.participant_ids[0].clone();
+    crate::ai_context::tests::note(
+        &mut w,
+        "Narration style",
+        "Keep Silas's restrained manner and Elara’s quiet observations.",
+        AiContextRole::Instructions,
+        vec![TextPromptTask::Passage],
+    );
+    let jacket = node(&w, "core.wearable-item", "Canvas jacket");
+    let jacket_id = jacket.id.clone();
+    w.nodes.push(jacket);
+    w.edges.push(WorldEdge {
+        id: id(),
+        type_id: "core.worn-by".into(),
+        source_id: jacket_id,
+        target_id: silas.clone(),
+        description: String::new(),
+        properties: BTreeMap::new(),
+    });
+    p.commit(0, id(), original.title, w).unwrap();
+    let before = p.view().unwrap();
+    plan.viewpoint_id = None;
+    plan.participant_ids.clear();
+    plan.reference_ids.clear();
+    let key = id();
+    let mut edit = edits(&p, "");
+    edit.plan = plan;
+    p.save_passage(&key, 0, edit).unwrap();
+    let error = p
+        .start_passage(&key, 1, before.revision, false, &settings())
+        .err()
+        .expect("unscoped cast should block narration");
+    assert!(
+        error.contains("Silas Thorne") && error.contains("Elara Vane"),
+        "{error}"
+    );
+    assert_eq!(p.read_passage_draft(&key).unwrap().version, 1);
+    assert_eq!(
+        p.read_passage_draft(&key).unwrap().stage,
+        PassageStage::Draft
+    );
+    assert_eq!(p.view().unwrap().world, before.world);
+    let mut view = p.passage_view(&key, &settings()).unwrap();
+    view.edits.plan.reference_ids = vec![silas, elara];
+    p.save_passage(&key, view.version, view.edits).unwrap();
+    let ready = p.passage_view(&key, &settings()).unwrap();
+    let prepared = p
+        .start_passage(&key, ready.version, before.revision, false, &settings())
+        .unwrap();
+    let input: Value = serde_json::from_str(&prepared.user).unwrap();
+    assert_eq!(
+        input["startingState"]["people"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        input["startingState"]["openingFacts"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(input["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["name"] == "Canvas jacket"));
+    assert_eq!(
+        person(&input["startingState"], "Silas Thorne")["selectedAs"],
+        "reference"
+    );
+    assert_eq!(
+        person(&input["startingState"], "Silas Thorne")["currentPlace"]["name"],
+        "Main House"
+    );
+    assert_eq!(
+        person(&input["startingState"], "Elara Vane")["currentPlace"]["name"],
+        "Yard"
+    );
+    assert_eq!(p.view().unwrap().world, before.world);
+}
+
+#[test]
+fn setting_only_narration_is_allowed_without_named_cast() {
+    let (_dir, p, mut plan) = homestead();
+    plan.viewpoint_id = None;
+    plan.participant_ids.clear();
+    let key = id();
+    let mut edit = edits(&p, "");
+    edit.plan = plan;
+    p.save_passage(&key, 0, edit).unwrap();
+    let prepared = p.start_passage(&key, 1, 0, false, &settings()).unwrap();
+    let input: Value = serde_json::from_str(&prepared.user).unwrap();
+    assert!(input["startingState"]["people"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    p.finish_passage(
+        &key,
+        false,
+        Ok("Rain rattled on the empty Barn's roof.".into()),
+        false,
+        false,
+        &settings(),
+    )
+    .unwrap();
+    assert_eq!(p.view().unwrap().revision, 0);
+}

@@ -3,7 +3,7 @@
   import {commands,unwrap} from './native';
   import {PassageSession} from './passage-session.svelte';
   import {diffProse} from './prose-diff';
-  import {scenePlan,sceneStartingPositions} from './scene-plan';
+  import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast} from './scene-plan';
   import {parseEffects} from './effects-ui';
   import EffectsReviewEditor from './EffectsReviewEditor.svelte';
   import KnowledgeContext from './KnowledgeContext.svelte';
@@ -29,6 +29,7 @@
   function registerMemoryDetails(panel?:Snippet){memoryDetails=panel;}
   async function openMemory(){try{await session.flush();mode='memory';memoryOpened=true;onHistory(null,'');}catch(caught){error=describe(caught);}}
   let loaded=$state(false),working=$state(false),error=$state(''),referenceSearch=$state('');
+  let sceneSettingsOpen=$state<boolean|null>(null);
   let versions=$state<PassageVersions|null>(null),versionsError=$state('');
   const selection=$derived(index.passages.findIndex((p)=>p.id===reading?.passage.id));
   const blocked=$derived(working||session.running);
@@ -37,6 +38,8 @@
   const replacing=$derived(session.view?.revision?.kind==='events');
   const actors=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.character']));
   const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
+  const noCastSelected=$derived(!!session.value&&!session.value.plan.viewpointId&&!session.value.plan.participantIds.length);
+  const nearbyCast=$derived(noCastSelected&&session.value?nearbySceneCast(sceneWorld,session.value.plan.locationId):[]);
   const offsiteActors=$derived(session.value?.plan.locationId?sceneStartingPositions(sceneWorld,session.value.plan).filter(p=>p.status==='elsewhere'||p.status==='unplaced'):[]);
   const textChanges=$derived(diffProse(session.view?.revision?.prose??'',session.value?.prose??''));
   const wordCount=$derived(session.value?.prose.trim().split(/\s+/).filter(Boolean).length??0);
@@ -104,6 +107,7 @@
     const result=unwrap(await commands.acceptPassage(project.storyId,session.id,session.view.version));await onAccept(result);await session.refresh();await refreshIndex();await read(result.passageId);
   }catch(caught){error=describe(caught);try{await session.refresh();await refreshIndex();}catch{}}finally{working=false;}}
   function references(id:string,participant=false){if(!session.value)return;const key=participant?'participantIds':'referenceIds';const list=session.value.plan[key];session.value.plan[key]=list.includes(id)?list.filter((v)=>v!==id):[...list,id];session.touch();}
+  function useNearbyCast(){if(!session.value||blocked)return;sceneSettingsOpen=true;session.value.plan=withNearbySceneCast(sceneWorld,$state.snapshot(session.value.plan));session.touch();}
   onMount(()=>{onPanels(contentsPanel,detailsPanel);let disposed=false;void(async()=>{try{await refreshIndex();const unfinished=drafts.find((d)=>d.stage!=='accepted');if(unfinished)await openDraft(unfinished.id);else if(index.passages.length)await read(index.passages.at(-1)!.id);else await fresh();if(!disposed)loaded=true;}catch(caught){error=describe(caught);}})();
     const poll=setInterval(()=>{if(session.running)void session.refresh().catch((caught)=>{error=describe(caught);});},900);
     return()=>{disposed=true;clearInterval(poll);session.dispose();onPanels();};
@@ -150,12 +154,13 @@
         <button class="secondary-button" onclick={()=>{void validate();}}>Validate wording</button>
       {:else}
       {#if replacing}<p class="field-help">Uses this passage's saved before-world. Acceptance replaces its events and keeps the original version.</p>{/if}
-      <details class="scene-settings" open={!hasProse}><summary>Scene settings</summary>
+      <details class="scene-settings" open={sceneSettingsOpen??!hasProse} ontoggle={e=>{const open=e.currentTarget.open;if(open!==(sceneSettingsOpen??!hasProse))sceneSettingsOpen=open;}}><summary>Scene settings</summary>
       <details class="chapter-plan" open={!session.value.prose}><summary>Chapter plan</summary><label class="field">Chapter title<input bind:value={session.value.plan.chapterTitle} oninput={()=>session.touch()} maxlength={200} /></label><label class="field">Chapter direction<textarea bind:value={session.value.plan.chapterPlan} oninput={()=>session.touch()} rows={3} maxlength={4000}></textarea></label></details>
       <label class="field">Viewpoint<select bind:value={session.value.plan.viewpointId} onchange={()=>session.touch()}><option value={null}>Ensemble / unspecified</option>{#each actors as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
       <label class="field">Claim perspective<select value={session.value.plan.knowledgePerspective??'viewpoint'} onchange={e=>{session.value!.plan.knowledgePerspective=e.currentTarget.value==='author'?'author':undefined;session.touch();}}><option value="viewpoint">Viewpoint / reader</option><option value="author">Author / omniscient</option></select></label>
       {#if sceneWorld.nodes.some(n=>n.components['core.claim'])}<KnowledgeContext world={sceneWorld} plan={session.value.plan}/>{/if}
       <label class="field">Scene focus<select bind:value={session.value.plan.locationId} onchange={()=>session.touch()}><option value={null}>Unspecified</option>{#each places as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
+      {#if noCastSelected}<p class="field-help">No viewpoint or participants selected. Choose who this passage follows.{#if nearbyCast.length} <button class="text-action" title={nearbyCast.map(n=>n.name).join(', ')} onclick={useNearbyCast}>Use nearby cast ({nearbyCast.length})</button>{/if}</p>{/if}
       {#if offsiteActors.length}<p class="story-warning" role="status">{offsiteActors.map(p=>`${p.name} — ${p.placeName??'location not established'}`).join('; ')}. Show any arrival before placing them in this scene.</p>{/if}
       <details class="scene-resources"><summary>Participants & references</summary><input aria-label="Find scene resources" placeholder="Find a world node…" bind:value={referenceSearch} />
         <div class="scene-resource-list">{#each sceneWorld.nodes.filter((n)=>n.name.toLowerCase().includes(referenceSearch.toLowerCase())).slice(0,100) as node}<div><span>{node.name}</span>{#if node.components['core.character']&&node.id!==session.value.plan.viewpointId}<label><input type="checkbox" checked={session.value.plan.participantIds.includes(node.id)} disabled={session.value.plan.participantIds.length>=12&&!session.value.plan.participantIds.includes(node.id)} onchange={()=>references(node.id,true)} />Participant</label>{/if}<label><input type="checkbox" checked={session.value.plan.referenceIds.includes(node.id)} disabled={session.value.plan.referenceIds.length>=12&&!session.value.plan.referenceIds.includes(node.id)} onchange={()=>references(node.id)} />Reference</label></div>{/each}</div>
