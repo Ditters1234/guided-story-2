@@ -12,6 +12,8 @@ Included data: current head, retained revisions/worlds, accepted passages and ea
 
 Global appearance, connection profiles, encrypted keys, locks, temporary writes, unrelated files and reference checkouts are excluded. Recognized project directories use an explicit allowlist; unexpected files inside them fail validation. The result reports omitted unrelated entries. Saved jobs retain their original endpoint, workflow, prompt ID and provider provenance as story data. Backups are unencrypted local copies containing the story's private notes, drafts and retained model output.
 
+Opening or recovering a story removes abandoned atomic-save fragments only after validating the saved story and while project operations are idle. Cleanup accepts only ordinary `.UUID.tmp` files in the project root and managed data folders; it leaves unrelated folders, links, recovery records and incomplete backup/restore stages alone. A cleanup failure becomes an opening warning and can be retried on reopen. New commits reuse an unchanged current-world snapshot when its exact stored checksum matches. Unchanged passage, memory and image-prompt autosaves keep their existing candidate version and review state without adding archive copies. Previously published history and exported backups are preserved.
+
 Full restore retains story/local IDs and operation receipts so saved work remains valid, in a separate physical folder. **Fork after this passage** remains the distinct action for a new story identity and trimmed history. Switching physical folders resets the UI session even when story IDs match.
 
 ## Validation and interruption
@@ -24,7 +26,7 @@ Retry in the same dialog keeps the operation ID and captured revision/fingerprin
 
 ## Bounds and evidence
 
-The prototype allows 25,000 included files and less than 4 GiB total, a 16 MiB per-record read bound, and existing 8 MiB/4096-pixel image bounds. Broken required historical records or unsupported versions block transfer without changing the source. Progress shows a busy state without a byte meter or in-app cancellation. Keep the app open until completion. Compression/single-file archives, prose-only export, scheduled backups, cleanup, migrations and large-library/release power-loss testing remain separate work.
+The prototype allows 25,000 included files and less than 4 GiB total, a 16 MiB per-record read bound, and existing 8 MiB/4096-pixel image bounds. Broken required historical records or unsupported versions block transfer without changing the source. Progress shows a busy state without a byte meter or in-app cancellation. Keep the app open until completion. Compression/single-file archives, prose-only export, scheduled backups, broader history/media pruning, migrations and large-library/release power-loss testing remain separate work.
 
 Native fixtures verify independent roundtrip with custom nodes, old wording, memory, images, invalid saved forms and queued jobs; changed/missing/extra files; reviewed-fingerprint changes; path/size/schema/identity guards; occupied/nested/locked destinations; safe temporary-write cleanup and idempotent replay. Six actual process exits cover copy, validation and publication for export and restore. Desktop checks cover the Project menu and export dialog at 120% text. The full folder-picker/restore/open UI walkthrough remains pending.
 

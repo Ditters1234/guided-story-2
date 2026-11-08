@@ -351,7 +351,7 @@ pub(crate) fn scrub_references(value: &mut serde_json::Value, excluded: &BTreeSe
         _ => (),
     }
 }
-pub(crate) fn project_records(context: &World, input: &mut serde_json::Value) {
+pub(crate) fn project_records(context: &World, input: &mut serde_json::Value, planning: bool) {
     let claim_ids: BTreeSet<_> = context
         .nodes
         .iter()
@@ -362,13 +362,13 @@ pub(crate) fn project_records(context: &World, input: &mut serde_json::Value) {
         .nodes
         .iter()
         .filter(|n| !is_claim(n))
-        .map(|n| narrative_record(context, n))
+        .map(|n| crate::projection::story_record(context, n, planning))
         .collect::<Vec<_>>());
     input["links"] = json!(context
         .edges
         .iter()
         .filter(|e| !claim_ids.contains(&e.source_id) && !claim_ids.contains(&e.target_id))
-        .map(|e| narrative_link(context, e))
+        .map(|e| crate::projection::story_link(context, e, planning))
         .collect::<Vec<_>>());
     input["sources"] = json!(context
         .source_annotations

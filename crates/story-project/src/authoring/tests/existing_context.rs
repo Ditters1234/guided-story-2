@@ -131,7 +131,11 @@ fn groups_discover_existing_names_owner_outfit_and_nested_inventory_without_manu
                 .contains("UNRELATED_FULL_TEXT_MUST_NOT_BE_SENT")
     );
     assert!(prepared.context.nodes.is_empty());
-    assert!(prepared.system.contains("Reuse these existing people"));
+    assert_eq!(input["operation"]["kind"], "group");
+    assert!(input["operation"]["task"]
+        .as_str()
+        .unwrap()
+        .contains("Reuse supplied existing identities"));
     let mut custom = w.clone();
     custom.node_types.push(NodeTypeDefinition {
         id: "custom.supply".into(),

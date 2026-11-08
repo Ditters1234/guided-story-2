@@ -8,8 +8,10 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
 };
-mod creation;
+pub(crate) mod creation;
 mod existing_context;
+mod prompt_contract;
+mod references;
 pub use existing_context::*;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
@@ -154,7 +156,7 @@ pub struct PreparedAuthoring {
     pub user: String,
     pub response_schema: Value,
     pub fingerprint: String,
-    previous_placement_guide_fingerprint: Option<String>,
+    previous_guide_fingerprints: Vec<String>,
     pub estimated_input_tokens: u32,
     pub context: World,
     pub existing_context: Option<ExistingAuthoringContext>,
@@ -163,8 +165,9 @@ pub struct PreparedAuthoring {
 impl PreparedAuthoring {
     fn matches_source(&self, record: &AuthoringRecord) -> bool {
         (self.fingerprint == record.source_fingerprint
-            || self.previous_placement_guide_fingerprint.as_ref()
-                == Some(&record.source_fingerprint))
+            || self
+                .previous_guide_fingerprints
+                .contains(&record.source_fingerprint))
             && self.existing_context == record.existing_context
     }
 }
@@ -646,7 +649,34 @@ pub fn prepare_authoring(
         effective_request.direction="Develop the checked fields from the selected records, their types and supplied context. Fill missing details and generate a fresh version of populated checked fields. Existing descriptions are not required. Keep identity, unchecked fields, node capabilities and relationship types/endpoints unchanged. Return exactly the selected node targets and selected relationship targets. For notes, rules or instruction profiles, write useful content for their stated purpose; leave physical appearance empty when it is not relevant.".into();
     }
     // Include reusable type definitions; no unselected world records or implicit map expansion.
-    let mut input = json!({"request":effective_request,"records":context.nodes,"links":context.edges,"nodeTypes":model_schema.node_types,"capabilities":creation::wire_capabilities(&model_schema),"relationships":model_schema.relation_types,"sources":context.source_annotations,"responseBudget":creation::budget(&model_schema,request,settings.max_tokens)});
+    let formal_schema = settings.structured_output == StructuredOutput::Schema
+        || request.mode == AuthoringMode::Revise;
+    let records: Vec<_> = context
+        .nodes
+        .iter()
+        .map(|node| {
+            if targets.contains(&node.id) {
+                json!(node)
+            } else {
+                crate::prompt_context::reference_node(&context, node)
+            }
+        })
+        .collect();
+    let node_types: Vec<_> = model_schema
+        .node_types
+        .iter()
+        .map(|preset| {
+            if formal_schema {
+                json!({"id":preset.id,"name":preset.name,"description":preset.description})
+            } else {
+                json!(preset)
+            }
+        })
+        .collect();
+    let mut input = json!({"request":effective_request,"records":records,"links":context.edges,"nodeTypes":node_types,"capabilities":crate::prompt_context::capabilities(&model_schema, formal_schema),"relationships":crate::prompt_context::relationships(&model_schema, formal_schema),"sources":context.source_annotations,"responseBudget":creation::budget(&model_schema,request,settings.max_tokens)});
+    input["operation"] = prompt_contract::operation(request);
+    input["recordPermissions"] = prompt_contract::permissions(&context, request);
+    input["catalogueRules"] = json!("fieldDefaults supplies shared field metadata. responseSchema or response_format supplies types, required fields and choices when omitted here. Empty components declare capabilities; absent optional reference values are unspecified.");
     if request.mode == AuthoringMode::Create {
         input["creationGuide"] = creation::guide(&model_schema, request);
         input["creationIntent"] = json!(if request.type_id.is_some() {
@@ -656,11 +686,11 @@ pub fn prepare_authoring(
         } else {
             "world"
         });
-        input["allowedNewTypeIds"] = if request.creation_type_ids.is_empty() {
-            json!(request.group_type_id.as_ref().map(|id| vec![id]))
-        } else {
-            json!(request.creation_type_ids)
-        };
+        input["allowedNewTypeIds"] = json!(model_schema
+            .node_types
+            .iter()
+            .map(|t| &t.id)
+            .collect::<Vec<_>>());
     }
     let character_root = request
         .type_id
@@ -693,16 +723,18 @@ pub fn prepare_authoring(
     }
     let included = resolve_ai_context(&context_source, TextPromptTask::World)?;
     append_ai_context(&included, &mut system, &mut input);
-    let schema_bytes = if settings.structured_output == StructuredOutput::Schema {
-        response_schema.to_string().len()
-    } else {
-        input["responseSchema"] = if request.mode == AuthoringMode::Create {
-            creation::prompt_schema(&model_schema, request)
-        } else {
-            response_schema.clone()
-        };
-        0
-    };
+    crate::prompt_context::compact_envelope(&mut input);
+    let unbound_schema = response_schema.clone();
+    let initial_scope = references::scope(world, &model_schema, &context, request, None);
+    references::bind(
+        &initial_scope,
+        &model_schema,
+        request,
+        settings,
+        &mut input,
+        &mut response_schema,
+    );
+    let mut schema_bytes = references::schema_bytes(&response_schema, settings);
     let mut existing_context = None;
     if request.mode == AuthoringMode::Create
         && request.creation_scope == Some(CreationScope::Group)
@@ -713,15 +745,44 @@ pub fn prepare_authoring(
         if required_tokens.saturating_add(settings.max_tokens) > settings.context_tokens {
             return Err(format!("Required context and output exceed the configured token budget. Included AI context: {}. Shorten included nodes or narrow references/schema; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
         }
-        let available = (settings
+        let mut available = (settings
             .context_tokens
             .saturating_sub(settings.max_tokens)
             .saturating_sub(256) as usize)
             .saturating_mul(3)
-            .saturating_sub(system.len() + input.to_string().len() + schema_bytes + 32);
-        let (selection, payload) = existing_context::group_context(world, request, available)?;
-        input["existingWorld"] = payload;
-        existing_context = Some(selection);
+            .saturating_sub(system.len() + input.to_string().len() + schema_bytes + 32)
+            .min(24_000);
+        let required_input = input.clone();
+        // Indexed choices enlarge reference schemas. Rebudget optional context
+        // locally before any provider request, retaining explicit context whole.
+        for _ in 0..3 {
+            let (selection, payload) = existing_context::group_context(world, request, available)?;
+            input = required_input.clone();
+            input["existingWorld"] = payload;
+            response_schema = unbound_schema.clone();
+            let scope =
+                references::scope(world, &model_schema, &context, request, Some(&selection));
+            references::bind(
+                &scope,
+                &model_schema,
+                request,
+                settings,
+                &mut input,
+                &mut response_schema,
+            );
+            schema_bytes = references::schema_bytes(&response_schema, settings);
+            existing_context = Some(selection);
+            let allowed_bytes = settings
+                .context_tokens
+                .saturating_sub(settings.max_tokens + 256) as usize
+                * 3;
+            let excess = (system.len() + input.to_string().len() + schema_bytes)
+                .saturating_sub(allowed_bytes);
+            if excess == 0 {
+                break;
+            }
+            available = available.saturating_sub(excess + 32);
+        }
     }
     let mut user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
     let estimate = |user: &str| ((system.len() + user.len() + schema_bytes) / 3 + 256) as u32;
@@ -738,26 +799,50 @@ pub fn prepare_authoring(
             settings,
         ))
     };
-    let mut previous_placement_guide_fingerprint = None;
+    let mut previous_guide_fingerprints = Vec::new();
     if input["creationIntent"] == "world" {
-        input["creationGuide"]["physicalPlacement"] = creation::placement_guide(&model_schema);
-        let guided = serde_json::to_string(&input).map_err(|e| e.to_string())?;
-        let estimate = estimate(&guided);
-        if estimate.saturating_add(settings.max_tokens) <= settings.context_tokens {
-            // This extra transport guidance changes no scope or validation rules.
-            // Retain the exact pre-guide hash so saved world proposals can be repaired.
-            previous_placement_guide_fingerprint = Some(fingerprint_for(&user)?);
+        for (key, guide) in [
+            (
+                "physicalPlacement",
+                creation::placement_guide(&model_schema),
+            ),
+            ("startingSituation", creation::starting_situation_guide()),
+        ] {
+            input["creationGuide"][key] = guide;
+            let guided = serde_json::to_string(&input).map_err(|e| e.to_string())?;
+            let guided_tokens = estimate(&guided);
+            if guided_tokens.saturating_add(settings.max_tokens) > settings.context_tokens {
+                break;
+            }
+            // These additions only guide generation. Match earlier requests at
+            // the same source/settings so their retained candidates can still be reviewed.
+            previous_guide_fingerprints.push(fingerprint_for(&user)?);
             user = guided;
-            estimated_input_tokens = estimate;
+            estimated_input_tokens = guided_tokens;
         }
     }
     let fingerprint = fingerprint_for(&user)?;
+    let submitted: Value = serde_json::from_str(&user).map_err(|e| e.to_string())?;
+    prompt_contract::lint(
+        &context,
+        &model_schema,
+        request,
+        &submitted,
+        &response_schema,
+        &references::scope(
+            world,
+            &model_schema,
+            &context,
+            request,
+            existing_context.as_ref(),
+        ),
+    )?;
     Ok(PreparedAuthoring {
         system,
         user,
         response_schema,
         fingerprint,
-        previous_placement_guide_fingerprint,
+        previous_guide_fingerprints,
         estimated_input_tokens,
         context,
         existing_context,
@@ -862,21 +947,69 @@ fn clothing_example(world: &World) -> Option<Value> {
         nodes.push(n);
     }
     let edges:Vec<_>=nodes.iter().map(|n|json!({"id":format!("{}-worn",n.id),"typeId":"core.worn-by","sourceId":n.id,"targetId":"new:wearer","description":""})).collect();
+    let records: Vec<_> = nodes
+        .iter()
+        .map(|node| {
+            let mut record = json!(node);
+            let markers = creation::optional_markers(world, preset);
+            if !markers.is_empty() {
+                record["capabilityFlags"] = json!(markers
+                    .into_iter()
+                    .map(|id| (id, false))
+                    .collect::<BTreeMap<_, _>>());
+            }
+            record
+        })
+        .collect();
     Some(
-        json!({"nodes":nodes,"edges":edges,"note":"A complete practical starting outfit, not one example garment. Adapt every piece to the story. new:wearer stands for an actual proposed person or supplied character ID; never create this placeholder."}),
+        json!({"records":records,"edges":edges,"wearerReference":"new:wearer","note":"Partial example: three separate garments covering upper body, lower body and feet. Put records in their matching preset group in the response. Replace new:wearer with an actual proposed or supplied person; never create the placeholder. Adapt the designs to the premise."}),
     )
 }
-fn proposal_warnings(candidate: &NodeCandidate, request: &AuthoringRequest) -> Vec<String> {
+fn proposal_warnings(
+    candidate: &NodeCandidate,
+    request: &AuthoringRequest,
+    source: &World,
+) -> Vec<String> {
     if request.mode != AuthoringMode::Create || !request.bundle {
         return vec![];
     }
-    candidate.nodes.iter().filter(|n|n.components.contains_key("core.character")).filter(|n|!candidate.edges.iter().any(|e|e.type_id=="core.worn-by"&&e.target_id==n.id)).map(|n|{
+    let characters = candidate
+        .nodes
+        .iter()
+        .filter(|n| n.components.contains_key("core.character"));
+    let mut warnings: Vec<_> = characters.clone().filter(|n|!candidate.edges.iter().any(|e|e.type_id=="core.worn-by"&&e.target_id==n.id)).map(|n|{
         if request.group_type_id.is_some() {
             format!("{} has no linked worn items. Add separate clothing in an item group afterward, or use a mixed-type group. Keep this if intentional.",n.name)
         }else{
             format!("{} has no linked worn items. Add outfit items before Apply, or keep this if intentional. Clothing written only in a character description is not an item-based outfit.",n.name)
         }
-    }).collect()
+    }).collect();
+    if request.type_id.is_none()
+        && request.creation_scope != Some(CreationScope::Group)
+        && candidate
+            .nodes
+            .iter()
+            .chain(
+                source
+                    .nodes
+                    .iter()
+                    .filter(|n| request.context_ids.contains(&n.id)),
+            )
+            .any(|n| n.components.contains_key("core.place"))
+    {
+        for person in characters.filter(|n| {
+            !candidate
+                .edges
+                .iter()
+                .any(|e| e.type_id == "core.present-at" && e.source_id == n.id)
+        }) {
+            warnings.push(format!(
+                "{} has no starting location. Add a Present at connection to the place where they begin, or leave their location open if intentional.",
+                person.name
+            ));
+        }
+    }
+    warnings
 }
 fn alias(id: &str) -> bool {
     id.strip_prefix("new:").is_some_and(|s| {
@@ -1688,7 +1821,7 @@ impl Project {
             vec![]
         };
         let mut warnings = serde_json::from_str::<NodeCandidate>(&record.candidate_text)
-            .map(|c| proposal_warnings(&c, &record.request))
+            .map(|c| proposal_warnings(&c, &record.request, &source))
             .unwrap_or_default();
         if record.request.creation_scope == Some(CreationScope::Group) {
             if let Ok(candidate) = serde_json::from_str::<NodeCandidate>(&record.candidate_text) {

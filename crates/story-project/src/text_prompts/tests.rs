@@ -72,7 +72,7 @@ fn legacy_settings_keep_their_serialized_shape_and_prompt_edits_are_bounded() {
     }
     assert!(!dir.path().join("llm-connection.json").exists());
     let templates = original.prompt_settings_view().templates;
-    assert_eq!(templates.len(), 6);
+    assert_eq!(templates.len(), 7);
     for t in &templates {
         assert_eq!(t.text, original.system_prompt(t.id));
         assert!(!t.text.is_empty());

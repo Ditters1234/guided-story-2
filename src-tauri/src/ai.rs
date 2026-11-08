@@ -17,6 +17,7 @@ pub(crate) enum TextJobKind {
     Effects,
     Memory,
     ImagePrompt,
+    Planning,
 }
 #[derive(Clone)]
 pub(crate) struct Outcome {
@@ -146,9 +147,10 @@ pub(crate) fn finish_outcome(p: &Project, id: &str, outcome: &Outcome) -> Result
             outcome.cancelled,
             outcome.incomplete,
         ),
-        kind => p.finish_passage(
+        TextJobKind::Planning => Err("Plan suggestions are reviewed in the composer.".into()),
+        TextJobKind::Narration | TextJobKind::Effects => p.finish_passage(
             id,
-            kind == TextJobKind::Effects,
+            outcome.kind == TextJobKind::Effects,
             outcome.text.clone(),
             outcome.cancelled,
             outcome.incomplete,
@@ -164,6 +166,29 @@ pub(crate) struct TextJob {
     pub output_tokens: u32,
     pub demo: Result<String, String>,
 }
+pub(crate) async fn request_text(
+    settings: &LlmConnection,
+    key: Option<&str>,
+    job: &TextJob,
+) -> Result<CompletionText, String> {
+    if settings.provider == TextProvider::Demo {
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        job.demo.clone().map(|text| CompletionText {
+            text,
+            incomplete: false,
+        })
+    } else {
+        complete_text(
+            settings,
+            key,
+            &job.system,
+            &job.user,
+            job.schema.as_ref(),
+            job.output_tokens,
+        )
+        .await
+    }
+}
 pub(crate) fn spawn_text_job(
     app: tauri::AppHandle,
     id: String,
@@ -174,25 +199,7 @@ pub(crate) fn spawn_text_job(
     cancelled: oneshot::Receiver<()>,
 ) {
     tauri::async_runtime::spawn(async move {
-        let generate = async {
-            if settings.provider == TextProvider::Demo {
-                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                job.demo.clone().map(|text| CompletionText {
-                    text,
-                    incomplete: false,
-                })
-            } else {
-                complete_text(
-                    &settings,
-                    key.as_deref(),
-                    &job.system,
-                    &job.user,
-                    job.schema.as_ref(),
-                    job.output_tokens,
-                )
-                .await
-            }
-        };
+        let generate = request_text(&settings, key.as_deref(), &job);
         let (text, was_cancelled, incomplete) = tokio::select! {biased;_=cancelled=>(Err("Request cancelled. Saved prompts and outputs were kept.".into()),true,false),reply=generate=>match reply{Ok(reply)=>(Ok(reply.text),false,reply.incomplete),Err(error)=>(Err(error),false,false)}};
         let outcome = Outcome {
             text,

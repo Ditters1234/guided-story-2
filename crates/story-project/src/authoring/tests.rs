@@ -5,8 +5,10 @@ mod creation_scopes;
 mod deletion;
 mod existing_context;
 mod foundation_budget;
+mod prompt_contracts;
 mod protection_schema;
 mod quality_probe;
+mod reference_choices;
 mod relationships;
 mod typed_bundle;
 fn id() -> String {
@@ -78,8 +80,13 @@ fn a_saved_world_proposal_can_repair_reversed_places_and_conflicting_clothing() 
         .as_str()
         .unwrap()
         .contains("one worn-by edge"));
+    assert_eq!(prepared.previous_guide_fingerprints.len(), 2);
     let mut record = p.read_authoring(&key).unwrap();
-    record.source_fingerprint = prepared.previous_placement_guide_fingerprint.unwrap();
+    for fingerprint in &prepared.previous_guide_fingerprints {
+        record.source_fingerprint.clone_from(fingerprint);
+        assert!(prepared.matches_source(&record));
+    }
+    record.source_fingerprint = prepared.previous_guide_fingerprints[0].clone();
     p.write_authoring(&record).unwrap();
 
     let mut candidate = NodeCandidate {
@@ -161,6 +168,10 @@ fn a_saved_world_proposal_can_repair_reversed_places_and_conflicting_clothing() 
     .unwrap();
     let view = p.authoring_view(&key, &settings()).unwrap();
     assert!(view.error.is_empty(), "{}", view.error);
+    assert!(view
+        .warnings
+        .iter()
+        .any(|w| w.contains("Mara Flynn has no starting location")));
     assert_eq!(view.raw_response, original);
     assert_eq!(p.view().unwrap().world, world);
     let applied = p.apply_authoring(&key, view.version, &settings()).unwrap();
@@ -214,24 +225,21 @@ fn creation_contract_and_clothing_pattern_support_custom_items_through_image_pre
         .as_u64()
         .is_some_and(|n| (10..=20).contains(&n)));
     let example = &input["clothingExample"];
-    let garments: Vec<WorldNode> = serde_json::from_value(example["nodes"].clone()).unwrap();
-    assert!(garments.iter().all(|g| g.type_id == "custom.possession"));
+    let garments = example["records"].as_array().unwrap().clone();
+    assert!(garments.iter().all(|g| g["typeId"] == "custom.possession"));
     assert_eq!(garments.len(), 3);
     let person = proposed_node(&world, "core.character", "new:wearer", "Nora Hale");
+    let mut packet = json!({"nodes":{},"edges":example["edges"]});
+    for preset in &world.node_types {
+        packet["nodes"][&preset.id] = json!([]);
+    }
+    packet["nodes"]["core.character"] = json!([person]);
+    packet["nodes"]["custom.possession"] = json!(garments);
     let rid = id();
     p.save_authoring_draft(&rid, 0, req).unwrap();
     p.start_authoring(&rid, 1, 1, &settings()).unwrap();
-    p.finish_authoring(
-        &rid,
-        Ok(serde_json::to_string(&NodeCandidate {
-            nodes: std::iter::once(person).chain(garments).collect(),
-            edges: serde_json::from_value(example["edges"].clone()).unwrap(),
-        })
-        .unwrap()),
-        false,
-        false,
-    )
-    .unwrap();
+    p.finish_authoring(&rid, Ok(packet.to_string()), false, false)
+        .unwrap();
     let view = p.authoring_view(&rid, &settings()).unwrap();
     assert!(view.error.is_empty(), "{}", view.error);
     assert!(view.warnings.is_empty());
@@ -304,7 +312,7 @@ fn review_reports_missing_outfits_but_preserves_intentional_unclothed_choices() 
         group_type_id: None,
         ..request()
     };
-    assert!(proposal_warnings(&candidate, &single).is_empty());
+    assert!(proposal_warnings(&candidate, &single, &world).is_empty());
 }
 #[test]
 fn revised_nodes_keep_their_actual_capabilities_without_reintroducing_removed_presets() {

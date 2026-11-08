@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 const MAX_FILES: usize = 25_000;
 const MAX_BYTES: u64 = u32::MAX as u64;
-const FOLDERS: &[&str] = &[
+pub(super) const FOLDERS: &[&str] = &[
     "revisions",
     "worlds",
     "stories",

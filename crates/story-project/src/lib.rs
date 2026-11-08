@@ -12,6 +12,7 @@ mod operations;
 mod preferences;
 mod project_session;
 mod projection;
+mod prompt_context;
 mod provider;
 mod sources;
 mod store;

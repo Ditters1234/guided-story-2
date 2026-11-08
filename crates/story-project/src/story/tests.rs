@@ -1,9 +1,11 @@
 use super::*;
 use std::process::Command;
 mod ai_context;
+mod chapters;
 mod deletion;
 mod evidence;
 mod link_review;
+mod planning;
 mod prompts;
 mod relationships;
 mod review;

@@ -205,7 +205,8 @@ fn latest_event_replacement_uses_before_world_excludes_old_prose_and_keeps_passa
         )
         .unwrap();
     assert!(!request.user.contains("handed her field coat"));
-    assert!(request.user.contains("\"recentPassages\":[]"));
+    let input: Value = serde_json::from_str(&request.user).unwrap();
+    assert!(input.get("recentPassages").is_none());
     p.finish_passage(
         &draft,
         false,

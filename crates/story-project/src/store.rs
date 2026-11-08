@@ -13,6 +13,7 @@ use uuid::Uuid;
 const SCHEMA: u32 = 2;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 mod backup;
+mod cleanup;
 pub use backup::*;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -259,6 +260,7 @@ impl Project {
             world,
             receipts,
             None,
+            None,
             |_| Ok(()),
         )?;
         Ok(project)
@@ -470,6 +472,7 @@ impl Project {
             world,
             manifest.receipts,
             story_ref,
+            Some(manifest.world_ref),
             hook,
         )?;
         Ok(CommitResult {
@@ -495,7 +498,10 @@ impl Project {
         };
         let path = self.record_path(folder, &reference)?;
         let temp = write_temp(&path, &bytes)?;
-        publish_new_path(&temp, &path)?;
+        if let Err(error) = publish_new_path(&temp, &path) {
+            let _ = fs::remove_file(&temp);
+            return Err(error);
+        }
         Ok(reference)
     }
 
@@ -507,10 +513,16 @@ impl Project {
         world: World,
         receipts: BTreeMap<String, Receipt>,
         story_ref: Option<RecordRef>,
+        previous_world_ref: Option<RecordRef>,
         hook: impl Fn(&str) -> Result<(), String>,
     ) -> Result<(), String> {
         hook("before-world")?;
-        let world_ref = self.write_record("worlds", &world)?;
+        // Keep the original stored representation/checksum when it matches
+        // exactly. Story-only commits do not need another full world copy.
+        let world_ref = match previous_world_ref {
+            Some(reference) if reference.sha256 == digest(&encode(&world)?) => reference,
+            _ => self.write_record("worlds", &world)?,
+        };
         hook("after-world")?;
         let manifest = Manifest {
             schema_version: SCHEMA,

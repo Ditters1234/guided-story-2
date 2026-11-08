@@ -75,6 +75,7 @@ fn world_group_and_node_contracts_are_distinct_and_group_schemas_honor_custom_ty
         assert_ne!(prepared.fingerprint, prepared_world.fingerprint);
     }
     let mixed = prepare_authoring(&world, &group(None), &settings()).unwrap();
+    let input: Value = serde_json::from_str(&mixed.user).unwrap();
     assert_eq!(
         mixed.response_schema["properties"]["nodes"]["properties"]
             .as_object()
@@ -89,12 +90,11 @@ fn world_group_and_node_contracts_are_distinct_and_group_schemas_honor_custom_ty
             preset.id
         );
     }
-    assert!(
-        mixed.system.contains("creationIntent=group")
-            && mixed
-                .system
-                .contains("Do not invent a person or place just to hold requested items")
-    );
+    assert_eq!(input["operation"]["kind"], "group");
+    assert!(input["operation"]["task"]
+        .as_str()
+        .unwrap()
+        .contains("Do not invent a cast or setting"));
 }
 #[test]
 fn item_groups_attach_to_selected_existing_nodes_without_expanding_or_replacing_the_world() {

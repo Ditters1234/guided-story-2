@@ -1,6 +1,34 @@
 use super::*;
 use crate::media::tests::{accept_passage, fixture, png};
 #[test]
+fn unchanged_image_prompt_autosaves_do_not_accumulate_archives_or_change_review() {
+    let (_dir, p) = fixture();
+    let media = media(&p);
+    let image = ImageConnection::default();
+    let key = proposal(&p, &media, &text(), &image);
+    ready(&p, &key);
+    let view = p.image_prompt_view(&key, &text(), &image).unwrap();
+    let bytes = fs::read(p.prompt_path(&key).unwrap()).unwrap();
+    for _ in 0..3 {
+        p.save_image_prompt(&key, view.version, view.edits.clone())
+            .unwrap();
+    }
+    assert_eq!(fs::read(p.prompt_path(&key).unwrap()).unwrap(), bytes);
+    assert_eq!(
+        fs::read_dir(p.root_path().join("image-prompt-versions"))
+            .unwrap()
+            .count(),
+        1
+    );
+    assert!(
+        p.image_prompt_view(&key, &text(), &image)
+            .unwrap()
+            .can_apply
+    );
+    p.apply_image_prompt(&key, view.version, &text(), &image)
+        .unwrap();
+}
+#[test]
 fn ai_context_is_captured_for_image_assistance_and_only_selected_content_stales_it() {
     let (_dir, p) = fixture();
     let mut current = p.view().unwrap();

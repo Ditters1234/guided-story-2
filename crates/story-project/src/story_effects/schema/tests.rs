@@ -3,6 +3,61 @@ use super::*;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
+
+#[test]
+fn effect_reference_fields_filter_capabilities_and_keep_exact_previous_lists() {
+    let mut world = World::default();
+    world.component_types.push(ComponentDefinition {
+        id: "custom.refs".into(),
+        name: "References".into(),
+        description: String::new(),
+        fields: vec![FieldDefinition {
+            key: "witnesses".into(),
+            label: "Witnesses".into(),
+            kind: FieldKind::NodeRefs,
+            required: false,
+            default_value: PropertyValue::Null,
+            metadata: Some(FieldMetadata {
+                reference_capability: Some("core.character".into()),
+                ..Default::default()
+            }),
+        }],
+    });
+    let mut actor = make(&world, "core.character", &id(), "Mara");
+    let other = make(&world, "core.character", &id(), "Jon");
+    let place = make(&world, "core.place", &id(), "Glasshouse");
+    let unexposed = id();
+    actor.components.insert(
+        "custom.refs".into(),
+        BTreeMap::from([(
+            "witnesses".into(),
+            PropertyValue::NodeRefs(vec![unexposed.clone()]),
+        )]),
+    );
+    world.nodes = vec![actor.clone(), other.clone(), place.clone()];
+    let schema = effects_schema(&world);
+    let record = node_variants(&schema)
+        .iter()
+        .find(|v| {
+            v["properties"]["id"]["enum"]
+                .as_array()
+                .is_some_and(|ids| ids.contains(&json!(actor.id)))
+        })
+        .unwrap();
+    let field =
+        &record["properties"]["components"]["properties"]["custom.refs"]["properties"]["witnesses"];
+    let alternatives = field["anyOf"].as_array().unwrap();
+    assert!(alternatives.contains(&json!({"const":[unexposed]})));
+    let changed = alternatives.iter().find(|v| v["type"] == "array").unwrap();
+    let targets = changed["items"]["anyOf"].as_array().unwrap();
+    let known = targets.iter().find(|v| v.get("enum").is_some()).unwrap();
+    let expected: BTreeSet<_> = [actor.id, other.id].into_iter().collect();
+    assert_eq!(known["enum"], json!(expected));
+    assert!(!known["enum"].as_array().unwrap().contains(&json!(place.id)));
+    assert!(targets.iter().any(|v| v.get("pattern").is_some()));
+    assert!(!schema.to_string().contains("$ref"));
+    assert!(!schema.to_string().contains("allOf"));
+}
 fn make(world: &World, type_id: &str, id: &str, name: &str) -> WorldNode {
     let preset = world.node_types.iter().find(|p| p.id == type_id).unwrap();
     WorldNode {
@@ -532,7 +587,7 @@ fn compact_contract_retains_custom_field_metadata_and_nullable_constraints() {
     );
     assert_eq!(properties["properties"]["enabled"]["type"], "boolean");
     assert_eq!(properties["additionalProperties"], false);
-    let catalogue = capabilities(&w);
+    let catalogue = crate::prompt_context::capabilities(&w, false);
     let component = catalogue
         .as_array()
         .unwrap()
@@ -553,7 +608,7 @@ fn compact_contract_retains_custom_field_metadata_and_nullable_constraints() {
     assert_eq!(descriptors[3]["defaultValue"], false);
     assert_eq!(descriptors[3]["required"], true);
     assert_eq!(descriptors[4]["defaultValue"], 0.0);
-    let catalogue = relationships(&w);
+    let catalogue = crate::prompt_context::relationships(&w, false);
     let relationship = catalogue
         .as_array()
         .unwrap()

@@ -399,6 +399,9 @@ impl Project {
         {
             return Err("Save/reload an editable prompt suggestion first.".into());
         }
+        if d.edits == edits {
+            return Ok(());
+        }
         self.write_record("image-prompt-versions", &d)?;
         if d.edits.output != edits.output {
             d.stage = ImagePromptStage::Review;
@@ -479,6 +482,7 @@ impl Project {
         let mut system = text.system_prompt(TextPromptTask::ImagePrompt);
         let included = source.ai_context.as_deref().unwrap_or_default();
         append_ai_context(included, &mut system, &mut input);
+        crate::prompt_context::compact_envelope(&mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let extra = if text.structured_output == StructuredOutput::Schema {
             schema.to_string().len()

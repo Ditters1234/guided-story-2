@@ -11,6 +11,10 @@
 .story-details h3,.story-drafts h2 { font-size: .9rem; margin: 18px 0 10px; }
 .story-details summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: 10px 0; }
 .next-passage { width: 100%; margin: 0 0 18px; }
+.next-chapter { width:100%; margin: -8px 0 18px; }
+.passage-plan { border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:12px; }
+.passage-plan h3 { margin-top:0; }
+.chapter-plan .field { margin-top:12px; }
 .story-chapters details { margin-bottom: 16px; }
 .story-chapters summary { cursor: pointer; font-size: .9rem; padding: 8px 0; overflow-wrap: anywhere; }
 .story-chapters summary small { display: block; margin: 5px 0 0 17px; color: var(--muted); font-size: .75rem; }

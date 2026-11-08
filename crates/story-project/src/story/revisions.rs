@@ -214,6 +214,7 @@ impl Project {
             let last: AcceptedPassage = self.read_record("passages", &entry.record)?;
             chapter.title = last.plan.chapter_title;
             chapter.plan = last.plan.chapter_plan;
+            chapter.progress = last.plan.chapter_progress;
             chapter.closed = last.close_chapter;
         }
         index.validate()?;
@@ -242,6 +243,9 @@ impl Project {
     ) -> Result<(World, RecordRef, Value, String, Vec<String>), String> {
         if let Some(revision) = &draft.revision {
             let base = self.revision_base(revision, true)?;
+            if draft.edits.plan.start_new_chapter != base.plan.start_new_chapter {
+                return Err("Passage revisions preserve chapter membership. Start a new passage to begin another chapter.".into());
+            }
             if revision.kind == PassageRevisionKind::Wording {
                 let mut permitted = base.plan.clone();
                 permitted.direction = draft.edits.plan.direction.clone();
@@ -436,6 +440,7 @@ impl Project {
                     .ok_or("Missing replacement chapter.")?;
                 chapter.title = record.plan.chapter_title;
                 chapter.plan = record.plan.chapter_plan;
+                chapter.progress = record.plan.chapter_progress;
                 chapter.closed = record.close_chapter;
             }
             index.validate()?;

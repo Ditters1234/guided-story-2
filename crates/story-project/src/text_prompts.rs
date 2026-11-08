@@ -16,6 +16,7 @@ pub enum TextPromptTask {
     Effects,
     Memory,
     ImagePrompt,
+    Planning,
 }
 impl TextPromptTask {
     pub fn default_text(self) -> &'static str {
@@ -26,6 +27,7 @@ impl TextPromptTask {
             Self::Effects => include_str!("prompts/effects.txt"),
             Self::Memory => include_str!("prompts/memory.txt"),
             Self::ImagePrompt => include_str!("prompts/image-prompt.txt"),
+            Self::Planning => include_str!("prompts/planning.txt"),
         }
         .trim_end()
     }
@@ -110,6 +112,11 @@ impl LlmConnection {
                 TextPromptTask::ImagePrompt,
                 "Image-prompt assistance",
                 "Proposes shot notes and image prompts from captured appearance and clothing.",
+            ),
+            (
+                TextPromptTask::Planning,
+                "Scene and chapter planning",
+                "Suggests editable direction for a scene or chapter from scoped story context.",
             ),
         ];
         PromptSettingsView {

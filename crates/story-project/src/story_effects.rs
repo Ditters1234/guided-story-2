@@ -438,9 +438,9 @@ pub(crate) fn preview_passage_effects(
 pub(crate) fn effects_schema(world: &World) -> Value {
     schema::effects_schema(world)
 }
-pub(crate) fn effects_capabilities(world: &World) -> Value {
-    schema::capabilities(world)
+pub(crate) fn effects_capabilities(world: &World, formal_schema: bool) -> Value {
+    crate::prompt_context::capabilities(world, formal_schema)
 }
-pub(crate) fn effects_relationships(world: &World) -> Value {
-    schema::relationships(world)
+pub(crate) fn effects_relationships(world: &World, formal_schema: bool) -> Value {
+    crate::prompt_context::relationships(world, formal_schema)
 }

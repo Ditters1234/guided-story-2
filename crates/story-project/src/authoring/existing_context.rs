@@ -181,7 +181,10 @@ pub(super) fn group_context(
         .filter(relevant)
         .filter(|n| indexed.contains(n.id.as_str()))
     {
-        let size = serde_json::to_vec(node).map_err(|e| e.to_string())?.len() + 1;
+        let size = crate::prompt_context::reference_node(world, node)
+            .to_string()
+            .len()
+            + 1;
         if details.len() < 12 && bytes + size <= budget {
             bytes += size;
             details.push(node);
@@ -218,7 +221,8 @@ pub(super) fn group_context(
         detailed_node_ids,
         omitted_links,
     };
-    let payload = json!({"catalog":context.catalog,"details":details,"links":links,"sources":world.source_annotations.iter().filter(|a|context.detailed_node_ids.contains(&a.node_id)).collect::<Vec<_>>(),"coverage":{"totalNodes":context.total_nodes,"indexedNodes":context.catalog.len(),"fullRecords":context.detailed_node_ids.len(),"omittedNodes":context.omitted_nodes,"omittedDetails":context.omitted_details,"omittedLinks":context.omitted_links}});
+    let mut payload = json!({"catalog":context.catalog,"details":details.iter().map(|n|crate::prompt_context::reference_node(world,n)).collect::<Vec<_>>(),"links":links,"sources":world.source_annotations.iter().filter(|a|context.detailed_node_ids.contains(&a.node_id)&&!explicit.contains(&a.node_id)).collect::<Vec<_>>(),"coverage":{"totalNodes":context.total_nodes,"indexedNodes":context.catalog.len(),"fullRecords":context.detailed_node_ids.len(),"omittedNodes":context.omitted_nodes,"omittedDetails":context.omitted_details,"omittedLinks":context.omitted_links}});
+    crate::prompt_context::compact_envelope(&mut payload);
     if payload.to_string().len() > budget {
         return Err("Existing world context exceeded its allowance. Narrow required context or increase the context allowance.".into());
     }

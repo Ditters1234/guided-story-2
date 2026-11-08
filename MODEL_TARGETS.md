@@ -57,6 +57,19 @@ Deterministic fixtures verify contracts and storage. An explicit local Qwen-clas
 
 A later single-placement check used the revised one-link wearing contract with the same fictional premise and 4,096-token allowance. One local request completed in about 50 seconds with eight nodes, three worn garments and two separately carried items; native validation/Apply and image outfit capture passed without duplicate possession links. Garment selection was sparse, so a valid structure should not be presented as proof of a complete outfit. Author review and manual/AI expansion remain necessary.
 
+November 7 prompt compaction audit used deterministic fictional fixtures and counted UTF-8 bytes across system/user messages plus the separately submitted schema. These are input-size measurements, not tokenizer counts or model-quality/latency evidence. The two `request_size_samples` tests retain bounded request-size checks.
+
+| Task, schema mode | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| World foundation | 49,568 | 45,320 | 8.6% |
+| Item group | 22,242 | 19,571 | 12.0% |
+| Checked-field revision | 16,966 | 15,860 | 6.5% |
+| Passage prose | 9,390 | 8,891 | 5.3% |
+| Scene planning | 5,315 | 4,836 | 9.0% |
+| Effects extraction | 61,776 | 58,551 | 5.2% |
+
+A subsequent November 7 chapter-control probe used the configured local `TheDrummer_Orion-26B-A4B-v1.1` model, the effective saved passage prompt, an isolated fictional two-chapter story, a 120-word target and a 512-token ceiling. One request completed in 5.23 seconds with 112 words. It continued the current chapter, kept both characters in the workshop, avoided repeating an earlier key handoff and stopped at the requested spoken answer rather than proceeding to the chapter's later departure. It also invented a generator fuel-duration detail and incidental key handling, so this is limited evidence for passage/chapter boundaries, not evidence of full factual reliability. No response was accepted, no settings changed and no provider retry was sent. Chapter recap remains author-maintained; it is not automatic progress tracking. Additional brief instructions increase prose request size relative to the compaction checkpoint above.
+
 ## Images
 
 Use Guided Story's existing **ComfyUI API-format workflow** as the initial Krea 2 profile. The exact graphs and provenance are in [workflows/README.md](workflows/README.md). The desktop variant retains its installed-path conventions, custom save node and LoRA; do not substitute a different saver, encoder or model silently.

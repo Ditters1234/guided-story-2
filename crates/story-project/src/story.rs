@@ -9,6 +9,7 @@ use std::{
     fs,
     path::Path,
 };
+mod draft_cleanup;
 mod revisions;
 pub use revisions::*;
 mod review;
@@ -16,13 +17,23 @@ pub use review::*;
 mod cast_scope;
 mod scene_context;
 pub use scene_context::*;
+mod planning;
+pub use planning::*;
 mod starting_state;
+mod writing_brief;
+pub use writing_brief::WritingBrief;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassagePlan {
     pub chapter_title: String,
     pub chapter_plan: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub chapter_progress: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub stop_after: String,
+    #[serde(default, skip_serializing_if = "chapter_flag_is_false")]
+    pub start_new_chapter: bool,
     pub title: String,
     pub direction: String,
     pub viewpoint_id: Option<String>,
@@ -38,6 +49,9 @@ impl Default for PassagePlan {
         Self {
             chapter_title: "Chapter 1".into(),
             chapter_plan: String::new(),
+            chapter_progress: String::new(),
+            stop_after: String::new(),
+            start_new_chapter: false,
             title: "Passage 1".into(),
             direction: String::new(),
             viewpoint_id: None,
@@ -79,8 +93,13 @@ pub struct Chapter {
     pub id: String,
     pub title: String,
     pub plan: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub progress: String,
     pub closed: bool,
     pub passage_ids: Vec<String>,
+}
+fn chapter_flag_is_false(value: &bool) -> bool {
+    !value
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -128,6 +147,7 @@ impl StoryIndex {
             if !ids.insert(ch.id.clone())
                 || ch.passage_ids.is_empty()
                 || ch.plan.len() > 16000
+                || ch.progress.chars().count() > 4000
                 || (!ch.closed && i + 1 != self.chapters.len())
             {
                 return Err("Invalid chapter history.".into());
@@ -348,6 +368,8 @@ fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
         return Err("Passage/chapter titles exceed 200 characters.".into());
     }
     if p.chapter_plan.chars().count() > 4000
+        || p.chapter_progress.chars().count() > 4000
+        || p.stop_after.chars().count() > 2000
         || p.direction.chars().count() > 8000
         || p.target_words > 10000
         || p.participant_ids.len() > 12
@@ -507,6 +529,7 @@ impl Project {
                 .map(|c| c.title.clone())
                 .unwrap_or_else(|| format!("Chapter {}", index.chapters.len() + 1)),
             chapter_plan: active.map(|c| c.plan.clone()).unwrap_or_default(),
+            chapter_progress: active.map(|c| c.progress.clone()).unwrap_or_default(),
             title: format!("Passage {}", index.passages.len() + 1),
             ..Default::default()
         };
@@ -519,6 +542,14 @@ impl Project {
             plan.knowledge_perspective = last.plan.knowledge_perspective;
             plan.target_words = last.plan.target_words;
         }
+        Ok(plan)
+    }
+    pub fn new_chapter_plan(&self) -> Result<PassagePlan, String> {
+        let mut plan = self.next_passage_plan()?;
+        plan.start_new_chapter = true;
+        plan.chapter_title = format!("Chapter {}", self.story_index()?.chapters.len() + 1);
+        plan.chapter_plan.clear();
+        plan.chapter_progress.clear();
         Ok(plan)
     }
     fn passage_path(&self, id: &str) -> Result<std::path::PathBuf, String> {
@@ -608,10 +639,18 @@ impl Project {
         Ok(list)
     }
     pub fn delete_passage_draft(&self, id: &str, expected: u32) -> Result<(), String> {
+        self.delete_passage_draft_with_hook(id, expected, &|_| Ok(()))
+    }
+    fn delete_passage_draft_with_hook(
+        &self,
+        id: &str,
+        expected: u32,
+        hook: &impl Fn(&str) -> Result<(), String>,
+    ) -> Result<(), String> {
         let mut draft = self.read_passage_draft_record(id)?;
         if draft.stage == PassageStage::Discarded && draft.version.checked_sub(1) == Some(expected)
         {
-            return Ok(());
+            return self.purge_deleted_passage_versions(&BTreeSet::from([id.into()]), hook);
         }
         if matches!(
             draft.stage,
@@ -647,7 +686,10 @@ impl Project {
         draft.revision = None;
         draft.cloned_from = None;
         draft.incomplete = false;
-        self.write_passage_draft(&draft)
+        hook("beforeMarker")?;
+        self.write_passage_draft(&draft)?;
+        hook("afterMarker")?;
+        self.purge_deleted_passage_versions(&BTreeSet::from([id.into()]), hook)
     }
     pub fn save_passage(&self, id: &str, expected: u32, edits: PassageEdits) -> Result<(), String> {
         validate_edits(&edits)?;
@@ -664,6 +706,9 @@ impl Project {
                 )
             {
                 return Err("This passage changed or is running/accepted. Reload or create a new candidate.".into());
+            }
+            if d.edits == edits {
+                return Ok(());
             }
             d
         } else {
@@ -746,6 +791,10 @@ impl Project {
         let mut recent = vec![];
         let mut ids = vec![];
         let mut withheld_recent = 0;
+        let active_chapter = index
+            .chapters
+            .last()
+            .filter(|ch| !ch.closed && !plan.start_new_chapter);
         for entry in index
             .passages
             .iter()
@@ -763,12 +812,10 @@ impl Project {
                 continue;
             }
             ids.push(entry.id.clone());
-            recent.push(json!({"id":entry.id,"version":entry.record,"title":passage.plan.title,"prose":passage.prose,"notes":passage.effects.notes,"evidenceFromEarlierWording":passage.evidence_source.is_some()}));
+            recent.push(json!({"id":entry.id,"version":entry.record,"chapterId":entry.chapter_id,
+                "chapterRelation":if active_chapter.is_some_and(|ch|ch.id==entry.chapter_id){"sameChapter"}else{"earlierChapter"},
+                "title":passage.plan.title,"prose":passage.prose,"notes":passage.effects.notes,"evidenceFromEarlierWording":passage.evidence_source.is_some()}));
         }
-        let current_chapter = index
-            .chapters
-            .last()
-            .map(|ch| json!({"id":ch.id,"title":ch.title,"plan":ch.plan,"closed":ch.closed}));
         let mut memory = self.memory_context(index, plan, &context, memory_budget)?;
         let mut kept = vec![];
         for point in memory.points.drain(..) {
@@ -806,14 +853,15 @@ impl Project {
                 object.insert(label.into(), value);
             }
         }
-        let mut input = json!({"storyTitle":self.view()?.title,"plan":intent,"currentChapter":current_chapter,"records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        let mut input = json!({"storyTitle":self.view()?.title,"plan":intent,"writingBrief":writing_brief::assemble(plan,index),
+            "records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
         input["startingState"] = starting_state::starting_state(&context, plan);
         if !knowledge.decisions.is_empty() || knowledge.omitted_by_limit > 0 || withheld_recent > 0
         {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v15-scene-roles",
+            "passage-source-v17-chapter-brief",
             &input,
             &context.node_types,
             &context.component_types,
@@ -884,8 +932,11 @@ impl Project {
         if checking {
             input["prose"] = json!(d.edits.prose);
             input["nodeTypes"] = json!(effect_schema_context.node_types);
-            input["capabilities"] = effects_capabilities(&effect_schema_context);
-            input["relationships"] = effects_relationships(&effect_schema_context);
+            // Every effects mode receives the complete concrete schema, either
+            // in response_format or in the user message.
+            input["capabilities"] = effects_capabilities(&effect_schema_context, true);
+            input["relationships"] = effects_relationships(&effect_schema_context, true);
+            input["catalogueRules"] = json!("fieldDefaults supplies shared field metadata. responseSchema or response_format supplies types, required fields and choices.");
         }
         let source_world_data: World = self.read_record("worlds", &source_world)?;
         let included = if checking {
@@ -904,7 +955,7 @@ impl Project {
         }
         append_ai_context(&included, &mut system, &mut input);
         if !checking {
-            scene_context::project_records(&context, &d.edits.plan, &mut input);
+            scene_context::project_records(&context, &d.edits.plan, &mut input, false);
             let excluded = crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan);
             if wording {
                 if let Some(revision) = &d.revision {
@@ -923,6 +974,8 @@ impl Project {
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
         }
+        writing_brief::project(&mut input, settings, task);
+        crate::prompt_context::compact_envelope(&mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let extra = if settings.structured_output == StructuredOutput::Schema {
             schema.as_ref().map_or(0, |s| s.to_string().len())
@@ -949,12 +1002,14 @@ impl Project {
             fingerprint = expanded_fingerprint;
         }
         if !checking {
-            scene_context::project_records(&context, &d.edits.plan, &mut input);
+            scene_context::project_records(&context, &d.edits.plan, &mut input, false);
             crate::knowledge::scrub_references(
                 &mut input,
                 &crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan),
             );
         }
+        writing_brief::project(&mut input, settings, task);
+        crate::prompt_context::compact_envelope(&mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
             > settings.context_tokens as usize
@@ -1352,10 +1407,16 @@ impl Project {
                 }
             }
         }
+        if d.edits.plan.start_new_chapter {
+            if let Some(chapter) = index.chapters.last_mut() {
+                chapter.closed = true;
+            }
+        }
         let active = index.chapters.last_mut().filter(|ch| !ch.closed);
         let chapter_id = if let Some(ch) = active {
             ch.title = d.edits.plan.chapter_title.clone();
             ch.plan = d.edits.plan.chapter_plan.clone();
+            ch.progress = d.edits.plan.chapter_progress.clone();
             ch.closed = d.edits.close_chapter;
             ch.passage_ids.push(id.into());
             ch.id.clone()
@@ -1364,6 +1425,7 @@ impl Project {
                 id: uuid::Uuid::new_v4().to_string(),
                 title: d.edits.plan.chapter_title.clone(),
                 plan: d.edits.plan.chapter_plan.clone(),
+                progress: d.edits.plan.chapter_progress.clone(),
                 closed: d.edits.close_chapter,
                 passage_ids: vec![id.into()],
             };
@@ -1469,6 +1531,7 @@ impl Project {
             .map(|p| p.id)
             .collect();
         let mut errors = vec![];
+        let mut deleted = BTreeSet::new();
         for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
             let result = (|| {
                 let path = entry.map_err(|e| e.to_string())?.path();
@@ -1483,6 +1546,9 @@ impl Project {
                     return Ok(());
                 }
                 let mut d = self.read_passage_draft_record(id)?;
+                if d.stage == PassageStage::Discarded {
+                    deleted.insert(d.id.clone());
+                }
                 if matches!(d.stage, PassageStage::Narrating | PassageStage::Checking) {
                     d.stage = PassageStage::Interrupted;
                     d.checked.clear();
@@ -1497,6 +1563,9 @@ impl Project {
                     errors.push(error);
                 }
             }
+        }
+        if let Err(error) = self.purge_deleted_passage_versions(&deleted, &|_| Ok(())) {
+            errors.push(error);
         }
         if errors.is_empty() {
             Ok(())
@@ -1580,10 +1649,14 @@ impl Project {
                 .last()
                 .is_none_or(|ch| ch.id != record.chapter_id)
             {
+                if let Some(previous) = kept.chapters.last_mut() {
+                    previous.closed = true;
+                }
                 kept.chapters.push(Chapter {
                     id: record.chapter_id.clone(),
                     title: record.plan.chapter_title.clone(),
                     plan: record.plan.chapter_plan.clone(),
+                    progress: record.plan.chapter_progress.clone(),
                     closed: false,
                     passage_ids: vec![],
                 });
@@ -1591,6 +1664,7 @@ impl Project {
             let ch = kept.chapters.last_mut().unwrap();
             ch.title = record.plan.chapter_title.clone();
             ch.plan = record.plan.chapter_plan.clone();
+            ch.progress = record.plan.chapter_progress.clone();
             ch.closed = record.close_chapter;
             ch.passage_ids.push(record.id.clone());
             kept.passages.push(PassageEntry {

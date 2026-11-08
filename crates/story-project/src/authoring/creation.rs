@@ -77,24 +77,6 @@ pub(super) fn schema_world(world: &World, request: &AuthoringRequest) -> World {
     model
 }
 
-pub(super) fn wire_capabilities(world: &World) -> Value {
-    json!(world.component_types.iter().map(|d| {
-        json!({"id":d.id,"name":d.name,"description":d.description,"fields":d.fields.iter().map(|f| {
-            let mut v=json!({"key":f.key,"label":f.label,"kind":f.kind});
-            if f.required {v["required"]=json!(true);}
-            if f.default_value!=PropertyValue::Null {v["defaultValue"]=json!(f.default_value);}
-            if let Some(m)=&f.metadata {
-                if let Some(help)=&m.help {v["help"]=json!(help);}
-                if !m.uses.is_empty(){v["uses"]=json!(m.uses);}
-                if !m.choices.is_empty(){v["choices"]=json!(m.choices);}
-                if let Some(c)=&m.reference_capability{v["referenceCapability"]=json!(c);}
-                if !m.covered_by.is_empty(){v["coveredBy"]=json!(m.covered_by);}
-            }
-            v
-        }).collect::<Vec<_>>()})
-    }).collect::<Vec<_>>())
-}
-
 /// JSON/prompt-mode servers need an output shape, not a second copy of every
 /// field contract. Schema mode still receives the full generated JSON Schema;
 /// the complete saved schema always owns native candidate validation.
@@ -187,7 +169,7 @@ pub(super) fn optional_markers(world: &World, preset: &NodeTypeDefinition) -> Ve
         .map(|d| d.id.clone())
         .collect()
 }
-pub(super) fn offered_components(world: &World, preset: &NodeTypeDefinition) -> Vec<String> {
+pub(crate) fn offered_components(world: &World, preset: &NodeTypeDefinition) -> Vec<String> {
     let mut allowed = BTreeSet::new();
     allowed.extend(preset.components.iter().map(String::as_str));
     if preset.components.iter().any(|id| id == "core.item") {
@@ -527,12 +509,12 @@ pub(super) fn budget(world: &World, request: &AuthoringRequest, tokens: u32) -> 
                 + (fields.len().min(8) as u32) * 10
         })
         .unwrap_or(240);
-    let mut value = json!({"outputTokens":tokens,"suggestedMaxNewNodes":if request.mode==AuthoringMode::Create&&!request.bundle{1}else{(tokens.saturating_sub(512)/node_cost).clamp(1,20)},"nodeLimitIsAdvisory":true,"priority":"Finish the entire connected proposal within outputTokens. Cover requested distinct places, people, inventory and narration first. Use compact JSON and short specific phrases; omit unneeded optional fields and leave unused preset capabilities as {}. Do not repeat facts in notes, descriptions and structured fields."});
+    let mut value = json!({"outputTokens":tokens,"suggestedMaxNewNodes":if request.mode==AuthoringMode::Create&&!request.bundle{1}else{(tokens.saturating_sub(512)/node_cost).clamp(1,20)},"nodeLimitIsAdvisory":true,"priority":"Finish all nodes and links within outputTokens. Cover requested places, cast, inventory and narration first. Use compact JSON, concise specific values and sparse optional fields. Avoid repeating facts."});
     if request.mode == AuthoringMode::Create
         && request.type_id.is_none()
         && request.creation_scope != Some(CreationScope::Group)
     {
-        value["foundationDetailAllowance"] = json!({"characterWords":80,"placeWords":40,"itemWords":20,"narrationWords":60,"instruction":"Approximate TOTAL descriptive words per record across all its fields, not per field. Spend them on premise-specific motives/contradiction/voice/appearance, usable place features or recognisable item design. Use several concise fields rather than paragraphs in every field. At small output allowances, the provider schema bounds optional field counts and story/visual string lengths for this initial foundation; pick the most useful fields, preserve explicit choices, and finish the cast, places, clothing and narration before extra props. Do not fill every available field. Deeper development remains available through node revision and manual edits."});
+        value["foundationDetailAllowance"] = json!({"characterWords":80,"placeWords":40,"itemWords":20,"narrationWords":60,"instruction":"Approximate TOTAL words across each record. Prioritize premise-specific motives, contradictions, voice and appearance; usable place features; recognisable item design. Preserve explicit choices and finish cast, places, clothing and narration before decorative extras. The foundation schema limits optional detail at small budgets; later revision can deepen records."});
     }
     value
 }
@@ -559,6 +541,16 @@ pub(super) fn placement_guide(world: &World) -> Value {
     guide
 }
 
+pub(super) fn starting_situation_guide() -> Value {
+    json!({
+        "premise": "Match the premise's scale and tone. Preserve named people, places, relationships and constraints. For a short premise, develop one specific local situation; ordinary friction is enough.",
+        "firstAction": "Give the main characters concrete immediate objectives and link their actual starting places with present-at when applicable. Show why their choices matter to each other. Keep outcomes open.",
+        "usableWorld": "Give key places a feature or obstacle that matters to an immediate objective. When a usable or transferable object matters to that objective or the premise, make it a separate item with its condition and a storage or wearing link as appropriate. Keep fixed environmental features in place fields.",
+        "connections": "Use a few meaningful links from the supplied catalogue, with concrete details when supported. For example, a courier needs to cross before the quay steps flood. The skiff key is stored with the ferryman, who owes the courier one crossing. Store the key, the access constraint and the obligation on the matching records and links. Adapt the pattern to the author's premise.",
+        "budget": "Reserve space for premise-critical items and links alongside distinct scene places, cast, normal outfits and requested narration. If space is tight, trim decorative details and optional records first. Use only the offered types; carry necessary facts in the closest supported fields when a type is unavailable. Do not write the passage or present intended actions as completed."
+    })
+}
+
 pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
     let is_world =
         request.type_id.is_none() && request.creation_scope != Some(CreationScope::Group);
@@ -573,8 +565,9 @@ pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
         .map(|t| &t.id)
         .collect();
     let mut v = json!({"intent":if is_world{"world foundation"}else{"only the requested node/group"},"detail":"Useful specifics, not generic summaries: important people need differing wants, pressures, behavior/voice and visible identity; places need distinct uses, layout/access and usable resources or constraints; items need function, material/design and relevant condition. Use the actual project field keys. Invent coherent specifics within the author's scope; do not substitute a list of adjectives for development.","scope":"Do not create unrelated characters, locations or guidance profiles for a requested item group. Reuse supplied existing targets. Do not duplicate established records."});
+    v["people"] = json!("Give requested people personal names unless anonymity is intentional. Age/role labels belong in profile fields. Man/woman denotes an adult; younger does not imply a minor. Distinguish long-term motives from current intent. Preserve explicit appearance choices.");
     if request.bundle {
-        v["nodeGroups"]=json!("nodes is an object of arrays keyed by exact allowed preset ID. Return EVERY offered group key, with [] for unused groups; each record must match its group's type. A group request needing no additions returns all empty arrays. At most 20 new nodes total, including a typed root when present. Use core.wearable-item (or supplied matching wearable preset) for garments, core.item for ordinary supplies, core.place only for actual places. Never copy existing records into any group; reference their supplied IDs in new links instead. Before closing, verify EVERY new alias used by an edge has exactly one created record in root or the appropriate node group. Omit links to records you have not created.");
+        v["nodeGroups"]=json!("Return every offered preset-keyed array, [] when unused. Each record must match its group type. At most 20 new records including any root. Every new alias referenced by a link must have exactly one created record. Existing supplied IDs are read-only targets, never copied additions. Use wearable presets for garments and item presets for supplies.");
     }
     let choices: BTreeMap<_, _> = allowed
         .iter()
@@ -585,10 +578,10 @@ pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
         .collect();
     if !choices.is_empty() {
         v["capabilityChoices"] = json!(choices);
-        v["capabilityChoiceRule"]=json!("On each new node with offered choices, output capabilityFlags with an explicit boolean for every offered marker for its type. true attaches that empty capability; false leaves it absent. These are real proposed capabilities shown for review, not narrative claims. A bag holding contents needs core.container:true; ordinary noncontainers use false. Do not repeat flags in components. Preset capabilities still belong in components.");
+        v["capabilityChoiceRule"]=json!("Set every offered capabilityFlags marker explicitly: true attaches it, false omits it. A bag holding contents needs core.container:true. Flags stay outside components; required preset capabilities stay inside components.");
     }
     if typed_bundle(request) {
-        v["typedRoot"] = json!({"id":"new:root","typeId":request.type_id,"rule":"Return the requested main record ONLY in root. nodes is an object of related-record arrays keyed by exact preset ID, e.g. core.wearable-item for garments and core.item for supplies. Return each offered group, using [] when unused; at most 19 related records total. Every record must match its group type. Do not duplicate the root in any group. Do not return supplied existing records: use their IDs only as edge targets. Every edge or reference to the main record uses new:root, never a name-based root alias."});
+        v["typedRoot"] = json!({"id":"new:root","typeId":request.type_id,"rule":"Put the main record only in root, with at most 19 related records in nodes. Never duplicate root in a group. Every reference to the main record uses new:root."});
     }
     if request.bundle
         && world
@@ -600,7 +593,7 @@ pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
             .iter()
             .any(|d| d.id == "core.container")
     {
-        v["containers"] = json!({"requiredWhen":"An item such as a bag, satchel, box or cabinet is the target of stored-in links for contents.","mustInclude":{"components":{"core.item":{"quantity":1,"unit":"item"}},"capabilityFlags":{"core.container":true}},"rule":"For types offering core.container in capabilityChoices, explicitly choose capabilityFlags core.container:true; do not repeat that marker in components. If the preset already requires core.container, include it in components as usual. An ordinary item without this capability cannot hold contents. A description saying bag/container is insufficient. Contents each use stored-in to the container; the container has one placement at its owner/place. Do not add container to ordinary items that hold nothing."});
+        v["containers"] = json!({"requiredWhen":"An item holds other items through stored-in links.","mustInclude":{"components":{"core.item":{"quantity":1,"unit":"item"}},"capabilityFlags":{"core.container":true}},"rule":"Attach core.container via its offered flag, or components when preset-required. A name/description cannot supply this capability. Contents each link to the container; it has one placement at its owner/place. Ordinary items holding nothing need no container marker."});
     }
     if !places.is_empty() {
         v["placeStructure"] = json!({"placeTypeIds":places,"rule":"Represent distinct buildings, grounds and useful scene locations as separate linked places. A homestead containing a house, barn and cultivated field needs a parent homestead and child house, barn and field, not one paragraph containing all four. Add important interiors when requested or needed for scenes; do not turn every object or corner into a place. In a group, split only requested locations; do not invent another entire world.","containment":world.relation_types.iter().find(|r|r.physical_placement&&r.source_capability.as_deref()==Some("core.place")&&r.target_capability.as_deref()==Some("core.place")).map(|r|json!({"typeId":r.id,"source":"new:house","target":"new:homestead"}))});
@@ -608,7 +601,16 @@ pub(super) fn guide(world: &World, request: &AuthoringRequest) -> Value {
     if is_world {
         v["foundationTypeIds"] = json!(foundation_types(world));
         v["narration"] = json!({"requested":request.include_narration==Some(true),"presetIds":world.node_types.iter().filter(|t|t.components.iter().any(|c|c=="core.narration-style")).map(|t|&t.id).collect::<Vec<_>>(),"rule":"When requested, create a narration-style node with person, tense and several concrete instructions suited to this premise: viewpoint discipline, tone, pace, dialogue and descriptive focus. Respect explicit user choices; otherwise third person and past tense are a starting point. Apply will include the proposed style for passage writing/wording. This is guidance, not an accomplished event."});
-        v["startingOutfits"] = json!({"preferredTypeIds":world.node_types.iter().filter(|t|t.components.iter().any(|c|c=="core.wearable")).map(|t|&t.id).collect::<Vec<_>>(),"rule":"Unless explicitly unclothed or otherwise directed, give EACH humanoid person practical coverage for upper body, lower body and feet. Usually use three separate pieces: shirt, trousers and shoes/boots; a suitable one-piece garment can replace top and trousers. A jacket plus shirt leaves the lower body uncovered; boots are not trousers. Use the complete clothingExample as a structural pattern. Reserve outfit records and links before optional equipment, world rules or a story brief. Preserve distinct requested places and requested narration. Do not replace missing garments with wardrobe prose."});
+    }
+    if request.bundle
+        && allowed
+            .iter()
+            .any(|t| t.components.iter().any(|c| c == "core.character"))
+        && allowed
+            .iter()
+            .any(|t| t.components.iter().any(|c| c == "core.item"))
+    {
+        v["startingOutfits"] = json!({"preferredTypeIds":world.node_types.iter().filter(|t|t.components.iter().any(|c|c=="core.wearable")).map(|t|&t.id).collect::<Vec<_>>(),"rule":"For each normally clothed humanoid you are asked to create, provide separate items covering upper body, lower body and feet unless explicitly directed otherwise. Usually use shirt, trousers and shoes/boots; a one-piece garment can replace top and trousers. Shirt plus coat leaves the lower body uncovered. Prefer offered wearable presets; a plain item needs an explicit core.wearable component when no wearable preset is permitted. Reserve garment records and links alongside requested places and narration. Clothing prose cannot replace item records."});
     }
     v
 }

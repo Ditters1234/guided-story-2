@@ -164,7 +164,10 @@ pub(crate) fn append_ai_context(
         .filter(|s| s.role == AiContextRole::Reference)
         .collect::<Vec<_>>();
     if !references.is_empty() {
-        input["includedReferenceFacts"] = json!(references);
+        input["includedReferenceFacts"] = json!(references
+            .iter()
+            .map(|s| json!({"nodeId":s.node_id,"name":s.name,"content":s.content}))
+            .collect::<Vec<_>>());
     }
     let instructions = sections
         .iter()

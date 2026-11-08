@@ -1,6 +1,6 @@
 import type {AiContextBinding,TextPromptTask,WorldNode} from './bindings';
 import {makeNode,withBuiltinNodeType,type World} from './model';
-export const aiContextTasks:{id:TextPromptTask;label:string}[]=[{id:'world',label:'World creation / rerolls'},{id:'passage',label:'Passage writing'},{id:'wording',label:'Wording edits'},{id:'effects',label:'World changes'},{id:'memory',label:'Chapter memory'},{id:'imagePrompt',label:'Image-prompt assistance'}];
+export const aiContextTasks:{id:TextPromptTask;label:string}[]=[{id:'world',label:'World creation / rerolls'},{id:'passage',label:'Passage writing'},{id:'wording',label:'Wording edits'},{id:'effects',label:'World changes'},{id:'memory',label:'Chapter memory'},{id:'imagePrompt',label:'Image-prompt assistance'},{id:'planning',label:'Scene and chapter planning'}];
 export function defaultContextBinding(nodeId:string,order=0,world?:World):AiContextBinding{
   const node=world?.nodes.find(n=>n.id===nodeId),narration=!!node?.components['core.narration-style'],visual=!!node?.components['detail.visual-style'];
   const tasks:TextPromptTask[]=narration?['passage','wording']:visual?[]:aiContextTasks.map(t=>t.id);

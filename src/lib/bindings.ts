@@ -45,6 +45,8 @@ export const commands = {
 	closeAuthoring: () => typedError<null, string>(__TAURI_INVOKE("close_authoring")),
 	loadStory: (storyId: string) => typedError<StoryIndex_Serialize, string>(__TAURI_INVOKE("load_story", { storyId })),
 	nextPassagePlan: (storyId: string) => typedError<PassagePlan_Serialize, string>(__TAURI_INVOKE("next_passage_plan", { storyId })),
+	newChapterPlan: (storyId: string) => typedError<PassagePlan_Serialize, string>(__TAURI_INVOKE("new_chapter_plan", { storyId })),
+	suggestPassagePlan: (storyId: string, id: string, expectedVersion: number, expectedRevision: number, kind: PlanFillKind) => typedError<string, string>(__TAURI_INVOKE("suggest_passage_plan", { storyId, id, expectedVersion, expectedRevision, kind })),
 	listPassageDrafts: (storyId: string) => typedError<PassageSummary_Serialize[], string>(__TAURI_INVOKE("list_passage_drafts", { storyId })),
 	deletePassageDraft: (storyId: string, id: string, expectedVersion: number) => typedError<null, string>(__TAURI_INVOKE("delete_passage_draft", { storyId, id, expectedVersion })),
 	getPassageDraft: (storyId: string, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("get_passage_draft", { storyId, id })),
@@ -301,13 +303,7 @@ export type BackupReport = {
 	omittedFiles: number,
 };
 
-export type Chapter = {
-	id: string,
-	title: string,
-	plan: string,
-	closed: boolean,
-	passageIds: string[],
-};
+export type Chapter = Chapter_Serialize | Chapter_Deserialize;
 
 export type ChapterMemoryStatus = {
 	closed: boolean,
@@ -316,6 +312,24 @@ export type ChapterMemoryStatus = {
 	status: MemoryStatus,
 	points: number,
 	error: string,
+};
+
+export type Chapter_Deserialize = {
+	id: string,
+	title: string,
+	plan: string,
+	progress?: string,
+	closed: boolean,
+	passageIds: string[],
+};
+
+export type Chapter_Serialize = {
+	id: string,
+	title: string,
+	plan: string,
+	progress?: string,
+	closed: boolean,
+	passageIds: string[],
 };
 
 export type ClaimContext = ClaimContext_Serialize | ClaimContext_Deserialize;
@@ -1163,6 +1177,9 @@ export type PassagePlan = PassagePlan_Serialize | PassagePlan_Deserialize;
 export type PassagePlan_Deserialize = {
 	chapterTitle: string,
 	chapterPlan: string,
+	chapterProgress?: string,
+	stopAfter?: string,
+	startNewChapter?: boolean,
 	title: string,
 	direction: string,
 	viewpointId?: string | null,
@@ -1176,6 +1193,9 @@ export type PassagePlan_Deserialize = {
 export type PassagePlan_Serialize = {
 	chapterTitle: string,
 	chapterPlan: string,
+	chapterProgress?: string,
+	stopAfter?: string,
+	startNewChapter?: boolean,
 	title: string,
 	direction: string,
 	viewpointId: string | null,
@@ -1277,7 +1297,7 @@ export type PassageView_Deserialize = {
 	changes: string[],
 	canAccept: boolean,
 	suggestedChapterEnd: boolean,
-	sceneContext: SceneContextPreview,
+	sceneContext: SceneContextPreview_Deserialize,
 	recentPassages: string[],
 	knowledgeHistoryOmissions?: number,
 	originalProse: string,
@@ -1299,12 +1319,14 @@ export type PassageView_Serialize = {
 	changes: string[],
 	canAccept: boolean,
 	suggestedChapterEnd: boolean,
-	sceneContext: SceneContextPreview,
+	sceneContext: SceneContextPreview_Serialize,
 	recentPassages: string[],
 	knowledgeHistoryOmissions?: number,
 	originalProse: string,
 	originalEffects: string,
 };
+
+export type PlanFillKind = "scene" | "chapter";
 
 export type Position = {
 	x: number | null,
@@ -1409,10 +1431,20 @@ export type RememberedPoint_Serialize = {
 	reason: string,
 };
 
-export type SceneContextPreview = {
+export type SceneContextPreview = SceneContextPreview_Serialize | SceneContextPreview_Deserialize;
+
+export type SceneContextPreview_Deserialize = {
 	resources: SceneResource[],
 	guidance: AiContextSection[],
 	error: string,
+	writingBrief?: WritingBrief_Deserialize | null,
+};
+
+export type SceneContextPreview_Serialize = {
+	resources: SceneResource[],
+	guidance: AiContextSection[],
+	error: string,
+	writingBrief?: WritingBrief_Serialize,
 };
 
 export type SceneResource = {
@@ -1471,7 +1503,7 @@ export type StoryIndex = StoryIndex_Serialize | StoryIndex_Deserialize;
 
 export type StoryIndex_Deserialize = {
 	schemaVersion: number,
-	chapters: Chapter[],
+	chapters: Chapter_Deserialize[],
 	passages: PassageEntry[],
 	memories?: { [key in string]: RecordRef },
 	media?: { [key in string]: RecordRef },
@@ -1480,7 +1512,7 @@ export type StoryIndex_Deserialize = {
 
 export type StoryIndex_Serialize = {
 	schemaVersion: number,
-	chapters: Chapter[],
+	chapters: Chapter_Serialize[],
 	passages: PassageEntry[],
 	memories?: { [key in string]: RecordRef },
 	media?: { [key in string]: RecordRef },
@@ -1489,7 +1521,7 @@ export type StoryIndex_Serialize = {
 
 export type StructuredOutput = "json" | "schema" | "prompt";
 
-export type TextPromptTask = "world" | "passage" | "wording" | "effects" | "memory" | "imagePrompt";
+export type TextPromptTask = "world" | "passage" | "wording" | "effects" | "memory" | "imagePrompt" | "planning";
 
 export type TextPromptTemplate = {
 	id: TextPromptTask,
@@ -1650,6 +1682,30 @@ export type World_Serialize = {
 	relationTypes: RelationDefinition_Serialize[],
 	aiContext?: AiContextBinding_Serialize[],
 	sourceAnnotations?: SourceAnnotation_Serialize[],
+};
+
+export type WritingBrief = WritingBrief_Serialize | WritingBrief_Deserialize;
+
+export type WritingBrief_Deserialize = {
+	chapterTitle: string,
+	chapterStatus: string,
+	acceptedPassages: number,
+	chapterId?: string | null,
+	chapterRemaining?: string,
+	alreadyCovered?: string,
+	passageDirection?: string,
+	stopAfter?: string,
+};
+
+export type WritingBrief_Serialize = {
+	chapterTitle: string,
+	chapterStatus: string,
+	acceptedPassages: number,
+	chapterId?: string,
+	chapterRemaining?: string,
+	alreadyCovered?: string,
+	passageDirection?: string,
+	stopAfter?: string,
 };
 
 /* Tauri Specta runtime */

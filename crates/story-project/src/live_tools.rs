@@ -342,6 +342,57 @@ async fn real_ai_tools_pass() {
     let original = f.p.view().unwrap().world;
     let mut checked_revision = None;
     match case.as_str() {
+        "chapter-brief" => {
+            s.timeout_seconds = s.timeout_seconds.min(45);
+            s.max_tokens = s.max_tokens.min(512);
+            manual_passage(&f, &s);
+            let mut opening = edits(&f, "Nora studied the rain at the north window. Otis waited beside the stove with the brass key in his pocket.");
+            opening.plan = f.p.new_chapter_plan().unwrap();
+            opening.plan.chapter_plan = "Discuss whether to leave the lodge; later in the chapter, make preparations and depart.".into();
+            opening.plan.chapter_progress = "The key handoff is complete. Otis has the key. Nora and Otis are still in the workshop.".into();
+            let opening_id = id();
+            f.p.save_passage(&opening_id, 0, opening).unwrap();
+            f.p.validate_passage(&opening_id, 1, &s).unwrap();
+            let view = f.p.passage_view(&opening_id, &s).unwrap();
+            f.p.accept_passage(&opening_id, view.version, &s).unwrap();
+            let mut next = edits(&f, "");
+            next.plan = f.p.next_passage_plan().unwrap();
+            next.plan.target_words = 120;
+            next.plan.direction = "Nora asks Otis whether they should wait out the rain. He answers that they should wait. Keep them in the workshop, in past tense. No key handoff or other possession changes.".into();
+            next.plan.stop_after = "Otis says they should wait; end immediately after his answer, before preparations or departure.".into();
+            let draft = id();
+            f.p.save_passage(&draft, 0, next).unwrap();
+            let before = f.p.view().unwrap();
+            let prepared =
+                f.p.start_passage(&draft, 1, before.revision, false, &s)
+                    .unwrap();
+            let input: Value = serde_json::from_str(&prepared.user).unwrap();
+            assert_eq!(input["writingBrief"]["chapterStatus"], "continuing");
+            assert_eq!(input["writingBrief"]["acceptedPassages"], 1);
+            let result = call(
+                root,
+                "chapter-brief",
+                &s,
+                key.as_deref(),
+                &prepared.system,
+                &prepared.user,
+                None,
+                prepared.output_tokens,
+            )
+            .await;
+            let incomplete = result.as_ref().is_ok_and(|r| r.incomplete);
+            f.p.finish_passage(&draft, false, result.map(|r| r.text), false, incomplete, &s)
+                .unwrap();
+            let view = f.p.passage_view(&draft, &s).unwrap();
+            assert!(view.error.is_empty(), "{}", view.error);
+            assert!(!view.edits.prose.trim().is_empty());
+            assert_eq!(f.p.view().unwrap().revision, before.revision);
+            fs::write(
+                root.join("chapter-brief-review.json"),
+                serde_json::to_vec_pretty(&view).unwrap(),
+            )
+            .unwrap();
+        }
         "scene-continuation" => {
             let accepted = manual_passage(&f, &s);
             let draft = id();

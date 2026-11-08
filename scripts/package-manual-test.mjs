@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageLicenses } from './package-licenses.mjs';
@@ -30,3 +30,8 @@ await writeFile(join(folder, 'BUILD.json'), JSON.stringify({
   dependenciesWithoutPackagedLicenseText: notices.missing,
 }, null, 2) + '\n', { flag: 'wx' });
 console.log(`Manual testing build: ${folder}`);
+if (process.argv.includes('--open')) {
+  const explorer = spawn('explorer.exe', [folder], { detached: true, stdio: 'ignore' });
+  explorer.on('error', (error) => console.warn(`Build completed, but its folder could not open: ${error.message}`));
+  explorer.unref();
+}

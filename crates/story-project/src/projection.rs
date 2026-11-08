@@ -64,11 +64,15 @@ pub(crate) fn resolve_property_references(
 }
 
 pub fn narrative_link(world: &World, edge: &WorldEdge) -> Value {
+    story_link(world, edge, false)
+}
+
+pub(crate) fn story_link(world: &World, edge: &WorldEdge, planning: bool) -> Value {
     let definition = world.relation_types.iter().find(|d| d.id == edge.type_id);
     let fields: Vec<_> = definition
         .into_iter()
         .flat_map(|d| &d.fields)
-        .filter(|f| f.used_for(FieldUse::Story))
+        .filter(|f| f.used_for(FieldUse::Story) || (planning && f.used_for(FieldUse::Planning)))
         .filter_map(|f| {
             edge.properties
                 .get(&f.key)
@@ -80,7 +84,14 @@ pub fn narrative_link(world: &World, edge: &WorldEdge) -> Value {
                 .map(|v| json!({"key":f.key,"label":f.label,"value":v}))
         })
         .collect();
-    json!({"id":edge.id,"typeId":edge.type_id,"relationship":definition.map(|d| &d.label),"sourceId":edge.source_id,"targetId":edge.target_id,"description":edge.description,"details":fields})
+    let mut record = json!({"id":edge.id,"typeId":edge.type_id,"relationship":definition.map(|d| &d.label),"sourceId":edge.source_id,"targetId":edge.target_id});
+    if !edge.description.is_empty() {
+        record["description"] = json!(edge.description);
+    }
+    if !fields.is_empty() {
+        record["details"] = json!(fields);
+    }
+    record
 }
 
 pub fn visual_link_summary(world: &World, edge: &WorldEdge) -> String {
@@ -154,6 +165,10 @@ pub fn projected_node(world: &World, node: &WorldNode, usage: FieldUse) -> World
 /// Human-labelled fields keep custom keys meaningful to smaller models. Values
 /// appear once; field defaults and visual/planning-only data are not recalled.
 pub fn narrative_record(world: &World, node: &WorldNode) -> Value {
+    story_record(world, node, false)
+}
+
+pub(crate) fn story_record(world: &World, node: &WorldNode, planning: bool) -> Value {
     let sections: Vec<_> = world
         .component_types
         .iter()
@@ -162,7 +177,10 @@ pub fn narrative_record(world: &World, node: &WorldNode) -> Value {
             let fields: Vec<_> = definition
                 .fields
                 .iter()
-                .filter(|field| field.used_for(FieldUse::Story))
+                .filter(|field| {
+                    field.used_for(FieldUse::Story)
+                        || (planning && field.used_for(FieldUse::Planning))
+                })
                 .filter_map(|field| {
                     let value = values.get(&field.key)?;
                     if value == &PropertyValue::Null
@@ -171,9 +189,16 @@ pub fn narrative_record(world: &World, node: &WorldNode) -> Value {
                     {
                         return None;
                     }
-                    Some(json!({"key":field.key,"label":field.label,"value":value,
-                    "help":field.metadata.as_ref().and_then(|m| m.help.as_ref()),
-                    "stability":field.metadata.as_ref().and_then(|m| m.stability)}))
+                    let mut projected = json!({"key":field.key,"label":field.label,"value":value});
+                    if let Some(meta) = &field.metadata {
+                        if let Some(help) = meta.help.as_ref().filter(|text| !text.is_empty()) {
+                            projected["help"] = json!(help);
+                        }
+                        if let Some(stability) = &meta.stability {
+                            projected["stability"] = json!(stability);
+                        }
+                    }
+                    Some(projected)
                 })
                 .collect();
             (!fields.is_empty()).then(
@@ -181,10 +206,25 @@ pub fn narrative_record(world: &World, node: &WorldNode) -> Value {
             )
         })
         .collect();
-    json!({"id":node.id,"name":node.name,"typeId":node.type_id,
-        "capabilities":node.components.keys().collect::<Vec<_>>(),
-        "notes":node.description,"visualNotes":node.visual_description,"details":sections,
-        "sources":world.source_annotations.iter().filter(|a|a.node_id==node.id).map(|a|serde_json::json!({"origin":a.origin,"recordEditedSinceCitation":a.subject_fingerprint!=crate::sources::node_source_fingerprint(node)})).collect::<Vec<_>>()})
+    let mut record = json!({"id":node.id,"name":node.name,"typeId":node.type_id,
+        "capabilities":node.components.keys().collect::<Vec<_>>()});
+    for (key, text) in [
+        ("notes", &node.description),
+        ("visualNotes", &node.visual_description),
+    ] {
+        if !text.is_empty() {
+            record[key] = json!(text);
+        }
+    }
+    if !sections.is_empty() {
+        record["details"] = json!(sections);
+    }
+    let sources: Vec<_> = world.source_annotations.iter().filter(|a|a.node_id==node.id)
+        .map(|a|json!({"origin":a.origin,"recordEditedSinceCitation":a.subject_fingerprint!=crate::sources::node_source_fingerprint(node)})).collect();
+    if !sources.is_empty() {
+        record["sources"] = json!(sources);
+    }
+    record
 }
 
 /// Values with no visual hint are not inferred to describe appearance. Supplementary

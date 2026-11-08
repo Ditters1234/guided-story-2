@@ -383,6 +383,9 @@ impl Project {
         {
             return Err("Save/reload this memory candidate before editing.".into());
         }
+        if draft.edits == edits {
+            return Ok(());
+        }
         self.write_record("memory-draft-versions", &draft)?;
         if draft.edits.output != edits.output {
             draft.stage = MemoryStage::Review;
@@ -569,6 +572,7 @@ impl Project {
         let mut system = settings.system_prompt(TextPromptTask::Memory);
         let included = resolve_ai_context(&self.view()?.world, TextPromptTask::Memory)?;
         append_ai_context(&included, &mut system, &mut input);
+        crate::prompt_context::compact_envelope(&mut input);
         let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let output_tokens = settings.max_tokens.min(3072);
         let extra = if settings.structured_output == StructuredOutput::Schema {

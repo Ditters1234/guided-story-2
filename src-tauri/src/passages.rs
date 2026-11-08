@@ -63,6 +63,94 @@ pub(crate) fn next_passage_plan(
 }
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn new_chapter_plan(
+    story_id: String,
+    state: State<AppState>,
+) -> Result<PassagePlan, String> {
+    with_project(&state, |p| {
+        check_story(p, &story_id)?;
+        p.new_chapter_plan()
+    })
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn suggest_passage_plan(
+    story_id: String,
+    id: String,
+    expected_version: u32,
+    expected_revision: u32,
+    kind: PlanFillKind,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    let settings = connection(&app)?;
+    settings.ready()?;
+    let key = if settings.provider == TextProvider::Compatible {
+        connection_api_key(&preferences_root(&app)?, &settings)?
+    } else {
+        None
+    };
+    let jobs = app.state::<AuthoringJobs>();
+    let (prepared, cancelled) = {
+        let mut active = jobs
+            .active
+            .lock()
+            .map_err(|_| "Text jobs need reopening.")?;
+        if active.is_some() {
+            return Err("One text request is already running. Cancel or finish it first.".into());
+        }
+        if !jobs
+            .unwritten
+            .lock()
+            .map_err(|_| "Text jobs need reopening.")?
+            .is_empty()
+        {
+            return Err("Save the retained text response first.".into());
+        }
+        let prepared = with_project(&app.state::<AppState>(), |p| {
+            check_story(p, &story_id)?;
+            p.prepare_plan_fill(&id, expected_version, expected_revision, kind, &settings)
+        })?;
+        let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        *active = Some(ActiveRun {
+            id: id.clone(),
+            story_id: story_id.clone(),
+            kind: TextJobKind::Planning,
+            cancel: Some(cancel),
+        });
+        (prepared, cancelled)
+    };
+    let job = TextJob {
+        kind: TextJobKind::Planning,
+        system: prepared.system,
+        user: prepared.user,
+        schema: prepared.schema,
+        output_tokens: prepared.output_tokens,
+        demo: Ok(prepared.demo),
+    };
+    let reply = tokio::select! {
+        biased;
+        _ = cancelled => Ok(None),
+        reply = request_text(&settings, key.as_deref(), &job) => reply.map(Some),
+    };
+    let mut active = jobs
+        .active
+        .lock()
+        .map_err(|_| "Text jobs need reopening.")?;
+    *active = None;
+    let Some(reply) = reply? else {
+        return Ok(String::new());
+    };
+    if connection(&app)? != settings {
+        return Err("LLM settings changed during planning. Request a new suggestion.".into());
+    }
+    with_project(&app.state::<AppState>(), |p| {
+        check_story(p, &story_id)?;
+        p.check_plan_fill_source(&id, expected_version, expected_revision)
+    })?;
+    kind.review_text(reply)
+}
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn list_passage_drafts(
     story_id: String,
     state: State<AppState>,

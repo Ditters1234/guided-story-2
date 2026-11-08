@@ -2,50 +2,6 @@
 //! evidence/approval rules stay in the native effects pipeline.
 use super::*;
 
-fn field_descriptor(field: &FieldDefinition) -> Value {
-    let mut value = json!({"key":field.key,"label":field.label,"kind":field.kind});
-    if field.required {
-        value["required"] = json!(true);
-    }
-    if field.default_value != PropertyValue::Null {
-        value["defaultValue"] = json!(field.default_value);
-    }
-    if let Some(meta) = &field.metadata {
-        if let Some(help) = &meta.help {
-            value["help"] = json!(help);
-        }
-        if !meta.uses.is_empty() {
-            value["uses"] = json!(meta.uses);
-        }
-        if let Some(stability) = &meta.stability {
-            value["stability"] = json!(stability);
-        }
-        if !meta.choices.is_empty() {
-            value["choices"] = json!(meta.choices);
-        }
-        if let Some(capability) = &meta.reference_capability {
-            value["referenceCapability"] = json!(capability);
-        }
-        if !meta.covered_by.is_empty() {
-            value["coveredBy"] = json!(meta.covered_by);
-        }
-    }
-    value
-}
-
-pub(super) fn capabilities(world: &World) -> Value {
-    json!(world.component_types.iter().map(|definition|json!({"id":definition.id,"name":definition.name,"description":definition.description,"fields":definition.fields.iter().map(field_descriptor).collect::<Vec<_>>()})).collect::<Vec<_>>())
-}
-pub(super) fn relationships(world: &World) -> Value {
-    json!(world.relation_types.iter().map(|definition|{
-        let mut value=json!({"id":definition.id,"name":definition.name,"label":definition.label,"physicalPlacement":definition.physical_placement,"singleTarget":definition.single_target});
-        if let Some(capability)=&definition.source_capability {value["sourceCapability"]=json!(capability);}
-        if let Some(capability)=&definition.target_capability {value["targetCapability"]=json!(capability);}
-        if !definition.fields.is_empty(){value["fields"]=json!(definition.fields.iter().map(field_descriptor).collect::<Vec<_>>());}
-        value
-    }).collect::<Vec<_>>())
-}
-
 /// Descriptive help is already in the field catalogue/default extraction prompt.
 /// The provider grammar retains all semantic constraints and field names.
 fn compact_schema(value: &mut Value) {
@@ -268,6 +224,33 @@ pub(super) fn effects_schema(world: &World) -> Value {
         "notes":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string","maxLength":2000},"evidence":quote,"nodeIds":{"type":"array","maxItems":20,"items":node_ids}},"required":["text","evidence","nodeIds"],"additionalProperties":false}},
         "suggestChapterEnd":{"type":"boolean"}
     },"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false});
+    let mut new_model = world.clone();
+    new_model
+        .node_types
+        .retain(|t| !authoring_only_components(world, t.components.iter()));
+    let references = crate::prompt_context::ReferenceScope::new(
+        world,
+        world.nodes.iter().map(|n| n.id.clone()).collect(),
+        Some(&new_model),
+        json!({"type":"string","pattern":"^new:[A-Za-z0-9_-]{1,60}$"}),
+    );
+    let mut used = BTreeSet::new();
+    if let Some(nodes) = schema
+        .pointer_mut("/properties/changes/properties/putNodes/items/properties/node/anyOf")
+        .and_then(Value::as_array_mut)
+    {
+        for node in nodes {
+            references.node(node, world, &mut used);
+        }
+    }
+    if let Some(links) = schema
+        .pointer_mut("/properties/changes/properties/putLinks/items/properties/link/anyOf")
+        .and_then(Value::as_array_mut)
+    {
+        for link in links {
+            references.link(link, world, &mut used);
+        }
+    }
     compact_schema(&mut schema);
     schema
 }

@@ -18,15 +18,17 @@
   let dialog: HTMLDialogElement;
   let review = $state<HTMLDivElement>();
   const link = $derived(candidate.kind === 'putLink' ? candidate.link : null);
+  const savedLink = $derived(world.edges.find((edge) =>
+    edge.id === (candidate.kind === 'removeLink' ? candidate.id : link?.id)));
   const definition = $derived(world.relationTypes.find((d) => d.id === link?.typeId));
-  const title = $derived(candidate.kind === 'putLink' ? (world.edges.some((e) => e.id === link?.id) ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove extension' : candidate.kind==='addCapability'?'Add extension':candidate.kind==='retypeNode'?'Change preset':'Remove connection');
+  const title = $derived(candidate.kind === 'putLink' ? (savedLink ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove extension' : candidate.kind==='addCapability'?'Add extension':candidate.kind==='retypeNode'?'Change preset':'Remove connection');
   function supports(node: WorldNode, capability: string | null | undefined) {
     return !capability || !!node.components[capability] || (capability === 'core.holder' && !!node.components['core.container']);
   }
   $effect(() => { dialog?.showModal(); });
   $effect(() => { const input = JSON.stringify(candidate); if (input !== previewInput) preview = null; });
-  async function inspect(event: SubmitEvent) {
-    event.preventDefault(); working = true; error = ''; preview = null;
+  async function inspect(event?: SubmitEvent) {
+    event?.preventDefault(); working = true; error = ''; preview = null;
     const input = JSON.stringify(candidate);
     try {
       const result = unwrap(await commands.previewWorldEdit(JSON.parse(source), JSON.parse(input)));
@@ -35,6 +37,11 @@
       await tick(); review?.focus();
     } catch (caught) { error = caught instanceof Error ? caught.message : String(caught); }
     finally { working = false; }
+  }
+  function removeConnection() {
+    if (!link || !savedLink || working) return;
+    candidate = {kind:'removeLink',id:savedLink.id};
+    void inspect();
   }
   function apply() {
     if (preview && previewInput === JSON.stringify(candidate)) onApply(preview.world, source);
@@ -54,6 +61,7 @@
         <label class="field">Connection notes<textarea bind:value={link.description} rows={2} maxlength={16000}></textarea></label>
         <LinkFields {world} {link} onChange={(key,value)=>{if(candidate.kind==='putLink')candidate={...candidate,link:setLinkProperty(candidate.link,key,value)};}}/>
       </fieldset>
+      {#if savedLink}<button type="button" class="text-action danger-text" onclick={removeConnection} disabled={working}>Remove connection…</button>{/if}
     {:else if candidate.kind==='addCapability'}
       <p>Add <strong>{world.componentTypes.find(d=>candidate.kind==='addCapability'&&d.id===candidate.capability)?.name}</strong> to <strong>{world.nodes.find(n=>n.id===('id' in candidate?candidate.id:null))?.name}</strong>.</p>
       <p class="field-help">{world.componentTypes.find(d=>candidate.kind==='addCapability'&&d.id===candidate.capability)?.description}</p>
@@ -64,7 +72,11 @@
     {:else if candidate.kind === 'removeCapability'}
       <p>Remove this capability and its field values. If existing connections need it, move or remove those connections first.</p>
     {:else}
-      <p>Detach this connection. The node becomes unplaced when its physical connection is removed.</p>
+      {#if savedLink}
+        {@const relation = world.relationTypes.find((type) => type.id === savedLink.typeId)}
+        <p>Remove <strong>{world.nodes.find((node) => node.id === savedLink.sourceId)?.name} → {relation?.label} → {world.nodes.find((node) => node.id === savedLink.targetId)?.name}</strong>.</p>
+        {#if relation?.physicalPlacement}<p>The source node will become unplaced.</p>{/if}
+      {/if}
     {/if}
     {#if error}<p role="alert" class="inline-error">{error}</p>{/if}
     {#if preview}

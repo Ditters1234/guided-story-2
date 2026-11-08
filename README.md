@@ -8,6 +8,8 @@ A Windows desktop tool in development for crafting illustrated stories through a
 
 See [the testing guide](MANUAL_TESTING.md) for first launch, offline checks and configuring your own LLM/ComfyUI servers. A standalone Windows testing build runs directly from its executable, with the interface embedded and no development server. Build one with `npm run manual:build`; it creates a fresh ignored `build/manual-test-*` folder containing only the app, guide, third-party notices and build metadata. Keep story projects outside that folder.
 
+For a quick rebuild, double-click **[Rebuild executable.cmd](Rebuild%20executable.cmd)** in this source folder. It rebuilds the interface and Windows executable, creates a fresh testing-build folder and opens that folder in Explorer. Run **Guided Story 2.exe** from there. The terminal stays open so you can see success or any errors. The command-line equivalent is `npm run rebuild`; the source-build prerequisites below still apply.
+
 ## Run from source
 
 Requires Node.js 24+, Rust 1.90+ (MSVC target), Windows C++ build tools and WebView2. The workspace-local Rust toolchain, when present in `.tools/`, is detected by the scripts; it is not included in Git.

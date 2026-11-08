@@ -10,7 +10,7 @@ The initial [composable-node revision](WORLD_NODE_DESIGN.md) adds richer bundles
 
 - Select a node and use **Connections → Attach / link**, or drag between node handles to open a new connection form.
 - Use **Edit / move** on an incoming or outgoing connection, or click its canvas line. Change its source, relationship, target, notes or typed details. The saved connection keeps its ID. Changing type resets details to the new definition’s defaults; Review changes lists cleared values.
-- Use **Detach**, **Remove this node…**, or a capability's **Remove** control for removal.
+- To remove a connection, click its canvas line and choose **Remove connection…** to preview the removal. The inspector also offers **Remove** for relationships and **Detach** for physical placements. Nodes and capabilities have their own removal controls.
 - Choose **Review changes**, inspect the native-validated consequences, then **Apply changes**. Cancel leaves the world unchanged. An edited form invalidates its previous preview; applying also checks that the source world still matches.
 - Add project-local relationship definitions through **Add node → Define a relationship…**. Choose source/target capability requirements, physical placement, one-target behavior and typed detail fields. The same field builder used for node extensions supports text, choices, numbers, yes/no and filtered node references, with task-use hints. Review/Apply validates the saved definition natively.
 

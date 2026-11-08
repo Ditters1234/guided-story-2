@@ -27,6 +27,8 @@ pub struct SceneContextPreview {
     pub resources: Vec<SceneResource>,
     pub guidance: Vec<AiContextSection>,
     pub error: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writing_brief: Option<WritingBrief>,
 }
 
 pub(super) fn inventory_ids<'a>(world: &'a World, plan: &PassagePlan) -> BTreeSet<&'a String> {
@@ -80,7 +82,11 @@ pub(super) fn validate_cast(
     settings: &LlmConnection,
     guidance: &[AiContextSection],
 ) -> Result<(), String> {
-    let mut texts = vec![plan.chapter_plan.as_str(), plan.direction.as_str()];
+    let mut texts = vec![
+        plan.chapter_plan.as_str(),
+        plan.direction.as_str(),
+        plan.stop_after.as_str(),
+    ];
     texts.extend(
         settings
             .prompts
@@ -139,11 +145,17 @@ pub(super) fn preview(
         resources,
         guidance,
         error,
+        writing_brief: serde_json::from_value(input["writingBrief"].clone()).ok(),
     }
 }
 
-pub(super) fn project_records(context: &World, plan: &PassagePlan, input: &mut Value) {
-    crate::knowledge::project_records(context, input);
+pub(super) fn project_records(
+    context: &World,
+    plan: &PassagePlan,
+    input: &mut Value,
+    planning: bool,
+) {
+    crate::knowledge::project_records(context, input, planning);
     let inventory = inventory_ids(context, plan);
     if let Some(records) = input["records"].as_array_mut() {
         for record in records {

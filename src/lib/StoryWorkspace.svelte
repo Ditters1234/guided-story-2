@@ -12,7 +12,7 @@
   import PassageImages from './PassageImages.svelte';
   import DeleteDraftButton from './DeleteDraftButton.svelte';
   import type {ProjectView,World} from './model';
-  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize,PassageEffects,TextPromptTask} from './bindings';
+  import type {PassageAcceptance_Serialize,PassageReading_Serialize,PassageSummary,StoryIndex,PassagePlan,PassageRevisionKind,PassageVersions,CommitResult_Serialize,PassageEffects,TextPromptTask,PlanFillKind} from './bindings';
   let {project,world,selectedId,otherBusy,onBeforeAction,onAccept,onMemoryApply,onImage,onHistory,onRun,onFork,onSettings,onPanels,onContext=()=>{}}:{
     project:ProjectView;world:World;selectedId:string|null;otherBusy:boolean;
     onBeforeAction:()=>Promise<ProjectView>;onAccept:(result:PassageAcceptance_Serialize)=>Promise<void>;
@@ -30,6 +30,9 @@
   function registerMemoryDetails(panel?:Snippet){memoryDetails=panel;}
   async function openMemory(){try{await session.flush();mode='memory';memoryOpened=true;onHistory(null,'');}catch(caught){error=describe(caught);}}
   let loaded=$state(false),working=$state(false),error=$state('');
+  let planning=$state<PlanFillKind|null>(null);
+  let suggestion=$state<{kind:PlanFillKind;id:string;version:number;revision:number;text:string}|null>(null);
+  const visibleSuggestion=$derived(suggestion?.id===session.id&&suggestion.version===session.view?.version&&suggestion.revision===project.revision&&!session.dirty?suggestion:null);
   let sceneSettingsOpen=$state<boolean|null>(null);
   let versions=$state<PassageVersions|null>(null),versionsError=$state('');
   const selection=$derived(index.passages.findIndex((p)=>p.id===reading?.passage.id));
@@ -38,6 +41,10 @@
   const wording=$derived(session.view?.revision?.kind==='wording');
   const replacing=$derived(session.view?.revision?.kind==='events');
   const actors=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.character']));
+  const activeChapter=$derived(index.chapters.at(-1));
+  const newChapter=$derived(session.view?.sceneContext.writingBrief
+    ?session.view.sceneContext.writingBrief.chapterStatus==='opening'
+    :!!session.value?.plan.startNewChapter||!activeChapter||activeChapter.closed);
   const places=$derived(sceneWorld.nodes.filter((n)=>!!n.components['core.place']));
   const noCastSelected=$derived(!!session.value&&!session.value.plan.viewpointId&&!session.value.plan.participantIds.length);
   const nearbyCast=$derived(noCastSelected&&session.value?nearbySceneCast(sceneWorld,session.value.plan.locationId):[]);
@@ -69,7 +76,7 @@
   function editEffects(next:PassageEffects,invalidated:string[]){if(!session.value)return;session.value.effectsText=JSON.stringify(next,null,2);session.value.approvedEffects=(session.value.approvedEffects??[]).filter(k=>!invalidated.includes(k));session.touch();}
   function approveEffects(keys:string[]){if(!session.value||session.dirty||session.saving)return;const valid=new Set(reviewEntries.map(e=>e.key));session.value.approvedEffects=[...new Set(keys)].filter(k=>valid.has(k));session.touch();}
   function showReview(){document.querySelector('.story-details .effects-review')?.scrollIntoView({block:'start'});}
-  $effect(()=>{onRun(session.running||memoryRunning);});
+  $effect(()=>{onRun(session.running||memoryRunning||planning!==null);});
   $effect(()=>{const revision=project.revision;if(loaded)untrack(()=>{void refreshIndex().then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});});void revision;});
   export async function flushDraft(){await session.flush();await memoryPanel?.flushDraft();}
   async function refreshIndex(){index=unwrap(await commands.loadStory(project.storyId));drafts=unwrap(await commands.listPassageDrafts(project.storyId));}
@@ -85,8 +92,8 @@
     }catch(caught){error=describe(caught);try{await refreshIndex();}catch{}}finally{working=false;}
   }
   async function openDraft(id:string){working=true;try{await session.open(id);reading=null;mode='draft';onHistory(null,'');error='';}catch(caught){error=describe(caught);}finally{working=false;}}
-  async function fresh(){working=true;try{
-    await session.flush();const current=await onBeforeAction();const base=unwrap(await commands.nextPassagePlan(project.storyId));const continuing=index.passages.length>0;
+  async function fresh(startChapter=false){working=true;try{
+    await session.flush();const current=await onBeforeAction();const base=unwrap(startChapter?await commands.newChapterPlan(project.storyId):await commands.nextPassagePlan(project.storyId));const continuing=index.passages.length>0;
     const plan=scenePlan(current.world,base,continuing?null:selectedId,continuing?base:undefined);
     sceneSettingsOpen=null;
     await session.create(plan);reading=null;mode='draft';onHistory(null,'');await refreshIndex();error='';
@@ -99,6 +106,31 @@
   }catch(caught){error=describe(caught);}finally{working=false;}}
   async function earlierVersions(){if(!reading||versions)return;const target=reading;versionsError='';try{const result=unwrap(await commands.passageVersions(project.storyId,target.passage.id));if(reading?.record.id===target.record.id)versions=result;}catch(caught){versionsError=describe(caught);}}
   function showMoment(){if(reading)onHistory(reading[moment],`${moment==='before'?'Before':'After'} ${reading.passage.plan.title}`);}
+  async function fillPlan(kind:PlanFillKind){
+    if(blocked||otherBusy||memoryRunning)return;
+    working=true;error='';suggestion=null;
+    try{
+      await session.flush();
+      const current=await onBeforeAction();
+      if(!session.id||!session.view)throw Error('Create a passage draft first.');
+      const {id,version}=session.view;
+      planning=kind;
+      const text=unwrap(await commands.suggestPassagePlan(project.storyId,id,version,current.revision,kind));
+      if(text&&session.id===id)suggestion={kind,id,version,revision:current.revision,text};
+    }catch(caught){error=describe(caught);}finally{planning=null;working=false;}
+  }
+  async function usePlanSuggestion(){
+    const offered=visibleSuggestion;
+    if(!offered||blocked)return;
+    working=true;error='';
+    try{
+      const current=await onBeforeAction();
+      if(current.revision!==offered.revision||visibleSuggestion!==offered||!session.value)throw Error('The plan source changed. Request a new suggestion.');
+      if(offered.kind==='chapter')session.value.plan.chapterPlan=offered.text;
+      else session.value.plan.direction=offered.text;
+      suggestion=null;session.touch();await session.flush();
+    }catch(caught){error=describe(caught);}finally{working=false;}
+  }
   async function start(checking:boolean){working=true;error='';try{
     await session.flush();const current=await onBeforeAction();
     if(!checking&&session.view?.sceneContext.error){await session.refresh();if(session.view?.sceneContext.error){sceneSettingsOpen=true;throw Error(session.view.sceneContext.error);}}
@@ -119,10 +151,22 @@
   });
 </script>
 
+{#snippet planFill(kind:PlanFillKind)}
+  <button type="button" class="secondary-button" disabled={otherBusy||memoryRunning} onclick={()=>{void fillPlan(kind);}}>{kind==='chapter'?'Suggest chapter plan with AI':'Suggest scene plan with AI'}</button>
+  {#if visibleSuggestion?.kind===kind}
+    <div class="change-review" aria-label={kind==='chapter'?'Suggested chapter plan':'Suggested scene plan'}>
+      <p class="story-plan-text">{visibleSuggestion.text}</p>
+      <button type="button" class="text-action" onclick={()=>{void usePlanSuggestion();}}>Use suggestion</button>
+      <button type="button" class="text-action" onclick={()=>{suggestion=null;}}>Dismiss</button>
+    </div>
+  {/if}
+{/snippet}
+
 {#snippet contentsPanel()}
   <aside class="story-sidebar" aria-label="Chapters and passages">
     <div class="world-heading"><h1>Story</h1><span>{index.passages.length}</span></div>
-    <button class="primary-button next-passage" disabled={blocked} onclick={()=>{void fresh();}}>Write next passage</button>
+    <button class="primary-button next-passage" disabled={blocked} onclick={()=>{void fresh();}}>{activeChapter?.closed?'Start next chapter':'Write next passage'}</button>
+    {#if index.passages.length&&!activeChapter?.closed}<button class="secondary-button next-chapter" disabled={blocked||otherBusy} onclick={()=>{void fresh(true);}}>Start new chapter</button>{/if}
     <nav class="story-chapters" aria-label="Story contents">
       {#each index.chapters as chapter}<details open><summary>{chapter.title}{#if chapter.closed}<small>Closed</small>{/if}</summary>
         {#each chapter.passageIds as id}{@const entry=index.passages.find((p)=>p.id===id)}<button class:active={mode==='reader'&&reading?.passage.id===id} aria-current={mode==='reader'&&reading?.passage.id===id?'page':undefined} disabled={working} onclick={()=>{void read(id);}}>{entry?.title??'Passage'}</button>{/each}
@@ -159,8 +203,27 @@
         <button class="secondary-button" onclick={()=>{void validate();}}>Validate wording</button>
       {:else}
       {#if replacing}<p class="field-help">Uses this passage's saved before-world. Acceptance replaces its events and keeps the original version.</p>{/if}
+      <section class="passage-plan" aria-label="This passage">
+        <h3>This passage</h3>
+        <label class="field">Direction<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder="What should happen in this passage?"></textarea></label>
+        <label class="field">Stop after<textarea value={session.value.plan.stopAfter??''} oninput={e=>{session.value!.plan.stopAfter=e.currentTarget.value;session.touch();}} rows={2} maxlength={2000} placeholder="The final action, decision or reveal for this passage."></textarea></label>
+        {@render planFill('scene')}
+      </section>
+      <details class="chapter-plan" open={!hasProse}>
+        <summary>{newChapter?'New chapter':'Current chapter'} · {session.value.plan.chapterTitle}</summary>
+        <p class="field-help">{newChapter
+          ?session.value.plan.startNewChapter&&activeChapter&&!activeChapter.closed
+            ?'The current chapter closes when this new chapter’s first passage is accepted.'
+            :'This chapter begins when its first passage is accepted.'
+          :`${session.view?.sceneContext.writingBrief?.acceptedPassages??activeChapter?.passageIds.length??0} passages accepted in this chapter.`}</p>
+        <label class="field">Chapter title<input bind:value={session.value.plan.chapterTitle} oninput={()=>session.touch()} maxlength={200} /></label>
+        <label class="field">Remaining chapter direction<textarea bind:value={session.value.plan.chapterPlan} oninput={()=>session.touch()} rows={3} maxlength={4000} placeholder="What should the rest of this chapter build toward?"></textarea></label>
+        {@render planFill('chapter')}
+        <label class="field">Already covered · your recap<textarea value={session.value.plan.chapterProgress??''} oninput={e=>{session.value!.plan.chapterProgress=e.currentTarget.value;session.touch();}} rows={3} maxlength={4000} placeholder="Beats already covered or settled, to help avoid repeats."></textarea></label>
+        <p class="field-help">Update these notes as the chapter develops. The recap is your planning reminder; accepted prose establishes what happened.</p>
+        <label class="check-field"><input type="checkbox" bind:checked={session.value.closeChapter} onchange={()=>session.touch()} /><span>Close chapter when this passage is accepted</span></label>
+      </details>
       <details class="scene-settings" open={sceneSettingsOpen??!hasProse} ontoggle={e=>{const open=e.currentTarget.open;if(open!==(sceneSettingsOpen??!hasProse))sceneSettingsOpen=open;}}><summary>Scene settings</summary>
-      <details class="chapter-plan" open={!session.value.prose}><summary>Chapter plan</summary><label class="field">Chapter title<input bind:value={session.value.plan.chapterTitle} oninput={()=>session.touch()} maxlength={200} /></label><label class="field">Chapter direction<textarea bind:value={session.value.plan.chapterPlan} oninput={()=>session.touch()} rows={3} maxlength={4000}></textarea></label></details>
       <label class="field">Viewpoint<select bind:value={session.value.plan.viewpointId} onchange={()=>session.touch()}><option value={null}>Ensemble / unspecified</option>{#each actors as node}<option value={node.id}>{node.name}</option>{/each}</select></label>
       <label class="field">Claim perspective<select value={session.value.plan.knowledgePerspective??'viewpoint'} onchange={e=>{session.value!.plan.knowledgePerspective=e.currentTarget.value==='author'?'author':undefined;session.touch();}}><option value="viewpoint">Viewpoint / reader</option><option value="author">Author / omniscient</option></select></label>
       {#if sceneWorld.nodes.some(n=>n.components['core.claim'])}<KnowledgeContext world={sceneWorld} plan={session.value.plan}/>{/if}
@@ -177,11 +240,20 @@
           <div class="effects-actions">{#if proposalsLoaded}<button class="text-action" disabled={otherBusy||memoryRunning} onclick={()=>{void start(true);}}>Generate new proposals with AI</button>{/if}<button class="text-action" onclick={()=>{editEffects({changes:[],notes:[],suggestChapterEnd:false},reviewEntries.map(e=>e.key));void validate();}}>Use no world changes</button></div>
           <details class="passage-effects" open={!proposedEffects}><summary>Advanced JSON</summary><p class="field-help">Changes made here update the same proposal cards and require review. Each evidence field must copy one continuous 8–600 character excerpt.</p>{#if error||session.view?.error}<pre class="effect-raw-error">{error||session.view?.error}</pre>{/if}<textarea aria-label="Passage effects JSON" bind:value={session.value.effectsText} oninput={()=>session.touch()} rows={10} maxlength={500000} spellcheck={false}></textarea><button class="secondary-button" onclick={()=>{void validate();}}>Validate changes</button></details>
           {#if session.view?.suggestedChapterEnd}<p class="field-help">The AI suggests ending this chapter.</p>{/if}
-          <label class="check-field"><input type="checkbox" bind:checked={session.value.closeChapter} onchange={()=>session.touch()} /><span>Close chapter after this passage</span></label>
         </section>
       {/if}
       {/if}
     </fieldset>
+    {#if session.view?.sceneContext.writingBrief}{@const brief=session.view.sceneContext.writingBrief}
+      <details class="context-coverage"><summary>Writing brief sent to AI</summary>
+        {#if session.dirty||session.saving}<p class="field-help">Saving edits. This preview shows the last saved plan.</p>{/if}
+        <p>{brief.chapterTitle} · {brief.chapterStatus==='opening'?'Opening chapter':`${brief.acceptedPassages} passages already accepted`}</p>
+        {#if brief.passageDirection}<h4>This passage</h4><p class="story-plan-text">{brief.passageDirection}</p>{/if}
+        {#if brief.stopAfter}<h4>Stop after</h4><p class="story-plan-text">{brief.stopAfter}</p>{/if}
+        {#if brief.chapterRemaining}<h4>Remaining chapter direction</h4><p class="story-plan-text">{brief.chapterRemaining}</p>{/if}
+        {#if brief.alreadyCovered}<h4>Author recap</h4><p class="story-plan-text">{brief.alreadyCovered}</p>{/if}
+      </details>
+    {/if}
     {#if session.view}<details class="context-coverage"><summary>Continuity and providers</summary><p>Prose: {session.view.narrationProvider||'Manual'} · Effects: {session.view.effectsProvider||'Manual'}</p><p>{session.view.recentPassages.length} recent accepted {session.view.recentPassages.length===1?'passage':'passages'} included.</p>
       {#if session.view.knowledgeHistoryOmissions}<p>{session.view.knowledgeHistoryOmissions} recent passages omitted by claim access/source boundaries.</p>{/if}
       {#if session.view.memory.coverage.olderPassages>0}{@const coverage=session.view.memory.coverage}<p>{coverage.selectedPoints} earlier memory points · {coverage.currentSummaries}/{coverage.closedChapters} completed chapters have current summaries.</p><p>{coverage.unrepresentedPassages} older passages have no current summary or accepted notes. {coverage.omittedPoints} available points omitted by scope/size limits.</p>{#if coverage.staleSummaries||coverage.unavailableSummaries}<p>{coverage.staleSummaries} stale and {coverage.unavailableSummaries} unavailable summaries excluded.</p>{/if}{#each session.view.memory.points as point}<button class="text-action memory-source-link" disabled={working} onclick={()=>{void read(point.passageId);}}>{point.text}<small>{point.reason}</small></button>{/each}{/if}
@@ -196,6 +268,7 @@
   <div class="workspace-surface" hidden={mode==='memory'}>
   {#if error||session.error}<div class="story-error" role="alert"><span>{reviewMessage(error||session.error)}</span><button class="text-action" onclick={()=>{void session.flush().then(()=>session.refresh()).then(()=>{error='';}).catch((caught)=>{error=describe(caught);});}}>Retry / refresh</button></div>{/if}
   {#if session.running}<div class="story-job" role="status"><span>{session.view?.stage==='narrating'?'Writing passage…':'Checking world changes…'} You can browse the world while this runs.</span><button class="secondary-button" onclick={()=>{if(session.id)void commands.cancelAuthoring(session.id).then(unwrap).then(()=>session.refresh()).catch((caught)=>{error=describe(caught);});}}>Cancel</button></div>{/if}
+  {#if planning}<div class="story-job" role="status"><span>{planning==='chapter'?'Suggesting a chapter plan…':'Suggesting a scene plan…'}</span><button class="secondary-button" onclick={()=>{if(session.id)void commands.cancelAuthoring(session.id).then(unwrap).catch((caught)=>{error=describe(caught);});}}>Cancel</button></div>{/if}
   {#if mode==='draft'&&session.value}
     <fieldset class="passage-fields passage-toolbar" aria-label="Passage generation" disabled={blocked||session.view?.stage==='accepted'}>
       {#if !wording}<label>Target words<input type="number" aria-label="Target words" value={session.value.plan.targetWords} oninput={(event)=>{const n=event.currentTarget.valueAsNumber;if(Number.isFinite(n)&&n>=100&&n<=1500){session.value!.plan.targetWords=Math.round(n);session.touch();}}} onblur={(event)=>{event.currentTarget.value=String(session.value!.plan.targetWords);}} min={100} max={1500} step={50} /></label>{/if}
@@ -216,7 +289,7 @@
     <div class="passage-composer">
       <fieldset class="passage-fields" disabled={blocked||session.view?.stage==='accepted'}>
         <label class="field">Passage title<input bind:value={session.value.plan.title} disabled={wording} oninput={()=>session.touch()} maxlength={200} /></label>
-        <label class="field">{wording?'Wording direction (for AI polish)':'Passage direction (optional)'}<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder={wording?'How should the wording change while keeping events intact?':'What should happen, and where should the passage stop?'}></textarea>{#if !wording}<span class="field-help">With no direction, AI develops one story beat from the cast, focus and accepted history.</span>{/if}</label>
+        {#if wording}<label class="field">Wording direction (for AI polish)<textarea bind:value={session.value.plan.direction} oninput={()=>session.touch()} rows={4} maxlength={8000} placeholder="How should the wording change while keeping events intact?"></textarea></label>{/if}
         {#if session.view?.narrationProvider.startsWith('Offline demo')}<p class="field-help">{session.view.narrationProvider}</p>{/if}
         <label class="field prose-field">Passage<textarea bind:value={session.value.prose} oninput={()=>session.touch()} rows={16} maxlength={100000} placeholder="Generate a passage or write it here."></textarea><span class="field-help">{wordCount} words</span></label>
       </fieldset>

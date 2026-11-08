@@ -99,7 +99,8 @@ fn open_project(
     }
     let project = Project::open(&path)?;
     let recovery = project
-        .interrupt_authoring()
+        .cleanup_temporary_writes()
+        .and(project.interrupt_authoring())
         .and(project.interrupt_passages())
         .and(project.interrupt_memories())
         .and(project.interrupt_media())
@@ -107,7 +108,7 @@ fn open_project(
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
-            "The world opened, but AI proposal recovery needs attention: {error}"
+            "The world opened, but saved-work recovery needs attention: {error}"
         ));
     }
     *guard = Some(project);
@@ -164,7 +165,8 @@ fn recover_project(
     }
     let project = Project::recover(Path::new(&folder_path))?;
     let recovery = project
-        .interrupt_authoring()
+        .cleanup_temporary_writes()
+        .and(project.interrupt_authoring())
         .and(project.interrupt_passages())
         .and(project.interrupt_memories())
         .and(project.interrupt_media())
@@ -172,7 +174,7 @@ fn recover_project(
     let mut view = project.view()?;
     if let Err(error) = recovery {
         view.warnings.push(format!(
-            "The world recovered, but AI proposals need attention: {error}"
+            "The world recovered, but saved-work recovery needs attention: {error}"
         ));
     }
     *guard = Some(project);
@@ -337,6 +339,8 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             close_authoring,
             load_story,
             next_passage_plan,
+            new_chapter_plan,
+            suggest_passage_plan,
             list_passage_drafts,
             delete_passage_draft,
             get_passage_draft,

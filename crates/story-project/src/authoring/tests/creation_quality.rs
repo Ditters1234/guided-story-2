@@ -27,11 +27,86 @@ fn creation_request_budget_audit() {
         .unwrap()
         .contains("child house, barn and field"));
     assert_eq!(user["creationGuide"]["narration"]["requested"], true);
+    let situation = &user["creationGuide"]["startingSituation"];
+    assert!(situation["firstAction"]
+        .as_str()
+        .unwrap()
+        .contains("present-at"));
+    assert!(situation["budget"]
+        .as_str()
+        .unwrap()
+        .contains("premise-critical items and links"));
+    let mut tight_settings = settings();
+    tight_settings.context_tokens = prepared.estimated_input_tokens + tight_settings.max_tokens - 1;
+    let tight = prepare_authoring(&w, &request, &tight_settings).unwrap();
+    let tight_input: Value = serde_json::from_str(&tight.user).unwrap();
+    assert!(tight_input["creationGuide"]
+        .get("physicalPlacement")
+        .is_some());
+    assert!(tight_input["creationGuide"]
+        .get("startingSituation")
+        .is_none());
     assert!(!prepared.response_schema.to_string().contains("core.claim"));
     println!(
         "{}",
         json!({"inputBytes":prepared.system.len()+prepared.user.len(),"estimatedInputTokens":prepared.estimated_input_tokens,"outputTokens":settings().max_tokens,"suggestedNodes":user["responseBudget"]["suggestedMaxNewNodes"],"schemaBytes":prepared.response_schema.to_string().len()})
     );
+}
+
+#[test]
+fn request_size_samples() {
+    let mut world = World::default();
+    let person = proposed_node(&world, "core.character", &id(), "Nora Hale");
+    let place = proposed_node(&world, "core.place", &id(), "Glasshouse");
+    world.nodes = vec![person.clone(), place.clone()];
+    let world_request = world_request(&world);
+    let group = AuthoringRequest {
+        creation_scope: Some(CreationScope::Group),
+        group_type_id: Some("core.item".into()),
+        context_ids: vec![place.id.clone()],
+        ..group_request()
+    };
+    let revise = AuthoringRequest {
+        mode: AuthoringMode::Revise,
+        type_id: None,
+        bundle: false,
+        target_ids: vec![person.id.clone()],
+        fields: vec![EditableField {
+            node_id: person.id,
+            component_id: Some("detail.intent".into()),
+            key: "objective".into(),
+        }],
+        context_ids: vec![place.id],
+        ..request()
+    };
+    for (name, request) in [
+        ("world", world_request),
+        ("itemGroup", group),
+        ("revision", revise),
+    ] {
+        for mode in [StructuredOutput::Json, StructuredOutput::Schema] {
+            let mut connection = settings();
+            connection.structured_output = mode;
+            let prepared = prepare_authoring(&world, &request, &connection).unwrap();
+            let schema_bytes = if mode == StructuredOutput::Schema {
+                prepared.response_schema.to_string().len()
+            } else {
+                0
+            };
+            let ceiling = match (name, mode) {
+                ("world", StructuredOutput::Json) => 36500,
+                ("world", _) => 46000,
+                ("itemGroup", StructuredOutput::Json) => 17500,
+                ("itemGroup", _) => 20200,
+                _ => 16500,
+            };
+            assert!(prepared.system.len() + prepared.user.len() + schema_bytes <= ceiling);
+            println!(
+                "{}",
+                json!({"task":name,"mode":mode,"messageBytes":prepared.system.len()+prepared.user.len(),"schemaBytes":schema_bytes,"totalBytes":prepared.system.len()+prepared.user.len()+schema_bytes})
+            );
+        }
+    }
 }
 
 #[test]
@@ -80,8 +155,13 @@ fn compact_json_contract_keeps_catalogue_semantics_and_full_native_schema() {
             .iter()
             .find(|c| c["id"] == "custom.tool")
             .unwrap();
-        assert_eq!(custom["fields"][0]["choices"], json!(["sound", "worn"]));
-        assert_eq!(custom["fields"][0]["required"], true);
+        if mode == StructuredOutput::Schema {
+            assert!(custom["fields"][0].get("choices").is_none());
+            assert!(custom["fields"][0].get("required").is_none());
+        } else {
+            assert_eq!(custom["fields"][0]["choices"], json!(["sound", "worn"]));
+            assert_eq!(custom["fields"][0]["required"], true);
+        }
         assert_eq!(custom["fields"][0]["help"], "Usable condition of the tool");
         assert_eq!(
             p.response_schema["properties"]["nodes"]["properties"]["core.item"]["items"]
@@ -102,6 +182,7 @@ fn compact_json_contract_keeps_catalogue_semantics_and_full_native_schema() {
         assert!(input["responseBudget"]
             .get("foundationDetailAllowance")
             .is_none());
+        assert!(input["creationGuide"].get("startingSituation").is_none());
     }
     let (_dir, p) = create();
     p.commit(0, id(), "Fictional tools".into(), w.clone())

@@ -1,6 +1,32 @@
 use super::*;
 mod provider_scope;
 #[test]
+fn unchanged_memory_autosaves_do_not_accumulate_archives_or_change_review() {
+    let (_dir, p) = fixture();
+    accept(&p, "Mara waited beside the window.", true, None, false);
+    let chapter = p.story_index().unwrap().chapters[0].id.clone();
+    let key = id();
+    p.create_memory_draft(&key, &chapter).unwrap();
+    let mut edits = p.memory_view(&key).unwrap().edits;
+    edits.output.no_lasting_facts = true;
+    p.save_memory_draft(&key, 1, edits).unwrap();
+    let view = p.memory_view(&key).unwrap();
+    let bytes = fs::read(p.memory_path(&key).unwrap()).unwrap();
+    for _ in 0..3 {
+        p.save_memory_draft(&key, view.version, view.edits.clone())
+            .unwrap();
+    }
+    assert_eq!(fs::read(p.memory_path(&key).unwrap()).unwrap(), bytes);
+    assert_eq!(
+        fs::read_dir(p.root_path().join("memory-draft-versions"))
+            .unwrap()
+            .count(),
+        1
+    );
+    assert!(p.memory_view(&key).unwrap().can_apply);
+    p.apply_memory(&key, view.version).unwrap();
+}
+#[test]
 fn ai_context_changes_stale_pending_memory_and_future_context_is_not_copied_into_earlier_forks() {
     let (dir, p) = fixture();
     let passage = accept(
