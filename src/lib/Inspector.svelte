@@ -6,6 +6,7 @@
   import NodeImage from './NodeImage.svelte';
   import AiContextBindingEditor from './AiContextBindingEditor.svelte';
   import {hasCapability} from './node-fields';
+  import {connectionDirection,ownershipWarnings} from './link-fields';
   import type {AiContextBinding} from './bindings';
   let { record, records, world, editable, historical = false, imageStoryId, revision, onImage, onEdit, onSelect, onProperty, onAddCapability, onDefineCapability, onRetype, onRemoveNode, onRemoveCapability, onLink, onNewLink, onRemoveLink, onAi,onAiLink,onSources,onContext,onContextOpen }: {
     record: WorldRecord | undefined; records: WorldRecord[]; world: World; editable: boolean; historical?: boolean;
@@ -48,9 +49,11 @@
         {@const outgoing = edge.sourceId === node.id}
         {@const other = world.nodes.find((n) => n.id === (outgoing ? edge.targetId : edge.sourceId))}
         {@const relation = world.relationTypes.find((d) => d.id === edge.typeId)}
-        <div class="connection-row"><button class="linked-record" disabled={!other} onclick={() => {if(other)onSelect(other.id);}}><span>{outgoing ? '→' : '←'} {other?.name??'Missing node'}</span><small>{outgoing ? '' : 'incoming · '}{relation?.label}</small></button>
+        {@const direction=connectionDirection(edge)}
+        <div class="connection-row"><button class="linked-record" disabled={!other} onclick={() => {if(other)onSelect(other.id);}}><span>{direction==='two-way'?'↔':outgoing ? '→' : '←'} {other?.name??'Missing node'}</span><small>{direction==='two-way'?'two-way · ':outgoing ? '' : 'incoming · '}{relation?.label}{direction==='unspecified'?' · direction unspecified':''}</small></button>
           {#if editable}<div class="connection-actions"><button class="text-action" onclick={() => onLink(edge.id)} aria-label={'Edit '+relation?.label+' connection with '+other?.name}>Edit / move</button><button class="text-action" onclick={()=>onAiLink(edge.id)} aria-label={'Revise '+relation?.label+' connection with AI'}>AI…</button><button class="text-action danger-text" onclick={() => onRemoveLink(edge.id)} aria-label={(relation?.physicalPlacement?'Detach ':'Remove ')+relation?.label+' connection with '+other?.name}>{relation?.physicalPlacement?'Detach':'Remove'}</button></div>{/if}
         </div>
+        {#each ownershipWarnings(world,edge) as warning}<p class="field-help" role="status">{warning} Ownership does not establish possession.</p>{/each}
         {#if edge.description}<p class="field-help">{edge.description}</p>{/if}{#each relation?.fields??[] as field}{#if edge.properties?.[field.key]!==undefined&&edge.properties?.[field.key]!==null&&edge.properties?.[field.key]!==''}<p class="field-help">{field.label}: {valueLabel(edge.properties?.[field.key],world.nodes,field.kind)}</p>{/if}{/each}
       {:else}<p class="field-help">No connections.</p>{/each}
     </div>

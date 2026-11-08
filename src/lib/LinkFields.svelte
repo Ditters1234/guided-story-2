@@ -2,11 +2,12 @@
   import type {PropertyValue,WorldEdge} from './bindings';
   import type {World} from './model';
   import type {FieldTarget} from './node-fields';
-  import {linkFields} from './link-fields';
+  import {linkFields,ownershipWarnings} from './link-fields';
   import PropertyInput from './PropertyInput.svelte';
   let {world,link,nodes=world.nodes,disabled=false,canEdit=()=>true,onChange}:{world:World;link:WorldEdge;nodes?:FieldTarget[];disabled?:boolean;canEdit?:(key:string)=>boolean;onChange:(key:string,value:PropertyValue|undefined)=>void}=$props();
   const fields=$derived(linkFields(world,link));
 </script>
+{#each ownershipWarnings(world,link,nodes) as warning}<p class="story-warning" role="status">{warning} This is advisory; ownership does not establish possession.</p>{/each}
 {#each fields as field (field.key)}
   <PropertyInput {field} value={link.properties?.[field.key]??null} {nodes} disabled={disabled||!canEdit(field.key)} onChange={value=>onChange(field.key,value)}/>
 {/each}

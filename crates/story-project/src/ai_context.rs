@@ -111,6 +111,18 @@ pub fn resolve_ai_context(
     world: &World,
     task: TextPromptTask,
 ) -> Result<Vec<AiContextSection>, String> {
+    if matches!(
+        task,
+        TextPromptTask::Passage | TextPromptTask::Wording | TextPromptTask::Planning
+    ) {
+        if let Some(binding) = world.ai_context.iter().find(|b| {
+            b.enabled
+                && b.tasks.contains(&task)
+                && b.fields.contains(&AiContextField::VisualDescription)
+        }) {
+            return Err(format!("AI context for {:?} selects image-only visualDescription on node {}. Deselect Extra visual notes for this binding or use an image task; required content was not silently dropped.", task, binding.node_id));
+        }
+    }
     if matches!(task,TextPromptTask::Passage|TextPromptTask::Wording) && world.ai_context.iter().any(|b|b.enabled&&b.tasks.contains(&task)&&world.nodes.iter().any(|n|n.id==b.node_id&&crate::knowledge::is_claim(n)&&matches!(n.components.get("core.claim").and_then(|v|v.get("disclosure")),Some(PropertyValue::Text(s)) if s=="withheld"))) {
         return Err("Required prose context includes a withheld claim. Change its inclusion or narration access; required context was not silently dropped.".into());
     }

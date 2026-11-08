@@ -676,7 +676,7 @@ pub fn prepare_authoring(
     let mut input = json!({"request":effective_request,"records":records,"links":context.edges,"nodeTypes":node_types,"capabilities":crate::prompt_context::capabilities(&model_schema, formal_schema),"relationships":crate::prompt_context::relationships(&model_schema, formal_schema),"sources":context.source_annotations,"responseBudget":creation::budget(&model_schema,request,settings.max_tokens)});
     input["operation"] = prompt_contract::operation(request);
     input["recordPermissions"] = prompt_contract::permissions(&context, request);
-    input["catalogueRules"] = json!("fieldDefaults supplies shared field metadata. responseSchema or response_format supplies types, required fields and choices when omitted here. Empty components declare capabilities; absent optional reference values are unspecified.");
+    input["catalogueRules"] = json!("fieldDefaults shares metadata. An omitted label means the field key. The output schema supplies omitted kinds, requirements and choices; local $defs share identical contracts. Empty components declare capabilities; absent optional references are unspecified.");
     if request.mode == AuthoringMode::Create {
         input["creationGuide"] = creation::guide(&model_schema, request);
         input["creationIntent"] = json!(if request.type_id.is_some() {
@@ -792,7 +792,7 @@ pub fn prepare_authoring(
     }
     let fingerprint_for = |user: &str| {
         hash(&(
-            "world-authoring-v13-creation-capability-groups",
+            "world-authoring-v14-relationship-guidance",
             &system,
             user,
             &response_schema,

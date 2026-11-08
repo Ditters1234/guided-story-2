@@ -21,6 +21,7 @@ fn group_relation_sources_come_from_new_nodes_while_existing_targets_and_contain
         ("custom.reference-source", "custom.reference-only"),
     ] {
         world.relation_types.push(RelationDefinition {
+            description: String::new(),
             id: id.into(),
             name: id.into(),
             label: "supplies".into(),
@@ -446,6 +447,7 @@ fn typed_link_revision_schema_locks_identity_endpoints_notes_and_unchecked_prope
     let a = proposed_node(&world, "core.place", &id(), "Workshop");
     let b = proposed_node(&world, "core.place", &id(), "Store room");
     world.relation_types.push(RelationDefinition {
+        description: String::new(),
         id: "custom.obligation".into(),
         name: "Obligation".into(),
         label: "owes maintenance to".into(),

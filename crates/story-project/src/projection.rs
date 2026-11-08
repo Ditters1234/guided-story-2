@@ -67,6 +67,60 @@ pub fn narrative_link(world: &World, edge: &WorldEdge) -> Value {
     story_link(world, edge, false)
 }
 
+/// Explain only the relationships actually supplied to narration. Field values
+/// stay on links; repeated semantics appear once per type, never expand scope.
+pub(crate) fn narrative_relationship_guidance(
+    world: &World,
+    links: &[Value],
+    planning: bool,
+) -> Vec<Value> {
+    world
+        .relation_types
+        .iter()
+        .filter_map(|definition| {
+            let supplied: Vec<_> = links
+                .iter()
+                .filter(|link| link["typeId"] == definition.id)
+                .collect();
+            if supplied.is_empty() {
+                return None;
+            }
+            let fields: Vec<_> = definition
+                .fields
+                .iter()
+                .filter(|field| {
+                    (field.used_for(FieldUse::Story)
+                        || (planning && field.used_for(FieldUse::Planning)))
+                        && supplied.iter().any(|link| {
+                            link["details"]
+                                .as_array()
+                                .is_some_and(|fields| fields.iter().any(|f| f["key"] == field.key))
+                        })
+                })
+                .filter_map(|field| {
+                    let meta = field.metadata.as_ref()?;
+                    let mut value = json!({"key":field.key});
+                    if let Some(help) = meta.help.as_ref().filter(|s| !s.is_empty()) {
+                        value["help"] = json!(help);
+                    }
+                    if let Some(stability) = meta.stability {
+                        value["stability"] = json!(stability);
+                    }
+                    (value.as_object()?.len() > 1).then_some(value)
+                })
+                .collect();
+            let mut value = json!({"typeId":definition.id});
+            if !definition.description.is_empty() {
+                value["meaning"] = json!(definition.description);
+            }
+            if !fields.is_empty() {
+                value["fields"] = json!(fields);
+            }
+            (value.as_object()?.len() > 1).then_some(value)
+        })
+        .collect()
+}
+
 pub(crate) fn story_link(world: &World, edge: &WorldEdge, planning: bool) -> Value {
     let definition = world.relation_types.iter().find(|d| d.id == edge.type_id);
     let fields: Vec<_> = definition
@@ -208,13 +262,8 @@ pub(crate) fn story_record(world: &World, node: &WorldNode, planning: bool) -> V
         .collect();
     let mut record = json!({"id":node.id,"name":node.name,"typeId":node.type_id,
         "capabilities":node.components.keys().collect::<Vec<_>>()});
-    for (key, text) in [
-        ("notes", &node.description),
-        ("visualNotes", &node.visual_description),
-    ] {
-        if !text.is_empty() {
-            record[key] = json!(text);
-        }
+    if !node.description.is_empty() {
+        record["notes"] = json!(node.description);
     }
     if !sections.is_empty() {
         record["details"] = json!(sections);

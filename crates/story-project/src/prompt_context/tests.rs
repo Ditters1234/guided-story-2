@@ -2,6 +2,55 @@ use super::*;
 use std::collections::BTreeMap;
 
 #[test]
+fn shared_concrete_components_and_scoped_identities_expand_without_losing_constraints() {
+    let world = World::default();
+    let original = expanded_test_schema(&crate::story_effects::effects_schema(&world));
+    let mut shared = original.clone();
+    share_component_schemas(&mut shared);
+    assert!(shared.get("$defs").is_some());
+    assert!(shared.to_string().len() < original.to_string().len());
+    assert_eq!(expanded_test_schema(&shared), original);
+    let literal = json!({"type":"object","properties":{"text":{"type":"string","maxLength":16000}},"required":["text"],"additionalProperties":false});
+    let mut contract = json!({"type":"object","properties":{"a":literal,"b":literal},"const":{"properties":{"a":literal,"b":literal}}});
+    let protected = contract["const"].clone();
+    share_component_schemas(&mut contract);
+    assert_eq!(contract["const"], protected);
+    let once = contract.clone();
+    share_component_schemas(&mut contract);
+    assert_eq!(contract, once);
+}
+
+#[test]
+fn relationship_meanings_and_field_help_survive_catalogue_projection() {
+    let world = World::default();
+    for formal in [false, true] {
+        let values = relationships(&world, formal);
+        for definition in &world.relation_types {
+            let value = values
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["id"] == definition.id)
+                .unwrap();
+            if !definition.description.is_empty() {
+                assert_eq!(value["description"], definition.description);
+            }
+            for field in &definition.fields {
+                if let Some(help) = field.metadata.as_ref().and_then(|m| m.help.as_ref()) {
+                    let output = value["fields"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|f| f["key"] == field.key)
+                        .unwrap();
+                    assert_eq!(output["help"], *help);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn reference_compaction_preserves_markers_required_values_unknown_data_zero_and_false() {
     let mut world = World::default();
     let field = |key: &str, kind, required| FieldDefinition {
@@ -81,7 +130,14 @@ fn shared_catalogue_metadata_expands_to_the_exact_project_semantics_in_all_modes
                     .iter()
                     .find(|f| f["key"] == field.key)
                     .unwrap();
-                assert_eq!(descriptor["label"], field.label);
+                assert_eq!(
+                    descriptor
+                        .get("label")
+                        .and_then(Value::as_str)
+                        .unwrap_or(&field.key)
+                        .to_lowercase(),
+                    field.label.to_lowercase()
+                );
                 for key in ["uses", "stability"] {
                     let value = descriptor
                         .get(key)

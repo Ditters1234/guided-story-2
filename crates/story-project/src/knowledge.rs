@@ -82,14 +82,15 @@ fn edge_text<'a>(e: &'a WorldEdge, key: &str) -> &'a str {
 pub(crate) fn validate_knowledge(world: &World) -> Result<(), String> {
     // Optional contracts never install themselves in historical schemas.
     #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
     struct Contracts {
         component_types: Vec<ComponentDefinition>,
         relation_types: Vec<RelationDefinition>,
     }
-    let catalog: Contracts =
-        serde_json::from_str(include_str!("../../../schema/knowledge-core.json"))
-            .expect("Invalid pinned knowledge contracts");
+    let catalog: Contracts = crate::model::bundled_json(
+        "knowledge-core.json",
+        include_str!("../../../schema/knowledge-core.json"),
+    )?;
     if let Some(def) = world.component_types.iter().find(|d| d.id == "core.claim") {
         if Some(def)
             != catalog
@@ -370,6 +371,21 @@ pub(crate) fn project_records(context: &World, input: &mut serde_json::Value, pl
         .filter(|e| !claim_ids.contains(&e.source_id) && !claim_ids.contains(&e.target_id))
         .map(|e| crate::projection::story_link(context, e, planning))
         .collect::<Vec<_>>());
+    let guidance = crate::projection::narrative_relationship_guidance(
+        context,
+        input["links"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default(),
+        planning,
+    );
+    input
+        .as_object_mut()
+        .unwrap()
+        .remove("relationshipGuidance");
+    if !guidance.is_empty() {
+        input["relationshipGuidance"] = json!(guidance);
+    }
     input["sources"] = json!(context
         .source_annotations
         .iter()

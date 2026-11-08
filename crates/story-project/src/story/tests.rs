@@ -10,6 +10,7 @@ mod prompts;
 mod relationships;
 mod review;
 mod revisions;
+mod schema_integration;
 mod source_contract;
 mod starting_state;
 fn id() -> String {

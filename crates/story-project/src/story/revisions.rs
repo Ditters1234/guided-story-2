@@ -264,6 +264,15 @@ impl Project {
             if revision.kind == PassageRevisionKind::Wording {
                 input["originalProse"] = json!(base.prose);
                 input["acceptedEffects"] = json!(base.effects);
+                // Wording keeps canonical effects unchanged. Supplementary image
+                // notes are not narrative evidence and must not enter prose prompts.
+                if let Some(changes) = input["acceptedEffects"]["changes"].as_array_mut() {
+                    for change in changes {
+                        if let Some(node) = change.get_mut("node").and_then(Value::as_object_mut) {
+                            node.remove("visualDescription");
+                        }
+                    }
+                }
             }
             let fingerprint = story_hash(&(fingerprint, revision))?;
             Ok((context, base.before_world, input, fingerprint, recent))

@@ -5,6 +5,7 @@ mod image_workflow;
 mod knowledge;
 #[cfg(test)]
 mod live_tools;
+mod location_templates;
 mod media;
 mod memory;
 mod model;
@@ -25,6 +26,7 @@ pub use authoring::*;
 pub use connections::*;
 pub use image_workflow::*;
 pub use knowledge::*;
+pub use location_templates::*;
 pub use media::*;
 pub use memory::*;
 pub use model::*;

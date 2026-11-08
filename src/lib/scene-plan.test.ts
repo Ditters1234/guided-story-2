@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import type {PassagePlan} from './bindings';
 import {emptyWorld,makeNode} from './model';
-import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast} from './scene-plan';
+import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast,sceneConditionChoices} from './scene-plan';
 
 const base=():PassagePlan=>({chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450});
 function fixture(){
@@ -14,6 +14,28 @@ function fixture(){
   return {world,location,otherPlace,cast,distant};
 }
 describe('editable scene defaults',()=>{
+  it('offers only direct conditions for explicit reference selection, without automatic inclusion or inheritance',()=>{
+    const {world,location,otherPlace}=fixture(),room=makeNode(world,'core.place','Indoor room'),conditions=makeNode(world,'core.environment','Outdoor conditions'),other=makeNode(world,'core.environment','Distant conditions');
+    conditions.typeId='custom.outdoors';
+    world.nodes.push(room,conditions,other);
+    world.edges.push(
+      {id:'inside',typeId:'core.inside',sourceId:room.id,targetId:location.id,description:''},
+      {id:'conditions',typeId:'story.conditions-at',sourceId:conditions.id,targetId:location.id,description:'Coverage fallback',properties:{scope:'Outdoor areas only.'}},
+      {id:'distant',typeId:'story.conditions-at',sourceId:other.id,targetId:otherPlace.id,description:''},
+      {id:'reverse',typeId:'story.conditions-at',sourceId:location.id,targetId:conditions.id,description:''},
+    );
+    const original=structuredClone(world),plan={...base(),locationId:location.id};
+    expect(sceneConditionChoices(world,plan)).toEqual([{id:conditions.id,name:conditions.name,scope:'Outdoor areas only.'}]);
+    expect(scenePlan(world,base(),location.id).referenceIds).toEqual([]);
+    expect(sceneConditionChoices(world,{...plan,locationId:room.id})).toEqual([]);
+    expect(sceneConditionChoices(world,{...plan,locationId:conditions.id})).toEqual([]);
+    expect(sceneConditionChoices(world,{...plan,referenceIds:[conditions.id]})).toEqual([]);
+    expect(sceneConditionChoices(world,{...plan,participantIds:[conditions.id]})).toEqual([]);
+    expect(world).toEqual(original);
+    expect(plan.referenceIds).toEqual([]);
+    delete world.edges.find(e=>e.id==='conditions')!.properties;
+    expect(sceneConditionChoices(world,plan)[0].scope).toBe('Coverage fallback');
+  });
   it('stages only the selected place and its present cast, including custom character presets',()=>{
     const {world,location,cast,distant}=fixture(),before=structuredClone(world),plan=base();
     const scene=scenePlan(world,plan,location.id);

@@ -5,6 +5,7 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	createProject: (parentPath: string, title: string, world: World_Deserialize, requestId: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("create_project", { parentPath, title, world, requestId })),
+	locationTemplateWorld: (templateId: string) => typedError<World_Serialize, string>(__TAURI_INVOKE("location_template_world", { templateId })),
 	openProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("open_project", { folderPath })),
 	startupProject: () => typedError<ProjectView_Serialize | null, string>(__TAURI_INVOKE("startup_project")),
 	recoverProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("recover_project", { folderPath })),
@@ -1396,6 +1397,7 @@ export type RelationDefinition_Deserialize = {
 	physicalPlacement: boolean,
 	singleTarget: boolean,
 	fields?: FieldDefinition_Deserialize[],
+	description?: string,
 };
 
 export type RelationDefinition_Serialize = {
@@ -1407,6 +1409,7 @@ export type RelationDefinition_Serialize = {
 	physicalPlacement: boolean,
 	singleTarget: boolean,
 	fields?: FieldDefinition_Serialize[],
+	description?: string,
 };
 
 export type RememberedPoint = RememberedPoint_Serialize | RememberedPoint_Deserialize;

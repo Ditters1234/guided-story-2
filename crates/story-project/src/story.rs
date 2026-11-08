@@ -861,7 +861,7 @@ impl Project {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
         let mut fingerprint = story_hash(&(
-            "passage-source-v17-chapter-brief",
+            "passage-source-v18-relationship-guidance",
             &input,
             &context.node_types,
             &context.component_types,
@@ -936,7 +936,7 @@ impl Project {
             // in response_format or in the user message.
             input["capabilities"] = effects_capabilities(&effect_schema_context, true);
             input["relationships"] = effects_relationships(&effect_schema_context, true);
-            input["catalogueRules"] = json!("fieldDefaults supplies shared field metadata. responseSchema or response_format supplies types, required fields and choices.");
+            input["catalogueRules"] = json!("fieldDefaults shares metadata; an omitted label means the key. The output schema supplies kinds, requirements and choices. Local $defs share identical contracts.");
         }
         let source_world_data: World = self.read_record("worlds", &source_world)?;
         let included = if checking {

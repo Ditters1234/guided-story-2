@@ -1,6 +1,7 @@
 import type { MarkerType, Edge, Node } from '@xyflow/svelte';
 import type { World, Workspace } from './model';
 import {nodeSearchText} from './node-fields';
+import {connectionDirection} from './link-fields';
 
 export type RecordKind = 'place' | 'character' | 'item' | 'thread' | 'custom';
 export type WorldRecord = {
@@ -123,11 +124,12 @@ export function buildGraph(world: World, workspace: Workspace, search: string, o
   for (const edge of world.edges) {
     if (!ids.has(edge.sourceId) || !ids.has(edge.targetId)) continue;
     const definition = world.relationTypes.find((r) => r.id === edge.typeId);
-    edges.push({ id: edge.id, source: edge.sourceId, target: edge.targetId, label: definition?.label ?? edge.typeId,
+    const direction=connectionDirection(edge),twoWay=direction==='two-way';
+    edges.push({ id: edge.id, source: edge.sourceId, target: edge.targetId, label: (definition?.label ?? edge.typeId)+(direction==='unspecified'?' · direction unspecified':''),
       type: definition?.physicalPlacement ? 'smoothstep' : 'default',
       style: definition?.physicalPlacement ? 'stroke: var(--connection);' : 'stroke: var(--secondary-connection); stroke-dasharray: 5 5;',
-      ariaLabel: `${records.find((r) => r.id === edge.sourceId)?.name} ${definition?.label} ${records.find((r) => r.id === edge.targetId)?.name}`,
-      interactionWidth: 24, markerEnd: { type: 'arrowclosed' as MarkerType } });
+      ariaLabel: `${records.find((r) => r.id === edge.sourceId)?.name} ${twoWay?'↔':'→'} ${records.find((r) => r.id === edge.targetId)?.name}: ${definition?.label??edge.typeId}${direction==='directed'?'':', '+direction}`,
+      interactionWidth: 24, ...(twoWay?{markerStart:{type:'arrowclosed' as MarkerType}}:{}), markerEnd: { type: 'arrowclosed' as MarkerType } });
   }
   return { nodes, edges };
 }

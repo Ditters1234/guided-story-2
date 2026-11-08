@@ -1,6 +1,16 @@
 import type {PassagePlan} from './bindings';
 import type {World} from './model';
 
+/** Only direct, explicitly authored coverage of the selected focus. No inheritance. */
+export function sceneConditionChoices(world:World,plan:PassagePlan):{id:string;name:string;scope:string}[] {
+  if(!world.nodes.some(n=>n.id===plan.locationId&&n.components['core.place'])||!world.relationTypes.some(r=>r.id==='story.conditions-at'&&!r.physicalPlacement))return [];
+  const selected=new Set([plan.locationId,plan.viewpointId,...plan.participantIds,...plan.referenceIds]);
+  return world.edges.filter(e=>e.typeId==='story.conditions-at'&&e.targetId===plan.locationId&&!selected.has(e.sourceId)).flatMap(edge=>{
+    const node=world.nodes.find(n=>n.id===edge.sourceId&&n.components['detail.environment']);
+    return node?[{id:node.id,name:node.name,scope:typeof edge.properties?.scope==='string'?edge.properties.scope:edge.description}]:[];
+  }).filter((choice,index,all)=>all.findIndex(c=>c.id===choice.id)===index);
+}
+
 /** Closest place first, using only declared physical attachments. */
 function placementResolver(world:World) {
   const physical=new Set(world.relationTypes.filter(r=>r.physicalPlacement).map(r=>r.id));

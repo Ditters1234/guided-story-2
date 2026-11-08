@@ -1,5 +1,11 @@
 use super::*;
 
+// Structural assertions inspect the resolved wire contract. Separate tests
+// verify sharing is lossless and leaves per-preset capability sets concrete.
+fn effects_schema(world: &World) -> Value {
+    crate::prompt_context::expanded_test_schema(&super::effects_schema(world))
+}
+
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -407,6 +413,7 @@ fn link_endpoint_enums_follow_capabilities_including_container_holders_and_custo
         fields: vec![],
     });
     w.relation_types.push(RelationDefinition {
+        description: String::new(),
         id: "custom.mounted-at".into(),
         name: "Mounted at".into(),
         label: "mounted at".into(),
@@ -547,6 +554,7 @@ fn compact_contract_retains_custom_field_metadata_and_nullable_constraints() {
         components: vec!["custom.condition".into()],
     });
     w.relation_types.push(RelationDefinition {
+        description: String::new(),
         id: "custom.observed-by".into(),
         name: "Observed by".into(),
         label: "observed by".into(),

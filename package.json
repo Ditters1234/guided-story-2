@@ -6,7 +6,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "npm run schema:check && vite build",
+    "schema:check": "node scripts/cargo.mjs run -p story-project --bin check_bundled_schemas --locked",
     "check": "svelte-check --tsconfig ./tsconfig.json --config ./vite.config.ts --fail-on-warnings",
     "test": "vitest run",
     "desktop": "node scripts/desktop.mjs dev",

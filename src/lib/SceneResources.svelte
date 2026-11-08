@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {PassagePlan,SceneContextPreview,SceneResourceRole} from './bindings';
   import type {World} from './model';
+  import {sceneConditionChoices} from './scene-plan';
 
   let {world,plan,context,updating,onToggle}:{
     world:World;plan:PassagePlan;context?:SceneContextPreview;updating:boolean;
@@ -16,12 +17,21 @@
     ...plan.referenceIds.map(id=>({id,role:'reference' as const})),
   ]);
   const query=$derived(search.trim().toLowerCase());
+  const conditions=$derived(sceneConditionChoices(world,plan));
   const choices=$derived(world.nodes.filter(node=>!roles.has(node.id)&&node.name.toLowerCase().includes(query)).slice(0,50));
   const labels:Record<SceneResourceRole,string>={focus:'Scene focus',viewpoint:'Viewpoint',participant:'Participant',reference:'Reference',inventory:'Cast inventory',containingPlace:'Placement location',placement:'Placement dependency',claim:'Claim context'};
 </script>
 
 <section class="scene-resources" aria-label="Scene resources">
   <h3>Scene resources</h3>
+  {#if conditions.length}<div class="scene-resource-list" aria-label="Conditions linked to scene focus">
+    {#each conditions.slice(0,12) as condition (condition.id)}
+      <div><span>{condition.name}</span><button type="button" class="text-action" disabled={updating||plan.referenceIds.length>=12} onclick={()=>onToggle(condition.id,'reference')}>Add conditions to scene context</button></div>
+      {#if condition.scope}<p class="field-help">{condition.scope}</p>{/if}
+    {/each}
+    {#if conditions.length>12}<p class="field-help">Showing 12 of {conditions.length} linked conditions; use Add references to find others.</p>{/if}
+    {#if plan.referenceIds.length>=12}<p class="field-help">Remove a reference before adding conditions (limit 12).</p>{/if}
+  </div>{/if}
   {#if added.length}
     <ul class="scene-included">
       {#each added as {id,role} (`${role}:${id}`)}

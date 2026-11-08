@@ -7,15 +7,15 @@
   import FieldDefinitionsEditor from './FieldDefinitionsEditor.svelte';
   let {world,onCreate,onClose}:{world:World;onCreate:(definition:RelationDefinition_Serialize,source:string)=>void;onClose:()=>void}=$props();
   const source=untrack(()=>JSON.stringify(world)),base=JSON.parse(source) as World,id='custom.'+crypto.randomUUID();
-  let dialog:HTMLDialogElement,name=$state(''),label=$state(''),from=$state(''),target=$state(''),physical=$state(false),single=$state(false),fields=$state<FieldDraft[]>([]),working=$state(false),error=$state('');
+  let dialog:HTMLDialogElement,name=$state(''),label=$state(''),description=$state(''),from=$state(''),target=$state(''),physical=$state(false),single=$state(false),fields=$state<FieldDraft[]>([]),working=$state(false),error=$state('');
   let reviewed=$state<RelationDefinition_Serialize|null>(null),reviewInput=$state('');
-  const input=$derived(JSON.stringify({name,label,from,target,physical,single,fields}));
+  const input=$derived(JSON.stringify({name,label,description,from,target,physical,single,fields}));
   $effect(()=>{dialog?.showModal();});
   $effect(()=>{if(input!==reviewInput)reviewed=null;});
   async function review(event:SubmitEvent){
     event.preventDefault();working=true;error='';const signature=input;
     try{
-      const definition:RelationDefinition_Serialize={id,name:name.trim(),label:label.trim(),sourceCapability:from||null,targetCapability:target||null,physicalPlacement:physical,singleTarget:physical||single,fields:fieldDefinitions(fields)};
+      const definition:RelationDefinition_Serialize={id,name:name.trim(),label:label.trim(),...(description.trim()?{description:description.trim()}:{}),sourceCapability:from||null,targetCapability:target||null,physicalPlacement:physical,singleTarget:physical||single,fields:fieldDefinitions(fields)};
       unwrap(await commands.validateWorld({...base,relationTypes:[...base.relationTypes,definition]}));
       if(input===signature){reviewed=definition;reviewInput=signature;}
     }catch(caught){error=caught instanceof Error?caught.message:String(caught);}finally{working=false;}
@@ -28,6 +28,7 @@
     <div class="node-definition-body"><fieldset disabled={working}>
       <label class="field">Relationship name<input bind:value={name} required maxlength={200}/></label>
       <label class="field">Label on map<input bind:value={label} required maxlength={200}/></label>
+      <label class="field">Meaning and direction<textarea bind:value={description} rows={3} maxlength={4000}></textarea><span class="field-help">Explain source → target and what this connection does or does not establish.</span></label>
       <label class="field">Source needs<select bind:value={from}><option value="">Any node</option>{#each base.componentTypes as c}<option value={c.id}>{c.name}</option>{/each}</select></label>
       <label class="field">Target needs<select bind:value={target}><option value="">Any node</option>{#each base.componentTypes as c}<option value={c.id}>{c.name}</option>{/each}</select></label>
       <label class="check-field"><input type="checkbox" bind:checked={physical}/><span>Physical placement<small>Replaces the source’s previous location or holder, with the usual containment checks.</small></span></label>

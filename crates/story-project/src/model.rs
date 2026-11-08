@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(untagged)]
@@ -156,6 +158,8 @@ pub struct RelationDefinition {
     pub single_target: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<FieldDefinition>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Type, PartialEq)]
@@ -193,15 +197,7 @@ pub(crate) struct StoredWorld {
 impl<'de> Deserialize<'de> for World {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let data = StoredWorld::deserialize(deserializer)?;
-        let mut world = Self {
-            nodes: data.nodes,
-            edges: data.edges,
-            node_types: data.node_types,
-            component_types: data.component_types,
-            relation_types: data.relation_types,
-            ai_context: data.ai_context,
-            source_annotations: data.source_annotations,
-        };
+        let mut world = data.into_world();
         world
             .upgrade_legacy_wearing()
             .map_err(serde::de::Error::custom)?;
@@ -209,11 +205,49 @@ impl<'de> Deserialize<'de> for World {
     }
 }
 
+impl StoredWorld {
+    fn into_world(self) -> World {
+        World {
+            nodes: self.nodes,
+            edges: self.edges,
+            node_types: self.node_types,
+            component_types: self.component_types,
+            relation_types: self.relation_types,
+            ai_context: self.ai_context,
+            source_annotations: self.source_annotations,
+        }
+    }
+}
+
 impl Default for World {
     fn default() -> Self {
-        serde_json::from_str(include_str!("../../../schema/world-presets.json"))
-            .expect("Invalid built-in presets")
+        // Infallible convenience for fixtures. User-facing loading uses bundled().
+        Self::bundled().expect("Bundled schemas must pass the release schema check")
     }
+}
+
+pub(crate) fn bundled_json<T: serde::de::DeserializeOwned>(
+    name: &str,
+    text: &str,
+) -> Result<T, String> {
+    serde_json::from_str(text).map_err(|error| format!("Invalid bundled schema {name}: {error}"))
+}
+
+fn native_contracts() -> Result<StoredWorld, String> {
+    // Parse the stored shape directly: contracts must never invoke save upgrades.
+    bundled_json(
+        "world-core.json",
+        include_str!("../../../schema/world-core.json"),
+    )
+}
+
+fn parse_bundled_world(name: &str, text: &str) -> Result<World, String> {
+    let data: StoredWorld = bundled_json(name, text)?;
+    let world = data.into_world();
+    world
+        .validate()
+        .map_err(|error| format!("Invalid bundled schema {name}: {error}"))?;
+    Ok(world)
 }
 
 pub fn validate_id(id: &str) -> Result<(), String> {
@@ -272,6 +306,13 @@ pub(crate) fn field_matches(
 }
 
 impl World {
+    pub fn bundled() -> Result<Self, String> {
+        parse_bundled_world(
+            "world-presets.json",
+            include_str!("../../../schema/world-presets.json"),
+        )
+    }
+
     fn upgrade_legacy_wearing(&mut self) -> Result<(), String> {
         let Some(index) = self
             .relation_types
@@ -280,13 +321,14 @@ impl World {
         else {
             return Ok(());
         };
-        let mut expected = Self::default()
+        let mut expected = native_contracts()?
             .relation_types
             .into_iter()
             .find(|r| r.id == "core.worn-by")
-            .unwrap();
+            .ok_or("Invalid bundled schema world-core.json: missing core.worn-by contract")?;
         expected.physical_placement = false;
         expected.fields = self.relation_types[index].fields.clone();
+        expected.description = self.relation_types[index].description.clone();
         if self.relation_types[index] != expected {
             return Ok(());
         }
@@ -343,8 +385,7 @@ impl World {
         crate::ai_context::validate_ai_context(self)?;
         crate::sources::validate_annotation_shapes(self)?;
         // Extensions use their own IDs rather than weakening built-in behavior.
-        let builtins: Self = serde_json::from_str(include_str!("../../../schema/world-core.json"))
-            .expect("Invalid native world contracts");
+        let builtins = native_contracts()?;
         for definition in &builtins.component_types {
             if !self.component_types.contains(definition) {
                 return Err("A built-in capability definition is missing or changed. Add a custom capability instead.".into());
@@ -354,6 +395,7 @@ impl World {
             if !self.relation_types.iter().any(|saved| {
                 let mut contract = saved.clone();
                 contract.fields.clear();
+                contract.description.clone_from(&definition.description);
                 &contract == definition
             }) {
                 return Err("A built-in relationship definition is missing or changed. Add a custom relationship instead.".into());
@@ -483,6 +525,9 @@ impl World {
         }
         for relation in &self.relation_types {
             validate_name(&relation.label)?;
+            if relation.description.chars().count() > 4000 {
+                return Err(format!("{}: relationship help is too long.", relation.id));
+            }
             for id in [&relation.source_capability, &relation.target_capability]
                 .into_iter()
                 .flatten()
@@ -541,10 +586,10 @@ impl World {
                 for field in &definition.fields {
                     match values.get(&field.key) {
                         None if field.required => {
-                            return Err(format!("{} needs a value for {}.", node.name, field.label))
+                            return Err(format!("{} / components[{}].{} needs a value for {} ({:?}).", node.name, id, field.key, field.label, field.kind))
                         }
                         Some(value) if !field_matches(value, field, &node_index) => {
-                            return Err(format!("Invalid {} on {}.", field.label, node.name))
+                            return Err(format!("Invalid {} on {} / components[{}].{}: expected {:?}; received {:?}.", field.label, node.name, id, field.key, field.kind, value))
                         }
                         _ => (),
                     }
@@ -555,14 +600,20 @@ impl World {
                     .get("quantity")
                     .and_then(PropertyValue::as_u64)
                     .filter(|n| *n <= 1_000_000)
-                    .ok_or("Item quantity must be a nonnegative whole number.")?;
+                    .ok_or_else(|| format!("{} / core.item.quantity: Item quantity must be a nonnegative whole number.", node.name))?;
                 validate_name(
                     item.get("unit")
                         .and_then(PropertyValue::as_str)
-                        .ok_or("An item needs a unit.")?,
-                )?;
+                        .ok_or_else(|| {
+                            format!("{} / core.item.unit: An item needs a unit.", node.name)
+                        })?,
+                )
+                .map_err(|e| format!("{} / core.item.unit: {e}", node.name))?;
                 if capability(node, "core.container") && quantity != 1 {
-                    return Err("A counted container must have quantity one.".into());
+                    return Err(format!(
+                        "{} / core.item.quantity: A counted container must have quantity one.",
+                        node.name
+                    ));
                 }
             }
         }
@@ -663,7 +714,10 @@ impl World {
             while let Some(edge) = next {
                 let parent = edge.target_id.as_str();
                 if !seen.insert(parent) {
-                    return Err("Physical containment cannot form a cycle.".into());
+                    return Err(format!(
+                        "Physical containment cannot form a cycle at {}.",
+                        nodes[parent].name
+                    ));
                 }
                 next = physical.get(parent);
             }

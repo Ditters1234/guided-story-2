@@ -16,6 +16,14 @@ The initial [composable-node revision](WORLD_NODE_DESIGN.md) adds richer bundles
 
 The inspector lists incoming and outgoing connections even when endpoints are hidden by map collapse/search. Following a connection reveals its ancestor path. Canvas links retain canonical IDs and direction. Wearing is a physical placement, so a garment has one Worn by line and still appears in its wearer's inventory. Other narrative relationships can share endpoints.
 
+Routes with an explicit **two-way** travel direction show arrows at both ends on the map and **↔ two-way** in the inspector. **One-way** routes and other relationships follow their stored source → target orientation. Routes with no saved direction remain valid and are labeled **direction unspecified**; displaying a connection does not create a reverse edge or imply travel. In particular, **Can hear from** points from listening place to sound origin, not along the propagation of sound.
+
+**Owned by** remains separate from physical possession. The shared connection editor and inspector advise when its source lacks Item/Place or its owner lacks Character/Organization capabilities. These are warnings, not new endpoint restrictions. An owned item can be carried by someone else or stored elsewhere; changing ownership does not move it, create inventory membership or grant knowledge.
+
+When the Story composer’s selected scene focus has a direct **Conditions at** connection from an environment node, **Add conditions to scene context** offers that node as an ordinary scene reference. Nothing is selected until clicked. The normal reference list removes it again and the normal context preview shows what will be sent. Coverage/exception notes appear beside the action. There is no ancestor lookup, automatic inclusion, subplace inheritance, weather simulation or clock advancement.
+
+Bundled location templates use optional `edges` entries (`key`, `typeId`, `sourceKey`, `targetKey`, optional `description` and `properties`) alongside the existing nodes/physical-parent format. Keys resolve only within that template; imported connections get fresh IDs and normal native validation. Template routes require an explicit valid `properties.direction`; supported saved worlds may still omit it. Templates author local conditions coverage directly, leave every AI binding off until reviewed, and do not imply routes from containment or ownership from storage. Existing story folders are not rewritten when the catalogue changes.
+
 ## Structural rules
 
 | Action | Result |

@@ -3,6 +3,25 @@ import { buildGraph, editRecord, orderedRecords, revealRecord, visibleRecords, w
 import { exampleWorld, makeNode } from './model';
 
 describe('world projection', () => {
+  it('shows route direction and directed associations without reversing or adding canonical edges',()=>{
+    const world=exampleWorld(),source=world.nodes[0],target=world.nodes.find(n=>n.components['core.place']&&n.id!==source.id)!;
+    world.edges=[
+      {id:'two-way',typeId:'story.route-to',sourceId:source.id,targetId:target.id,description:'',properties:{direction:'two-way'}},
+      {id:'one-way',typeId:'story.route-to',sourceId:source.id,targetId:target.id,description:'',properties:{direction:'one-way'}},
+      {id:'omitted',typeId:'story.route-to',sourceId:source.id,targetId:target.id,description:''},
+      {id:'hearing',typeId:'story.can-hear-from',sourceId:target.id,targetId:source.id,description:''},
+    ];
+    const original=structuredClone(world),graph=buildGraph(world,{version:0,positions:{},selectedId:null,expandedIds:world.nodes.map(n=>n.id)},'',()=>{});
+    expect(graph.edges).toHaveLength(4);
+    expect(graph.edges[0]).toMatchObject({source:source.id,target:target.id,markerStart:{type:'arrowclosed'},markerEnd:{type:'arrowclosed'}});
+    for(const edge of graph.edges.slice(1)){expect(edge.markerStart).toBeUndefined();expect(edge.markerEnd).toEqual({type:'arrowclosed'});}
+    expect(graph.edges[0].ariaLabel).toContain('↔');
+    expect(graph.edges[1].ariaLabel).toContain('one-way');
+    expect(graph.edges[2].label).toContain('direction unspecified');
+    // Listener -> sound origin, not an arrow following sound propagation.
+    expect(graph.edges[3]).toMatchObject({source:target.id,target:source.id});
+    expect(world).toEqual(original);
+  });
   it('collapses physical contents without changing the canonical graph', () => {
     const world = exampleWorld();
     const original = structuredClone(world);

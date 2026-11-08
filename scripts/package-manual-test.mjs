@@ -4,8 +4,10 @@ import { execFileSync, spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageLicenses } from './package-licenses.mjs';
+import { toolchainEnv } from './toolchain.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+execFileSync(process.execPath, [join(root, 'scripts/cargo.mjs'), 'run', '-p', 'story-project', '--bin', 'check_bundled_schemas', '--locked'], { cwd: root, env: toolchainEnv(), stdio: 'inherit' });
 if (process.platform !== 'win32') throw new Error('This manual testing package targets Windows.');
 const executable = join(root, 'target/release/guided-story-2.exe');
 const binary = await readFile(executable);

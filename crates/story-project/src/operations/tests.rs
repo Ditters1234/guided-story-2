@@ -256,6 +256,7 @@ fn cycles_invalid_endpoints_and_duplicates_are_rejected_atomically() {
 fn custom_physical_links_use_the_same_transfer_and_cycle_rules() {
     let (mut w, place, _, bag, coat) = fixture();
     w.relation_types.push(crate::RelationDefinition {
+        description: String::new(),
         fields: vec![],
         id: "custom.attached".into(),
         name: "Attached".into(),

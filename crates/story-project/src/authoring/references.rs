@@ -54,6 +54,11 @@ pub(super) fn bind(
             schema.clone()
         };
     }
+    if request.mode == AuthoringMode::Create
+        && settings.structured_output == StructuredOutput::Schema
+    {
+        crate::prompt_context::share_component_schemas(schema);
+    }
 }
 
 pub(super) fn schema_bytes(schema: &Value, settings: &LlmConnection) -> usize {

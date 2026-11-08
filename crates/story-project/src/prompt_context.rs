@@ -7,8 +7,39 @@ mod references;
 mod tests;
 pub(crate) use references::ReferenceScope;
 
+#[cfg(test)]
+pub(crate) fn expanded_test_schema(schema: &Value) -> Value {
+    fn expand(value: &Value, root: &Value) -> Value {
+        if let Some(path) = value.get("$ref").and_then(Value::as_str) {
+            return expand(
+                root.pointer(path.strip_prefix('#').unwrap())
+                    .expect("valid local schema reference"),
+                root,
+            );
+        }
+        match value {
+            Value::Object(object) => json!(object
+                .iter()
+                .filter(|(key, _)| *key != "$defs")
+                .map(|(key, value)| (key.clone(), expand(value, root)))
+                .collect::<serde_json::Map<_, _>>()),
+            Value::Array(array) => json!(array.iter().map(|v| expand(v, root)).collect::<Vec<_>>()),
+            _ => value.clone(),
+        }
+    }
+    expand(schema, schema)
+}
+
 fn field_descriptor(field: &FieldDefinition, formal_schema: bool) -> Value {
-    let mut value = json!({"key":field.key,"label":field.label});
+    let mut value = json!({"key":field.key});
+    // A plain case/spelling duplicate adds no meaning. Keep nontrivial labels
+    // (including custom labels); the key is the fallback in this catalogue.
+    if !field
+        .label
+        .eq_ignore_ascii_case(&field.key.replace(['-', '_'], " "))
+    {
+        value["label"] = json!(field.label);
+    }
     if !formal_schema {
         value["kind"] = json!(field.kind);
         if field.required {
@@ -39,6 +70,64 @@ fn field_descriptor(field: &FieldDefinition, formal_schema: bool) -> Value {
         }
     }
     value
+}
+
+/// Share repeated concrete field/component contracts, not an all-capability node schema.
+/// Every preset still declares its own properties/required capability set. Run
+/// after reference permissions are bound; native validation remains complete.
+pub(crate) fn share_component_schemas(schema: &mut Value) {
+    if schema.get("$defs").is_some() {
+        return;
+    }
+    fn visit(value: &mut Value, f: &mut impl FnMut(&mut Value)) {
+        match value {
+            Value::Object(object) => {
+                if let Some(properties) =
+                    object.get_mut("properties").and_then(Value::as_object_mut)
+                {
+                    for field in properties.values_mut() {
+                        if field.get("type").is_some() || field.get("anyOf").is_some() {
+                            f(field);
+                        }
+                    }
+                }
+                for (keyword, child) in object.iter_mut() {
+                    // These are literal values, never schema locations. In
+                    // particular, protected const records must remain byte-exact.
+                    if !matches!(keyword.as_str(), "const" | "enum" | "default" | "examples") {
+                        visit(child, f);
+                    }
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    visit(child, f);
+                }
+            }
+            _ => (),
+        }
+    }
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
+    visit(schema, &mut |component| {
+        let key = component.to_string();
+        *counts.entry(key).or_default() += 1;
+    });
+    let repeated: std::collections::BTreeMap<_, _> = counts
+        .into_iter()
+        .filter(|(key, count)| *count > 1 && (*count - 1) * key.len() > *count * 40 + 32)
+        .enumerate()
+        .map(|(i, (schema, _))| (schema, format!("contract{i}")))
+        .collect();
+    let mut definitions = serde_json::Map::new();
+    visit(schema, &mut |component| {
+        if let Some(name) = repeated.get(&component.to_string()) {
+            definitions.insert(name.clone(), component.clone());
+            *component = json!({"$ref":format!("#/$defs/{name}")});
+        }
+    });
+    if !definitions.is_empty() {
+        schema["$defs"] = json!(definitions);
+    }
 }
 
 fn add_fields(value: &mut Value, definitions: &[FieldDefinition], formal_schema: bool) {
@@ -94,6 +183,9 @@ pub(crate) fn relationships(world: &World, formal_schema: bool) -> Value {
         }
         if let Some(capability) = &definition.target_capability {
             value["targetCapability"] = json!(capability);
+        }
+        if !definition.description.is_empty() {
+            value["description"] = json!(definition.description);
         }
         add_fields(&mut value, &definition.fields, formal_schema);
         value

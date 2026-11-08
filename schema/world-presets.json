@@ -133,6 +133,22 @@
       "components": [
         "core.claim"
       ]
+    },
+    {
+      "id": "core.time",
+      "name": "Story time",
+      "description": "Current fictional date and time for the story or active timeline; a reference point, not an automatic clock.",
+      "components": [
+        "detail.time"
+      ]
+    },
+    {
+      "id": "core.environment",
+      "name": "Environmental conditions",
+      "description": "Current season, weather and ambient conditions for a place or area; omit details that do not apply.",
+      "components": [
+        "detail.environment"
+      ]
     }
   ],
   "componentTypes": [
@@ -1497,6 +1513,136 @@
         }
       ],
       "description": "An author-assessed proposition with explicit narration access. Truth, belief and reader disclosure are independent."
+    },
+    {
+      "id": "detail.time",
+      "name": "Story time",
+      "description": "Current fictional chronology. Does not automatically advance time or assert that offscreen events occurred.",
+      "fields": [
+        {
+          "key": "date",
+          "label": "Date / story day",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current date, named day or relative story-day label, in whatever calendar the setting uses; leave unspecified parts unknown.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "time",
+          "label": "Time / daypart",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current clock time or qualitative time of day such as early morning or late afternoon. This is a state anchor, not a scheduled event.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "reference",
+          "label": "Timekeeping reference",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional basis for the time, such as local time, ship time or another named clock; avoid assuming Earth time zones.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "detail.environment",
+      "name": "Local environment",
+      "description": "Changing ambient and seasonal conditions, separate from a place's enduring design or damage.",
+      "fields": [
+        {
+          "key": "season",
+          "label": "Season / cycle",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current local season or environmental cycle, if applicable; do not infer it from the date in unfamiliar settings.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "weather",
+          "label": "Weather",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current outdoor conditions such as cloud cover, precipitation and wind; leave blank where weather is inapplicable.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "temperature",
+          "label": "Temperature / feel",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Temperature or qualitative thermal conditions when established; do not invent numerical measurements.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "light",
+          "label": "Ambient light",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current natural or artificial illumination and visibility, without presuming a particular time of day.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "surfaces",
+          "label": "Ground / surface conditions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Current snow, ice, mud, dampness, dust or similar environmental effects on movement and activities; not permanent structural damage.",
+            "uses": [
+              "story",
+              "visual"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
     }
   ],
   "relationTypes": [
@@ -1560,7 +1706,38 @@
       "sourceCapability": null,
       "targetCapability": null,
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "description": "A general-purpose association between nodes when no more specific relation fits. Name the nature of the association rather than relying on an unlabeled link; do not use this as a substitute for physical placement, movement or knowledge relations.",
+      "fields": [
+        {
+          "key": "nature",
+          "label": "Nature of relationship",
+          "kind": "text",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "The relationship expressed from source to target, such as sibling of, former workplace, or associated with.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        },
+        {
+          "key": "details",
+          "label": "Relationship details",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional established context or qualifications. Do not infer a reciprocal relationship unless it is stated.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
     },
     {
       "id": "story.member-of",
@@ -1704,8 +1881,27 @@
             ],
             "stability": "state"
           }
+        },
+        {
+          "key": "direction",
+          "label": "Travel direction",
+          "kind": "choice",
+          "required": false,
+          "defaultValue": "two-way",
+          "metadata": {
+            "help": "Two-way permits source-to-target and target-to-source travel; one-way permits only source-to-target travel. Direction does not override access restrictions, obstacles or travel conditions.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable",
+            "choices": [
+              "two-way",
+              "one-way"
+            ]
+          }
         }
-      ]
+      ],
+      "description": "A traversable connection between two places, distinct from containment, proximity, visibility or sound. Source-to-target is always the forward direction. The direction field controls whether the same connection can also be used in reverse. Where access conditions differ by direction, represent each direction with its own one-way edge."
     },
     {
       "id": "story.owes",
@@ -1790,7 +1986,8 @@
       "sourceCapability": "detail.event",
       "targetCapability": null,
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "description": "The source is an established event; the target is its established cause (often another event, but potentially another node when its specific causal role is recorded). Read as “source event was caused by target.” Do not use for suspicions, mere associations or planned future events. This link records causality; it does not replay state changes."
     },
     {
       "id": "story.resulted-in",
@@ -1799,7 +1996,8 @@
       "sourceCapability": "detail.event",
       "targetCapability": null,
       "physicalPlacement": false,
-      "singleTarget": false
+      "singleTarget": false,
+      "description": "The source is an established event; the target is an established consequence (often a later event, or a node representing an observed resulting condition or change). Read as “source event resulted in target.” Do not use for hoped-for outcomes or possible future developments. This link documents a consequence; it does not apply it to state again."
     },
     {
       "id": "core.holds-claim",
@@ -1858,6 +2056,137 @@
         }
       ],
       "name": "Character stance"
+    },
+    {
+      "id": "story.conditions-at",
+      "name": "Conditions at",
+      "label": "conditions at",
+      "sourceCapability": "detail.environment",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "scope",
+          "label": "Coverage / exceptions",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Where these conditions apply within the target place, such as outdoor areas but not heated rooms. Do not assume conditions inherit to subplaces unless the application supports that.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.view-of",
+      "name": "Has a view of",
+      "label": "view of",
+      "description": "Potential line of sight from the source place into or toward the target place, without implying a route. Directional: a view from A into B does not establish a view from B into A. This does not assert that any character is currently looking or has noticed something.",
+      "sourceCapability": "core.place",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "view",
+          "label": "Visible area / sightline",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What portion of the target can be seen and from where in the source, e.g. courtyard benches through east windows.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "limitations",
+          "label": "Visibility limitations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Structural obstructions and relevant conditions, e.g. only the north side is visible; blinds or darkness may block the view.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.owned-by",
+      "name": "Owned by",
+      "label": "owned by",
+      "description": "Established ownership of an item or place (source) by a character or organization/household (target). Unlike stored-in or present-at, ownership does not imply physical possession or current location. Endpoint capabilities are unrestricted to permit both people and organizations as owners; authors should use item/place sources and character/organization targets.",
+      "sourceCapability": null,
+      "targetCapability": null,
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "details",
+          "label": "Ownership details",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Optional established ownership terms, shared ownership, or restrictions. Avoid inferring possession from ownership.",
+            "uses": [
+              "story"
+            ],
+            "stability": "state"
+          }
+        }
+      ]
+    },
+    {
+      "id": "story.can-hear-from",
+      "name": "Can hear from",
+      "label": "can hear from",
+      "description": "Potential audibility in the source place of sounds originating in the target place, without implying visibility or movement. Directional: sound carrying from B into A does not establish the same audibility from A into B. This does not assert that any character heard or understood a particular sound.",
+      "sourceCapability": "core.place",
+      "targetCapability": "core.place",
+      "physicalPlacement": false,
+      "singleTarget": false,
+      "fields": [
+        {
+          "key": "sounds",
+          "label": "Audible sounds",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "Which sounds normally carry from the target to the source, e.g. gym whistles and ball impacts.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        },
+        {
+          "key": "limitations",
+          "label": "Audibility limitations",
+          "kind": "longText",
+          "required": false,
+          "defaultValue": null,
+          "metadata": {
+            "help": "What changes audibility or intelligibility, e.g. a shut fire door muffles speech; this does not guarantee overhearing.",
+            "uses": [
+              "story"
+            ],
+            "stability": "stable"
+          }
+        }
+      ]
     }
   ]
 }

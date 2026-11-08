@@ -46,6 +46,12 @@ fn remember_opened_project(app: &tauri::AppHandle, mut view: ProjectView) -> Pro
 
 #[tauri::command]
 #[specta::specta]
+fn location_template_world(template_id: String) -> Result<World, String> {
+    story_project::location_template_world(&template_id)
+}
+
+#[tauri::command]
+#[specta::specta]
 fn create_project(
     parent_path: String,
     title: String,
@@ -299,6 +305,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<story_project::NodeCandidate>()
         .commands(tauri_specta::collect_commands![
             create_project,
+            location_template_world,
             open_project,
             startup_project,
             recover_project,

@@ -252,6 +252,7 @@ pub(super) fn effects_schema(world: &World) -> Value {
         }
     }
     compact_schema(&mut schema);
+    crate::prompt_context::share_component_schemas(&mut schema);
     schema
 }
 

@@ -509,12 +509,12 @@ pub(super) fn budget(world: &World, request: &AuthoringRequest, tokens: u32) -> 
                 + (fields.len().min(8) as u32) * 10
         })
         .unwrap_or(240);
-    let mut value = json!({"outputTokens":tokens,"suggestedMaxNewNodes":if request.mode==AuthoringMode::Create&&!request.bundle{1}else{(tokens.saturating_sub(512)/node_cost).clamp(1,20)},"nodeLimitIsAdvisory":true,"priority":"Finish all nodes and links within outputTokens. Cover requested places, cast, inventory and narration first. Use compact JSON, concise specific values and sparse optional fields. Avoid repeating facts."});
+    let mut value = json!({"outputTokens":tokens,"suggestedMaxNewNodes":if request.mode==AuthoringMode::Create&&!request.bundle{1}else{(tokens.saturating_sub(512)/node_cost).clamp(1,20)},"nodeLimitIsAdvisory":true,"priority":"Finish all requested places, cast, inventory, narration and links within outputTokens. Use concise specifics and sparse optional fields; avoid repetition."});
     if request.mode == AuthoringMode::Create
         && request.type_id.is_none()
         && request.creation_scope != Some(CreationScope::Group)
     {
-        value["foundationDetailAllowance"] = json!({"characterWords":80,"placeWords":40,"itemWords":20,"narrationWords":60,"instruction":"Approximate TOTAL words across each record. Prioritize premise-specific motives, contradictions, voice and appearance; usable place features; recognisable item design. Preserve explicit choices and finish cast, places, clothing and narration before decorative extras. The foundation schema limits optional detail at small budgets; later revision can deepen records."});
+        value["foundationDetailAllowance"] = json!({"characterWords":80,"placeWords":40,"itemWords":20,"narrationWords":60,"instruction":"Approximate TOTAL words per record: specific motives, contradictions, voice, appearance; usable places; recognisable items. Preserve explicit choices. Finish cast, places, clothing and narration before extras; deepen details in later revisions."});
     }
     value
 }

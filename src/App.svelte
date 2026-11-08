@@ -4,6 +4,7 @@
   import BackupDialog from './lib/BackupDialog.svelte';
   import AiContextDialog from './lib/AiContextDialog.svelte';
   import {setContextBinding,addNarrationStyle,addVisualStyle} from './lib/ai-context';
+  import {starterContextDraft,selectedStarterContext,reviewStarterContext} from './lib/starter-context';
   import { onMount, type Snippet } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -26,6 +27,7 @@
   import { exampleWorld, emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
+  import locationTemplates from '../schema/location-templates.json';
   import icon from './assets/app-icon.svg';
   import type { ApplyAuthoringResult_Serialize, AuthoringRequest, CommitResult_Serialize, WorldEdit,PassageAcceptance_Serialize } from './lib/bindings';
 
@@ -74,9 +76,34 @@
   let showRelationshipType = $state(false);
   let showCreate = $state(false);
   let newTitle = $state('Untitled story');
-  let useExample = $state(false);
+  let starterId = $state('empty');
+  let createError = $state('');
+  let preparedStarter = $state<{id:string;world:World}|null>(null);
+  let starterReview = $state<{id:string;source:World;world:World}|null>(null);
+  let starterLoading = $state(false), starterReviewToken=0;
+  const starter = $derived(locationTemplates.find(t=>t.id===starterId));
   let recoveryPath = $state<string | null>(null);
-  function showNewProject(){newTitle='Untitled story';useExample=false;showCreate=true;}
+  function resetStarterContext(){starterReviewToken++;preparedStarter=null;starterReview=null;starterLoading=false;}
+  function showNewProject(){resetStarterContext();newTitle='Untitled story';starterId='empty';createError='';showCreate=true;}
+  async function openStarterContext(){
+    if(!desktop||busy||starterLoading||!starter)return;
+    const id=starterId,token=++starterReviewToken;starterLoading=true;createError='';
+    try{
+      const source=preparedStarter?.id===id?$state.snapshot(preparedStarter.world):unwrap(await commands.locationTemplateWorld(id));
+      if(token!==starterReviewToken||!showCreate||starterId!==id)return;
+      starterReview={id,source,world:starterContextDraft(source)};
+    }catch(caught){if(token===starterReviewToken&&showCreate&&starterId===id)createError=describe(caught);}
+    finally{if(token===starterReviewToken)starterLoading=false;}
+  }
+  async function useStarterContext(){
+    const review=starterReview;if(!review)return;
+    const signature=JSON.stringify($state.snapshot(review.world));
+    const selected=selectedStarterContext($state.snapshot(review.source),$state.snapshot(review.world.aiContext??[]));
+    await reviewStarterContext(selected,async world=>unwrap(await commands.validateWorld(world)),
+      async(world,task)=>unwrap(await commands.previewAiContext(world,task)),async world=>unwrap(await commands.previewImageContext(world)));
+    if(starterReview!==review||!showCreate||starterId!==review.id||signature!==JSON.stringify($state.snapshot(review.world)))throw Error('The starter selection changed. Review its bindings again.');
+    preparedStarter={id:review.id,world:selected};starterReview=null;
+  }
   let editVersion = 0, savedVersion = 0, persistedDraftVersion = 0;
   let timer: ReturnType<typeof setTimeout>;
   let layoutTimer: ReturnType<typeof setTimeout>;
@@ -269,15 +296,19 @@
   }
   async function createProject(event: SubmitEvent) {
     event.preventDefault();
-    if (!desktop || busy || !newTitle.trim()) return;
+    if (!desktop || busy || starterLoading || starterReview || !newTitle.trim()) return;
     busy = true;
+    createError = '';
     try {
-      if (!await prepareSwitch()) return;
+      if (!await prepareSwitch()) throw new Error(error);
+      const title = newTitle.trim();
+      const initial = preparedStarter?.id===starterId ? $state.snapshot(preparedStarter.world) : starterId==='empty' ? emptyWorld() : starterId==='brasswater' ? exampleWorld() : unwrap(await commands.locationTemplateWorld(starterId));
       const parent = await open({ directory: true, multiple: false, title: 'Choose where to create the new story folder' });
       if (typeof parent !== 'string') return;
-      await adopt(unwrap(await commands.createProject(parent, newTitle.trim(), useExample ? exampleWorld() : emptyWorld(), crypto.randomUUID())));
+      await adopt(unwrap(await commands.createProject(parent, title, initial, crypto.randomUUID())));
       showCreate = false;
-    } catch (caught) { error = describe(caught); }
+      resetStarterContext();
+    } catch (caught) { createError = describe(caught); }
     finally { busy = false; }
   }
   async function recoverProject() {
@@ -458,16 +489,41 @@
 
 {#if showCreate}
   <div class="dialog-scrim"></div>
-  <dialog open class="project-dialog" aria-labelledby="new-project-title">
+  <dialog open class="project-dialog new-project-dialog" aria-labelledby="new-project-title">
     <form onsubmit={createProject}>
-      <h2 id="new-project-title">New story</h2>
-      <p>A self-contained folder for your world and its history. Choose where to keep it next.</p>
-      <label class="field">Story title<input bind:value={newTitle} required maxlength={200} /></label>
-      <label class="check-field"><input type="checkbox" bind:checked={useExample} /><span>Use the fictional Brasswater example<small>Leave unchecked to create your own world.</small></span></label>
-      <div class="dialog-actions"><button type="button" class="quiet-button" onclick={() => { showCreate = false; }}>Cancel</button><button type="submit" class="primary-button" disabled={busy || !newTitle.trim()}>{busy ? 'Creating…' : 'Choose folder & create'}</button></div>
+      <div class="new-project-body">
+        <h2 id="new-project-title">New story</h2>
+        <p>Choose a starting location, then a folder for your story.</p>
+        <label class="field">Story title<input bind:value={newTitle} disabled={busy} required maxlength={200} /></label>
+        <label class="field">Starting world
+          <select bind:value={starterId} disabled={busy} onchange={resetStarterContext} aria-describedby="starter-description">
+            <option value="empty">Empty world</option>
+            {#each locationTemplates as template}<option value={template.id}>{template.name}</option>{/each}
+            <option value="brasswater">Brasswater example</option>
+          </select>
+        </label>
+        <p id="starter-description" class="starter-description">{starter?.description??(starterId==='brasswater'?'A country house, glasshouse and map room, with Mara, her belongings and a story thread.':'Start with a blank map and add your own world.')}</p>
+        {#if starter}
+          {#key starter.id}<details class="starter-preview">
+            <summary>Included world nodes ({starter.nodes.length})</summary>
+            <ul>{#each starter.nodes as node}<li><strong>{node.name}</strong><span>{node.description}</span></li>{/each}</ul>
+          </details>{/key}
+          <p class="field-help">All locations and objects are editable. Add rooms, characters and belongings through the world map.</p>
+          <button type="button" class="secondary-button" disabled={!desktop||busy||starterLoading} onclick={()=>{void openStarterContext();}}>{starterLoading?'Loading starter…':'Review starter AI context…'}</button>
+          {#if preparedStarter?.id===starterId&&preparedStarter.world.aiContext?.length}
+            <p class="field-help">{preparedStarter.world.aiContext.length} selected {preparedStarter.world.aiContext.length===1?'binding':'bindings'} will be saved with this story.</p>
+            <ul class="field-help">{#each preparedStarter.world.aiContext as binding}<li>{preparedStarter.world.nodes.find(n=>n.id===binding.nodeId)?.name} · {binding.role==='instructions'?'Instructions':'Reference facts'}</li>{/each}</ul>
+            <button type="button" class="text-action" disabled={busy||starterLoading} onclick={resetStarterContext}>Clear starter bindings</button>
+          {:else}<p class="field-help">No starter AI context selected. Inclusion is optional.</p>{/if}
+        {/if}
+        {#if createError}<p class="new-project-error" role="alert">{createError}</p>{/if}
+      </div>
+      <div class="dialog-actions"><button type="button" class="quiet-button" disabled={busy} onclick={() => { resetStarterContext();showCreate = false; }}>Cancel</button><button type="submit" class="primary-button" disabled={busy || starterLoading || !newTitle.trim()}>{busy ? 'Creating…' : 'Choose folder & create'}</button></div>
     </form>
   </dialog>
 {/if}
+
+{#if showCreate&&starterReview}<AiContextDialog world={starterReview.world} starterReview onChange={value=>{if(starterReview)starterReview.world=value;}} onClose={useStarterContext} onCancel={()=>{starterReview=null;}}/>{/if}
 
 {#if showType}
   <NodeDefinitionDialog {world} onApply={applyDefinition} onClose={()=>{showType=false;}}/>

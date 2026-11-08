@@ -100,7 +100,11 @@ fn request_size_samples() {
                 ("itemGroup", _) => 20200,
                 _ => 16500,
             };
-            assert!(prepared.system.len() + prepared.user.len() + schema_bytes <= ceiling);
+            assert!(
+                prepared.system.len() + prepared.user.len() + schema_bytes <= ceiling,
+                "{name} {mode:?}: {} bytes exceeds {ceiling}",
+                prepared.system.len() + prepared.user.len() + schema_bytes
+            );
             println!(
                 "{}",
                 json!({"task":name,"mode":mode,"messageBytes":prepared.system.len()+prepared.user.len(),"schemaBytes":schema_bytes,"totalBytes":prepared.system.len()+prepared.user.len()+schema_bytes})

@@ -143,6 +143,17 @@ button:not(:disabled):hover{filter:brightness(.97)}
 .check-field input{accent-color:var(--accent);margin:2px 0 0}
 .check-field small{display:block;font-size:0.71429rem;color:var(--muted);margin-top:5px}
 .dialog-actions{display:flex;align-items:center;justify-content:flex-end;gap:15px;margin-top:27px}
+.project-dialog.new-project-dialog{width:560px;max-height:calc(100dvh - 32px);padding:0;overflow:hidden}
+.new-project-dialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 32px)}
+.new-project-body{padding:20px 28px;overflow:auto;min-height:0}
+.new-project-dialog .dialog-actions{flex-shrink:0;flex-wrap:wrap;padding:16px 28px;margin:0;border-top:1px solid var(--border)}
+.new-project-dialog .starter-description{margin:0 0 14px;font-size:.85714rem}
+.starter-preview{margin:12px 0 16px;font-size:.85714rem;line-height:1.6}
+.starter-preview summary{cursor:pointer;color:var(--ink)}
+.starter-preview ul{list-style:none;padding:0;margin:12px 0}
+.starter-preview li{padding:8px 0;border-top:1px solid var(--border)}
+.starter-preview li span{display:block;color:var(--muted);font-size:.78571rem}
+.new-project-dialog .new-project-error{color:var(--danger);margin:14px 0 0;overflow-wrap:anywhere}
 
 @media(max-width:1150px){.app-header{height:58px;flex-shrink:0;display:flex;align-items:center;padding:0 18px;gap:16px;border-bottom:1px solid var(--border);background:var(--surface)}
 .brand{display:flex;align-items:center;gap:9px;color:var(--ink);font-family:Georgia,serif;font-size:1.42857rem}

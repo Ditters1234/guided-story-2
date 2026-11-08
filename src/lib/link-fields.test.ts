@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import type {WorldEdge,PassageEffects} from './bindings';
 import {emptyWorld,makeNode} from './model';
-import {changeLinkType,setLinkProperty,linkFields,linkReferences} from './link-fields';
+import {changeLinkType,setLinkProperty,linkFields,linkReferences,ownershipWarnings} from './link-fields';
 import {newLinkAuthoringRequest,editableLinkFields,parseCandidateForEditor} from './authoring-ui';
 import {linkDiff,parseEffects,removalPlan} from './effects-ui';
 import {fieldDefinitions,type FieldDraft} from './schema-fields';
@@ -12,6 +12,23 @@ function fixture(){
   return {world,edge,a,b};
 }
 describe('typed relationship authoring',()=>{
+  it('warns about unusual ownership endpoints without changing ownership, possession or field definitions',()=>{
+    const {world,a,b}=fixture(),item=makeNode(world,'core.item','Borrowed coat'),organization=makeNode(world,'core.organization','The guild');
+    organization.typeId='custom.guild'; // Capability, rather than preset, identifies an organization.
+    world.nodes.push(item,organization);
+    const owned:WorldEdge={id:'ownership',typeId:'story.owned-by',sourceId:item.id,targetId:organization.id,description:''};
+    world.edges=[owned,{id:'physical',typeId:'core.stored-in',sourceId:item.id,targetId:a.id,description:''}];
+    const original=structuredClone(world);
+    expect(ownershipWarnings(world,owned)).toEqual([]);
+    expect(ownershipWarnings(world,{...owned,targetId:b.id})).toEqual([]);
+    const unusual={...owned,sourceId:a.id,targetId:item.id};
+    expect(ownershipWarnings(world,unusual)).toHaveLength(2);
+    // Candidate editors can supply capability summaries instead of full records.
+    expect(ownershipWarnings(world,owned,world.nodes.map(n=>({id:n.id,name:n.name,capabilities:Object.keys(n.components)})))).toEqual([]);
+    expect(ownershipWarnings(world,{...unusual,typeId:'core.stored-in'})).toEqual([]);
+    expect(world).toEqual(original);
+    expect(world.relationTypes.find(r=>r.id==='story.owned-by')).toMatchObject({sourceCapability:null,targetCapability:null,physicalPlacement:false});
+  });
   it('offers empty declared fields in a link-only request without authorizing node or endpoint changes',()=>{
     const {world,edge}=fixture(),request=newLinkAuthoringRequest(world,edge.id);
     expect(request.targetIds).toEqual([]);expect(request.fields).toEqual([]);expect(request.contextIds).toEqual([]);

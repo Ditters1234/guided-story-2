@@ -348,6 +348,7 @@ fn custom_node_types_fields_and_relations_round_trip_without_engine_changes() {
     let storm = node(&world, "custom.sky", "The approaching storm");
     let place = node(&world, "core.place", "The valley");
     world.relation_types.push(RelationDefinition {
+        description: String::new(),
         fields: vec![],
         id: "custom.affects".into(),
         name: "Affects".into(),

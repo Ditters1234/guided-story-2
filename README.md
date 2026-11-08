@@ -19,11 +19,13 @@ npm ci
 npm run desktop
 ```
 
-The desktop app reopens the last successfully opened story. With no saved choice, or if that folder cannot open, it shows **New story / Open story**. New stories start empty; the fictional Brasswater example is an optional checkbox during creation. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. `npm run desktop -- -- --project "C:\path\to\project"` opens that explicit folder instead of the remembered story.
+The desktop app reopens the last successfully opened story. With no saved choice, or if that folder cannot open, it shows **New story / Open story**. New story's **Starting world** offers Empty world, Westbridge High School, Alaskan Homestead, Wayfarer Survey Ship and the fictional Brasswater example. Location templates include linked rooms, explicit routes with access restrictions, local conditions and useful objects; preview their contents before creating. Each becomes an independent editable world that you can extend with rooms, characters and belongings. **Review starter AI context…** offers optional bindings through the existing context controls; all start off. Local conditions enter scene context only through an explicit reference choice. Empty world remains the default. Each project gets its own folder. A browser-only preview is available with `npm run dev`; native saving requires the desktop app. `npm run desktop -- -- --project "C:\path\to\project"` opens that explicit folder instead of the remembered story.
 
 The header's Project menu opens/creates stories and offers validated folder backup/restore. The settings gear opens appearance, API and [editable AI prompt](PROMPTS.md) controls. **Settings → Prompts** edits the base system instructions for each text tool, with Save and Restore default. Custom themes can be edited and shared as JSON. App preferences and encrypted Windows credentials stay separate from story folders. Choose the offline demo provider to try AI proposal review without making API calls. See [backups](BACKUPS.md), [appearance settings](APPEARANCE.md) and [AI authoring](AI_AUTHORING.md).
 
 `npm run verify` runs the frontend/native checks and tests plus the frontend production build. Individual checks remain available. `npm run bindings` regenerates checked-in frontend contracts from Rust.
+
+`npm run build` first runs `npm run schema:check` against the native schema structures, every preset's defaults and every bundled location template. Desktop builds use this same gate, and manual packaging repeats it before publishing a build folder. Invalid bundled JSON or incompatible schema/template data stops the build with a diagnostic.
 
 ## The intended experience
 
@@ -63,7 +65,7 @@ This revision uses **story format 2**. Start a new story folder; older prototype
 - [Existing-work assessment](EXISTING_WORK_REVIEW.md): recent references, inspected commits, licensing notes and selective reuse recommendations.
 - [Reference checkout manifest](references/README.md): reproducible upstream revisions for local research checkouts.
 
-The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note, Event, Visual style and Knowledge / claim presets. Rich typed relationships, [Event/source citations](SOURCES.md), image guidance and initial situated claims use the shared tools. Presets are available without populating empty stories. Automatic acquisition/disclosure inference remains later work.
+The node revision includes Character, Place, Item, Wearable item, Thread, Organization, Lore, World rule, Story brief, Narration style, Note, Event, Visual style, Story time, Environmental conditions and Knowledge / claim presets. Rich typed relationships, [Event/source citations](SOURCES.md), image guidance and initial situated claims use the shared tools. Presets are available without populating empty stories. Automatic acquisition/disclosure inference remains later work.
 
 ## Technical direction
 
