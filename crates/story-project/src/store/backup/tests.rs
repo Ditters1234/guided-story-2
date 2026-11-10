@@ -85,6 +85,7 @@ fn passage(p: &Project) -> String {
             prose: "Sunlight filled the Glasshouse.".into(),
             effects_text: empty_effects(),
             close_chapter: true,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )

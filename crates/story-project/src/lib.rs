@@ -6,6 +6,7 @@ mod knowledge;
 #[cfg(test)]
 mod live_tools;
 mod location_templates;
+mod node_library;
 mod media;
 mod memory;
 mod model;
@@ -27,6 +28,7 @@ pub use connections::*;
 pub use image_workflow::*;
 pub use knowledge::*;
 pub use location_templates::*;
+pub use node_library::*;
 pub use media::*;
 pub use memory::*;
 pub use model::*;

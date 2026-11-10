@@ -1,5 +1,14 @@
 use super::*;
 
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DraftRevision {
+    pub source_id: String,
+    pub source_version: u32,
+    pub prose: String,
+    pub direction: String,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PassageRevisionKind {
@@ -112,6 +121,7 @@ impl Project {
                 prose: base.prose,
                 effects_text,
                 close_chapter: base.close_chapter,
+                revision_direction: String::new(),
                 approved_effects: vec![],
             },
         )?;
@@ -126,6 +136,7 @@ impl Project {
             return Err("Passage draft limit reached.".into());
         }
         Ok(PassageDraft {
+            draft_revision: None,
             revision: None,
             cloned_from: None,
             narration_provider: String::new(),
@@ -165,7 +176,10 @@ impl Project {
         validate_id(source_id)?;
         validate_id(id)?;
         if self.passage_path(id)?.exists() {
-            if self.read_passage_draft(id)?.cloned_from == Some((source_id.into(), expected)) {
+            let existing = self.read_passage_draft(id)?;
+            if existing.cloned_from == Some((source_id.into(), expected))
+                && existing.draft_revision.is_none()
+            {
                 return Ok(());
             }
             return Err("This candidate ID was already used for another draft.".into());
@@ -181,6 +195,8 @@ impl Project {
         }
         let mut edits = source.edits;
         edits.prose.clear();
+        edits.revision_direction.clear();
+        edits.approved_effects.clear();
         if source
             .revision
             .as_ref()
@@ -190,6 +206,58 @@ impl Project {
         }
         let mut draft = self.new_passage_draft(id, edits)?;
         draft.revision = source.revision;
+        draft.cloned_from = Some((source_id.into(), expected));
+        self.write_passage_draft(&draft)
+    }
+
+    pub fn revise_passage_draft(
+        &self,
+        source_id: &str,
+        expected: u32,
+        id: &str,
+    ) -> Result<(), String> {
+        validate_id(source_id)?;
+        validate_id(id)?;
+        if self.passage_path(id)?.exists() {
+            let existing = self.read_passage_draft(id)?;
+            if existing.cloned_from == Some((source_id.into(), expected))
+                && existing.draft_revision.is_some()
+            {
+                return Ok(());
+            }
+            return Err("This candidate ID was already used for another draft.".into());
+        }
+        let source = self.read_passage_draft(source_id)?;
+        if source.version != expected
+            || matches!(
+                source.stage,
+                PassageStage::Narrating | PassageStage::Checking | PassageStage::Accepted
+            )
+        {
+            return Err("Save/finish the unaccepted source draft before revising it.".into());
+        }
+        if source.edits.prose.trim().is_empty() || source.edits.revision_direction.trim().is_empty() {
+            return Err("Add draft prose and revision direction before requesting a revision.".into());
+        }
+        let revision = DraftRevision {
+            source_id: source_id.into(),
+            source_version: expected,
+            prose: source.edits.prose.clone(),
+            direction: source.edits.revision_direction.clone(),
+        };
+        let mut edits = source.edits;
+        edits.revision_direction.clear();
+        edits.approved_effects.clear();
+        if source
+            .revision
+            .as_ref()
+            .is_none_or(|r| r.kind != PassageRevisionKind::Wording)
+        {
+            edits.effects_text = empty_effects();
+        }
+        let mut draft = self.new_passage_draft(id, edits)?;
+        draft.revision = source.revision;
+        draft.draft_revision = Some(revision);
         draft.cloned_from = Some((source_id.into(), expected));
         self.write_passage_draft(&draft)
     }
@@ -612,10 +680,10 @@ pub(super) fn effects_have_current_quotes(effects: &PassageEffects, prose: &str)
     effects
         .changes
         .iter()
-        .map(|c| match c {
+        .flat_map(|c| match c {
             PassageEffect::PutNode { evidence, .. }
             | PassageEffect::PutLink { evidence, .. }
-            | PassageEffect::RemoveLink { evidence, .. } => evidence,
+            | PassageEffect::RemoveLink { evidence, .. } => evidence.quotes(),
         })
         .chain(effects.notes.iter().map(|n| &n.evidence))
         .all(|quote| prose.contains(&quote.split_whitespace().collect::<Vec<_>>().join(" ")))

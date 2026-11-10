@@ -197,6 +197,7 @@ fn accept(p: &Project, text: &str, closed: bool, note: Option<&str>, thread: boo
         prose: text.into(),
         effects_text: serde_json::to_string(&effects).unwrap(),
         close_chapter: closed,
+        revision_direction: String::new(),
         approved_effects: vec![],
     };
     let draft = id();
@@ -243,7 +244,7 @@ fn context(p: &Project, budget: u32, reference: bool) -> MemoryContext {
     if reference {
         plan.reference_ids.push(world.nodes[2].id.clone());
     }
-    p.memory_context(&p.story_index().unwrap(), &plan, &world, budget)
+    p.memory_context(&p.story_index().unwrap(), &plan, &world, &world, budget)
         .unwrap()
 }
 
@@ -374,6 +375,7 @@ fn older_notes_and_reviewed_summaries_are_retrieved_without_sending_the_whole_hi
             prose: String::new(),
             effects_text: empty_effects(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )
@@ -414,6 +416,7 @@ fn wording_changes_stale_summaries_and_checked_prose_without_reusing_obsolete_qu
         prose: "Someone knocked at the door.".into(),
         effects_text: empty_effects(),
         close_chapter: false,
+        revision_direction: String::new(),
         approved_effects: vec![],
     };
     p.save_passage(&pending, 0, edits).unwrap();
@@ -875,6 +878,7 @@ fn extraction_reserves_required_context_before_memory_and_reproduces_its_checked
             prose: candidate_prose.clone(),
             effects_text: empty_effects(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )

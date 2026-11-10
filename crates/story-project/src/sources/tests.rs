@@ -1,5 +1,6 @@
 use super::*;
 use std::path::Path;
+mod multiple_quotes;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -68,6 +69,7 @@ fn edits(p: &Project, prose: &str, effects: PassageEffects) -> PassageEdits {
         prose: prose.into(),
         effects_text: serde_json::to_string(&effects).unwrap(),
         close_chapter: false,
+        revision_direction: String::new(),
         approved_effects: vec![],
     }
 }

@@ -3,7 +3,7 @@
   import type {World} from './model';
   import type {NodeSourceView_Serialize,SourceReading,SourceEdit,WorldEditPreview_Serialize,StoryIndex_Serialize,PassageReading_Serialize} from './bindings';
   import {commands,unwrap} from './native';
-  import {passageQuotes} from './effects-ui';
+  import {passageQuotes,evidenceQuotes} from './effects-ui';
   let {storyId,world,nodeId,editable,onApply,onClose}:{storyId:string;world:World;nodeId:string;editable:boolean;onApply:(world:World,source:string)=>void;onClose:()=>void}=$props();
   const source=untrack(()=>JSON.stringify(world)),snapshot=JSON.parse(source) as World;
   const name=snapshot.nodes.find(n=>n.id===nodeId)?.name??'Node';
@@ -54,7 +54,7 @@
               {#if passage}
                 <label class="field">Source excerpt<select value="" onchange={e=>{if(e.currentTarget.value)quote=e.currentTarget.value;}}><option value="">Choose a continuous quote…</option>{#each passageQuotes(passage.passage.prose) as excerpt}<option value={excerpt}>{excerpt}</option>{/each}</select></label>
                 <label class="field">Quote<textarea bind:value={quote} rows={3} maxlength={1000}></textarea></label>
-                <label class="field">Specific world change (optional)<select bind:value={effectIndex}><option value="">Passage text</option>{#each passage.passage.effects.changes as change,i}<option value={String(i)}>Change {i+1} · {change.evidence.slice(0,100)}</option>{/each}</select></label>
+                <label class="field">Specific world change (optional)<select bind:value={effectIndex}><option value="">Passage text</option>{#each passage.passage.effects.changes as change,i}<option value={String(i)}>Change {i+1} · {evidenceQuotes(change.evidence).map(q=>q.slice(0,100)).join(' · ')}</option>{/each}</select></label>
                 <details><summary>Read selected passage</summary><div class="source-prose">{passage.passage.prose}</div></details>
               {/if}
             {/if}

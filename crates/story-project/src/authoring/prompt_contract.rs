@@ -2,7 +2,9 @@
 use super::*;
 
 pub(super) fn operation(request: &AuthoringRequest) -> Value {
-    let (kind, task) = if request.mode == AuthoringMode::Revise {
+    let (kind, task) = if selection_revision::enabled(request) {
+        ("selectionRevision","Revise only checked fields on every selected existing node/link, preserving UUIDs, types, capabilities, endpoints and unchecked values. Unselected records are read-only. Also propose optional related additions using only allowedAdditionTypeIds, new:<label> IDs and additionGuide. New links must start at new nodes and target supplied nodes or other new nodes. More tools means separate linked item nodes, not a list in the toolbox description. Revise selected garment records for an outfit change; never replace a character's body with clothing prose. Return existing targets in nodes/edges and new records in additions. No deletion, placement transfer or automatic narration inclusion. Everything requires Apply.")
+    } else if request.mode == AuthoringMode::Revise {
         ("revision", "Develop only checked fields on the editable records. Blank checked fields and blank direction are valid. Return every selected node/link, preserving identity, type, capabilities, link endpoints and unchecked values. Target context bindings describe intended use and do not govern their own rewrite.")
     } else if request.type_id.is_some() {
         ("node", "Create the requested typed root using new:root. Include related records only when bundle is enabled. Develop useful specifics for this node's intended purpose.")
@@ -11,7 +13,9 @@ pub(super) fn operation(request: &AuthoringRequest) -> Value {
     } else {
         ("world", "Develop the premise into a connected starting foundation with useful places, people and belongings. Preserve the author's explicit choices, scale and tone. Give the opening cast immediate goals and actual starting places.")
     };
-    let output = if request.mode == AuthoringMode::Create && request.bundle {
+    let output = if selection_revision::enabled(request) {
+        "flat existing nodes/edges arrays, additions containing preset-keyed nodes arrays and new edges"
+    } else if request.mode == AuthoringMode::Create && request.bundle {
         if creation::typed_bundle(request) {
             "root, preset-keyed nodes arrays, edges"
         } else {
@@ -117,6 +121,14 @@ pub(super) fn lint(
         if input.get("creationGuide").is_some() || input.get("clothingExample").is_some() {
             return Err(failure("revision includes creation guidance"));
         }
+    }
+    if selection_revision::enabled(request)
+        && (input["allowedAdditionTypeIds"] != json!(request.creation_type_ids)
+            || input["additionGuide"] != selection_revision::guide(context, request))
+    {
+        return Err(failure(
+            "related additions disagree with the selected types or native limits",
+        ));
     }
     for output_schema in std::iter::once(schema).chain(input.get("responseSchema")) {
         lint_output(model, request, input, output_schema, references)?;

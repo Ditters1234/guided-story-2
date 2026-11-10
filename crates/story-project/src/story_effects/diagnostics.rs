@@ -24,6 +24,7 @@ pub(crate) fn effect_record_issues(
     }
     let mut records: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut placements: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    let mut single_targets: BTreeMap<(&str, &str), Vec<usize>> = BTreeMap::new();
     for (i, change) in effects.changes.iter().enumerate() {
         let record_id = match change {
             PassageEffect::PutNode { node, .. } => node.id.as_str(),
@@ -32,7 +33,7 @@ pub(crate) fn effect_record_issues(
         };
         records.entry(record_id).or_default().push(i);
         match change {
-            PassageEffect::PutNode { node, .. } => {
+            PassageEffect::PutNode { node, evidence } => {
                 let old = source.nodes.iter().find(|n| n.id == node.id);
                 if (authoring_only_components(source, node.components.keys())
                     || old.is_some_and(|n| authoring_only_components(source, n.components.keys())))
@@ -44,6 +45,19 @@ pub(crate) fn effect_record_issues(
                     node.components.contains_key(&d.id)
                         || old.is_some_and(|n| n.components.contains_key(&d.id))
                 }) {
+                    for field in def.fields.iter().filter(|f| !planning_only(f)) {
+                        if old
+                            .and_then(|n| n.components.get(&def.id))
+                            .and_then(|values| values.get(&field.key))
+                            .is_some_and(populated)
+                            && node
+                                .components
+                                .get(&def.id)
+                                .is_none_or(|values| !values.contains_key(&field.key))
+                        {
+                            issues[i].push(format!("{} / {} was omitted from this complete record. Restore its saved value in Edit, or explicitly clear it with passage evidence if the fact ended. Unrelated facts must be preserved.", def.name, field.label));
+                        }
+                    }
                     for field in def.fields.iter().filter(|f| planning_only(f)) {
                         let before = old
                             .and_then(|n| n.components.get(&def.id))
@@ -64,7 +78,28 @@ pub(crate) fn effect_record_issues(
                         }
                     }
                 }
-                if node.components.contains_key("detail.event") && (source.source_annotations.iter().filter(|a|a.node_id==node.id).count()>=32 || source.source_annotations.len()+effects.changes.iter().filter(|e|matches!(e,PassageEffect::PutNode{node,..} if node.components.contains_key("detail.event"))).count()>10000) {
+                let event_citations: usize = effects
+                    .changes
+                    .iter()
+                    .map(|e| match e {
+                        PassageEffect::PutNode { node, evidence }
+                            if node.components.contains_key("detail.event") =>
+                        {
+                            evidence.quotes().len()
+                        }
+                        _ => 0,
+                    })
+                    .sum();
+                if node.components.contains_key("detail.event")
+                    && (source
+                        .source_annotations
+                        .iter()
+                        .filter(|a| a.node_id == node.id)
+                        .count()
+                        + evidence.quotes().len()
+                        > 32
+                        || source.source_annotations.len() + event_citations > 10000)
+                {
                     issues[i].push("This Event needs space for its source citation. Remove an older citation from the current node, or remove this Event proposal while retaining the other passage effects.".into());
                 }
                 if !alias(&node.id)
@@ -74,6 +109,19 @@ pub(crate) fn effect_record_issues(
                 }
             }
             PassageEffect::PutLink { link, .. } => {
+                let old = source.edges.iter().find(|e| e.id == link.id);
+                if old.is_some_and(|old| {
+                    old.type_id != link.type_id && has_planning_link_values(source, old)
+                }) {
+                    issues[i].push("This connection has author planning guidance. Preserve its relationship type; use world tools to revise it.".into());
+                }
+                for displaced in displaced_links(source, link) {
+                    if !scoped.contains(displaced.source_id.as_str())
+                        || !scoped.contains(displaced.target_id.as_str())
+                    {
+                        issues[i].push(format!("This proposal would replace {} outside the supplied scene. Add its previous target as a scene reference before validating, or remove this proposal.", link_label(source, displaced)));
+                    }
+                }
                 if !alias(&link.id) {
                     if let Some(old) = source.edges.iter().find(|e| e.id == link.id) {
                         if !scoped.contains(old.source_id.as_str())
@@ -101,6 +149,33 @@ pub(crate) fn effect_record_issues(
                         issues[i].push(format!("Unknown relationship field {key}. Remove it in Edit or choose the intended relationship type."));
                     }
                     for field in &definition.fields {
+                        if !planning_only(field)
+                            && old
+                                .filter(|e| e.type_id == link.type_id)
+                                .and_then(|e| e.properties.get(&field.key))
+                                .is_some_and(populated)
+                            && !link.properties.contains_key(&field.key)
+                        {
+                            issues[i].push(format!("{} / {} was omitted from this complete connection. Restore its saved value in Edit, or explicitly clear it with passage evidence if the fact ended. Unrelated facts must be preserved.", definition.name, field.label));
+                        }
+                        if planning_only(field) {
+                            let saved = old.filter(|e| e.type_id == link.type_id);
+                            let before = saved
+                                .and_then(|e| e.properties.get(&field.key))
+                                .unwrap_or(&PropertyValue::Null);
+                            let after = link
+                                .properties
+                                .get(&field.key)
+                                .unwrap_or(&PropertyValue::Null);
+                            let changed = if saved.is_some() {
+                                before != after
+                            } else {
+                                after != &PropertyValue::Null && after != &field.default_value
+                            };
+                            if changed {
+                                issues[i].push(format!("{} / {} is author planning guidance. Preserve its saved/default value or remove this proposal; use world tools to revise it.", definition.name, field.label));
+                            }
+                        }
                         match link.properties.get(&field.key) {
                             None if field.required => {
                                 issues[i].push(format!("Fill in {} in Edit.", field.label))
@@ -159,6 +234,11 @@ pub(crate) fn effect_record_issues(
                 }
                 if definition.is_some_and(|r| r.physical_placement) {
                     placements.entry(&link.source_id).or_default().push(i);
+                } else if definition.is_some_and(|r| r.single_target) {
+                    single_targets
+                        .entry((&link.type_id, &link.source_id))
+                        .or_default()
+                        .push(i);
                 }
             }
             PassageEffect::RemoveLink { id, .. } => {
@@ -182,6 +262,11 @@ pub(crate) fn effect_record_issues(
     for indices in placements.values().filter(|v| v.len() > 1) {
         for &i in indices {
             issues[i].push("Multiple physical placements are proposed for this node. Keep only its final location, worn, carried or stored placement.".into());
+        }
+    }
+    for indices in single_targets.values().filter(|v| v.len() > 1) {
+        for &i in indices {
+            issues[i].push("Multiple targets are proposed for this single-target relationship and source. Keep one final connection before validating.".into());
         }
     }
     issues

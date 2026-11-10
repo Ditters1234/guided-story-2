@@ -109,6 +109,7 @@ pub(super) fn accept_passage(p: &Project, changes: Vec<PassageEffect>) -> String
             })
             .unwrap(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )
@@ -365,6 +366,7 @@ fn media_metadata_does_not_invalidate_checked_passage_context() {
             prose: "The room grew quiet as rain touched the glass.".into(),
             effects_text: empty_effects(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )

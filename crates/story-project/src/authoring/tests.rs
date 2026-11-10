@@ -2,6 +2,7 @@ use super::*;
 mod blank_nodes;
 mod creation_quality;
 mod creation_scopes;
+mod clothing_links;
 mod deletion;
 mod existing_context;
 mod foundation_budget;
@@ -10,6 +11,7 @@ mod protection_schema;
 mod quality_probe;
 mod reference_choices;
 mod relationships;
+mod selection_revision;
 mod typed_bundle;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()

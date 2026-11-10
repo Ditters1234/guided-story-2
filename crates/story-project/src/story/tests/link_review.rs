@@ -21,17 +21,17 @@ fn missing_link_and_incompatible_relationship_are_actionable_even_after_all_card
                     type_id: "core.inside".into(),
                     ..old.clone()
                 },
-                evidence: edit.prose.clone(),
+                evidence: edit.prose.clone().into(),
             },
             PassageEffect::RemoveLink {
                 id: old.id.clone(),
-                evidence: edit.prose.clone(),
+                evidence: edit.prose.clone().into(),
             },
         ],
         notes: (0..3)
             .map(|i| ContinuityNote {
                 text: format!("Scene observation {i}."),
-                evidence: edit.prose.clone(),
+                evidence: edit.prose.clone().into(),
                 node_ids: vec![],
             })
             .collect(),
@@ -119,11 +119,11 @@ fn conflicting_updates_are_marked_on_both_cards_and_can_be_repaired_as_an_existi
                     type_id: "core.stored-in".into(),
                     ..old.clone()
                 },
-                evidence: edit.prose.clone(),
+                evidence: edit.prose.clone().into(),
             },
             PassageEffect::RemoveLink {
                 id: old.id.clone(),
-                evidence: edit.prose.clone(),
+                evidence: edit.prose.clone().into(),
             },
         ],
         ..Default::default()

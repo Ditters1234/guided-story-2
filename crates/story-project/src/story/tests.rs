@@ -2,11 +2,16 @@ use super::*;
 use std::process::Command;
 mod ai_context;
 mod chapters;
+mod continuity;
 mod deletion;
+mod draft_revision;
 mod evidence;
+mod effect_state;
+mod effect_transport;
 mod link_review;
 mod planning;
 mod prompts;
+mod relationship_guards;
 mod relationships;
 mod review;
 mod revisions;
@@ -141,6 +146,7 @@ fn edits(p: &Project, prose: &str) -> PassageEdits {
         prose: prose.into(),
         effects_text: empty_effects(),
         close_chapter: false,
+        revision_direction: String::new(),
         approved_effects: vec![],
     }
 }
@@ -244,7 +250,7 @@ fn evidence_checked_transfer_commits_prose_world_and_history_once() {
     edit.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![PassageEffect::PutLink {
             link,
-            evidence: edit.prose.clone(),
+            evidence: edit.prose.clone().into(),
         }],
         ..Default::default()
     })
@@ -292,7 +298,7 @@ fn taking_off_changes_one_placement_and_conflicting_effect_placements_are_reject
     let mut edit = edits(&p, "Mara took off her coat and carried it over her arm.");
     let change = PassageEffect::PutLink {
         link: carried.clone(),
-        evidence: edit.prose.clone(),
+        evidence: edit.prose.clone().into(),
     };
     let conflict = PassageEffect::PutLink {
         link: WorldEdge {
@@ -300,7 +306,7 @@ fn taking_off_changes_one_placement_and_conflicting_effect_placements_are_reject
             id: id(),
             ..wear.clone()
         },
-        evidence: edit.prose.clone(),
+        evidence: edit.prose.clone().into(),
     };
     edit.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![change.clone(), conflict],
@@ -449,7 +455,7 @@ fn unsupported_evidence_and_out_of_context_records_are_rejected() {
     edit.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![PassageEffect::PutNode {
             node: changed,
-            evidence: edit.prose.clone(),
+            evidence: edit.prose.clone().into(),
         }],
         ..Default::default()
     })

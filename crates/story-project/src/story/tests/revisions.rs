@@ -432,6 +432,36 @@ fn ai_polish_and_reroll_keep_revision_scope_and_saved_manual_candidates() {
 }
 
 #[test]
+fn draft_revisions_preserve_wording_and_event_replacement_boundaries() {
+    for kind in [PassageRevisionKind::Wording, PassageRevisionKind::Events] {
+        let (_dir, p) = fixture();
+        let passage = handoff(&p);
+        let accepted = p.read_passage(&passage).unwrap();
+        let source = revision(&p, &passage, kind, "Jon received the field coat from Mara.");
+        let mut original = p.passage_view(&source, &settings()).unwrap();
+        original.edits.revision_direction = "Use shorter sentences while preserving the handoff.".into();
+        p.save_passage(&source, original.version, original.edits.clone()).unwrap();
+        let key = id();
+        p.revise_passage_draft(&source, original.version + 1, &key).unwrap();
+        let candidate = p.passage_view(&key, &settings()).unwrap();
+        assert_eq!(candidate.revision.as_ref().unwrap().kind, kind);
+        assert_eq!(candidate.revision.as_ref().unwrap().world, accepted.before);
+        let request = p.start_passage(&key, candidate.version, p.view().unwrap().revision, false, &settings()).unwrap();
+        let input: Value = serde_json::from_str(&request.user).unwrap();
+        assert_eq!(input["draftRevision"]["prose"], original.edits.prose);
+        if kind == PassageRevisionKind::Wording {
+            assert!(request.system.contains("wording polish only"));
+            assert_eq!(input["originalProse"], accepted.passage.prose);
+            assert_eq!(candidate.edits.effects_text, original.edits.effects_text);
+        } else {
+            assert!(input.get("originalProse").is_none());
+            assert_eq!(candidate.edits.effects_text, empty_effects());
+        }
+        assert_eq!(p.read_passage(&passage).unwrap().record, accepted.record);
+    }
+}
+
+#[test]
 fn forks_omit_superseded_alternate_events_and_keep_needed_wording_evidence() {
     let (dir, p) = fixture();
     let passage = handoff(&p);

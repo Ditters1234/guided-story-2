@@ -44,7 +44,7 @@ pub struct SourceAnchor {
     pub event_id: String,
     pub title: String,
     pub prose: String,
-    pub effect_quotes: Vec<String>,
+    pub effect_quotes: Vec<EffectEvidence>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
@@ -114,7 +114,7 @@ pub(crate) fn passage_event_identity(p: &AcceptedPassage) -> String {
 pub(crate) fn text_version_identity(p: &AcceptedPassage, r: &RecordRef) -> String {
     p.text_version_id.clone().unwrap_or_else(|| r.id.clone())
 }
-pub(crate) fn effect_quotes(effects: &PassageEffects) -> Vec<String> {
+pub(crate) fn effect_quotes(effects: &PassageEffects) -> Vec<EffectEvidence> {
     effects
         .changes
         .iter()
@@ -139,15 +139,10 @@ impl SourceAnchor {
             || !hash_valid(&self.event_id)
             || self.prose.len() > 100000
             || self.effect_quotes.len() > 80
-            || self.effect_quotes.iter().any(|q| {
-                !(8..=600).contains(
-                    &q.split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                        .chars()
-                        .count(),
-                )
-            })
+            || self
+                .effect_quotes
+                .iter()
+                .any(|q| !q.quote_issues(None).is_empty())
         {
             return Err("Invalid passage source anchor.".into());
         }
@@ -262,9 +257,9 @@ pub(crate) fn validate_annotation_records_using(
                 || data.event_id != *event_id
                 || !exact_quote(&data.prose, quote)
                 || effect_index.is_some_and(|i| {
-                    data.effect_quotes
-                        .get(i as usize)
-                        .is_none_or(|q| !exact_quote(q, quote))
+                    data.effect_quotes.get(i as usize).is_none_or(|q| {
+                        !q.quotes().iter().any(|excerpt| exact_quote(excerpt, quote))
+                    })
                 })
             {
                 return Err(
@@ -502,10 +497,11 @@ impl Project {
                 let (anchor, reference) = self.capture_source_anchor(&reading.passage, &version)?;
                 if !exact_quote(&anchor.prose, &quote)
                     || effect_index.is_some_and(|i| {
-                        anchor
-                            .effect_quotes
-                            .get(i as usize)
-                            .is_none_or(|q| !exact_quote(q, &quote))
+                        anchor.effect_quotes.get(i as usize).is_none_or(|q| {
+                            !q.quotes()
+                                .iter()
+                                .any(|excerpt| exact_quote(excerpt, &quote))
+                        })
                     })
                 {
                     return Err("Choose one continuous 8–600 character quote from the selected passage/effect.".into());
@@ -657,17 +653,24 @@ impl Project {
             .changes
             .iter()
             .enumerate()
-            .filter_map(|(i, e)| {
+            .flat_map(|(i, e)| {
                 let PassageEffect::PutNode { node, evidence } = e else {
-                    return None;
+                    return vec![];
                 };
-                node.components.contains_key("detail.event").then(|| {
-                    (
-                        i,
-                        allocations.get(&node.id).unwrap_or(&node.id).clone(),
-                        evidence.clone(),
-                    )
-                })
+                if !node.components.contains_key("detail.event") {
+                    return vec![];
+                }
+                evidence
+                    .quotes()
+                    .iter()
+                    .map(|quote| {
+                        (
+                            i,
+                            allocations.get(&node.id).unwrap_or(&node.id).clone(),
+                            quote.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect();
         if targets.is_empty() {

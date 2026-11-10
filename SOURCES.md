@@ -9,7 +9,7 @@ Project-local descriptive links connect an Event to **Participant**, **Occurred 
 Every shared inspector has **Sources (count)**. Event additions authored manually or applied through world AI receive an author-established backstory marker. Other nodes can also carry citations.
 
 - **Author / backstory** records an explicit author source note.
-- **Accepted passage** selects an accepted passage, its exact current text version and one continuous 8–600 character quote. An optional world-change selector requires the quote to occur within that effect’s evidence as well as the passage.
+- **Accepted passage** selects an accepted passage, its exact current text version and one continuous 8–600 character quote. An optional world-change selector requires the quote to occur within one of that effect’s evidence excerpts as well as the passage; it cannot span separate excerpts.
 - **Review citation → Apply source change** previews a native-validated world edit. It changes citation metadata, without rewriting the node or accepted history. Citation selection does not call an LLM.
 - **Read exact source** displays the retained cited prose, even when the passage has since been polished. Earlier wording and nodes edited since citation are labelled.
 - **Remove citation** removes that reference, retaining the node and all accepted history. Removing an Event’s last passage citation explicitly leaves it author-established; the review explains the replacement with an author source. An Event’s sole author-source marker is retained. Add a replacement source before removing that author note, or remove the Event node itself.
@@ -19,6 +19,8 @@ Historical Sources are read-only. Citations record provenance and an author asse
 ## Events extracted from prose
 
 An effects request may propose a significant Event and descriptive links, using the usual saved schema. An Event is optional; no record is created for every action or passage. Its card uses the usual quote, editing/removal and individual approval controls. Acceptance attaches a native passage-version/effect citation from that approved evidence and publishes it with prose, effects, chapter membership and Before/After snapshots in the same manifest transaction. Approval alone changes nothing.
+
+Change cards support up to four separate exact evidence excerpts. An Event receives one source annotation for each approved excerpt, all tied to the same effect index. The existing per-node/world quotas reserve space for every citation before acceptance. Old single-string evidence and anchors retain their serialized shape; new multi-quote anchors keep excerpts grouped by change so later citations never shift to another effect. Removing or changing any necessary excerpt during wording revision keeps the required earlier wording as evidence.
 
 Ordinary physical effects remain separate evidenced proposals. Recording “the pump failed” as an Event does not itself change the pump’s condition or another record. World AI can develop empty Event fields and propose backstory, but cannot fabricate provenance metadata or change source bindings through editable node fields.
 

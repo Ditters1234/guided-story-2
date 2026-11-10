@@ -18,10 +18,18 @@ pub(super) fn scope<'a>(
                 .flat_map(|c| c.catalog.iter().map(|n| n.id.clone())),
         )
         .collect();
+    let additions = selection_revision::enabled(request).then(|| {
+        creation::schema_world(
+            model,
+            &selection_revision::additions_request(source, request),
+        )
+    });
     ReferenceScope::new(
         source,
         ids,
-        (request.mode == AuthoringMode::Create).then_some(model),
+        additions
+            .as_ref()
+            .or_else(|| (request.mode == AuthoringMode::Create).then_some(model)),
         if request.bundle {
             creation::new_alias_schema()
         } else {

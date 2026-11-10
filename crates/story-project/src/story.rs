@@ -22,6 +22,8 @@ pub use planning::*;
 mod starting_state;
 mod writing_brief;
 pub use writing_brief::WritingBrief;
+mod continuity;
+pub use continuity::PassageHandoff;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -66,6 +68,8 @@ impl Default for PassagePlan {
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassageEdits {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub revision_direction: String,
     pub plan: PassagePlan,
     pub prose: String,
     pub effects_text: String,
@@ -260,6 +264,12 @@ pub struct PassageReading {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassageSummary {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_draft_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_passage_id: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub revision_direction: String,
     pub revision_kind: Option<PassageRevisionKind>,
     pub id: String,
     pub title: String,
@@ -270,6 +280,9 @@ pub struct PassageSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassageView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_revision: Option<DraftRevision>,
+    pub repeated_passages: Vec<String>,
     pub effects_review: EffectsReview,
     pub memory: MemoryContext,
     pub revision: Option<PassageRevisionView>,
@@ -316,6 +329,8 @@ struct AcceptanceAttempt {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct PassageDraft {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    draft_revision: Option<DraftRevision>,
     #[serde(default)]
     revision: Option<PassageRevision>,
     #[serde(default)]
@@ -375,6 +390,7 @@ fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
         || p.participant_ids.len() > 12
         || p.reference_ids.len() > 12
         || edits.prose.len() > 100000
+        || edits.revision_direction.chars().count() > 8000
         || edits.effects_text.len() > 500000
     {
         return Err(
@@ -619,6 +635,13 @@ impl Project {
                     continue;
                 }
                 list.push(PassageSummary {
+                    source_draft_id: d.cloned_from.as_ref().map(|(id, _)| id.clone()),
+                    target_passage_id: d.revision.as_ref().map(|r| r.passage_id.clone()),
+                    revision_direction: d
+                        .draft_revision
+                        .as_ref()
+                        .map(|r| r.direction.clone())
+                        .unwrap_or_default(),
                     revision_kind: d.revision.as_ref().map(|r| r.kind),
                     id: d.id,
                     title: d.edits.plan.title,
@@ -671,6 +694,7 @@ impl Project {
             prose: String::new(),
             effects_text: empty_effects(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         };
         draft.source = None;
@@ -684,6 +708,7 @@ impl Project {
         draft.allocations.clear();
         draft.attempt = None;
         draft.revision = None;
+        draft.draft_revision = None;
         draft.cloned_from = None;
         draft.incomplete = false;
         hook("beforeMarker")?;
@@ -716,6 +741,7 @@ impl Project {
                 return Err("Passage draft limit reached or version changed.".into());
             }
             PassageDraft {
+                draft_revision: None,
                 revision: None,
                 cloned_from: None,
                 narration_provider: String::new(),
@@ -816,33 +842,7 @@ impl Project {
                 "chapterRelation":if active_chapter.is_some_and(|ch|ch.id==entry.chapter_id){"sameChapter"}else{"earlierChapter"},
                 "title":passage.plan.title,"prose":passage.prose,"notes":passage.effects.notes,"evidenceFromEarlierWording":passage.evidence_source.is_some()}));
         }
-        let mut memory = self.memory_context(index, plan, &context, memory_budget)?;
-        let mut kept = vec![];
-        for point in memory.points.drain(..) {
-            let summary_blocked = if let Some(r) = &point.summary {
-                let summary = self.read_record::<ChapterMemory>("memories", r)?;
-                summary
-                    .sources
-                    .iter()
-                    .any(|s| excluded_passages.contains(&s.passage_id))
-                    || summary
-                        .ai_context
-                        .as_ref()
-                        .is_some_and(|c| c.iter().any(|s| excluded.contains(&s.node_id)))
-            } else {
-                false
-            };
-            if excluded_passages.contains(&point.passage_id)
-                || point.node_ids.iter().any(|id| excluded.contains(id))
-                || summary_blocked
-            {
-                memory.coverage.selected_points -= 1;
-                memory.coverage.omitted_points += 1;
-            } else {
-                kept.push(point);
-            }
-        }
-        memory.points = kept;
+        let memory = self.memory_context(index, plan, &context, world, memory_budget)?;
         let mut intent = serde_json::to_value(plan).map_err(|e| e.to_string())?;
         let object = intent.as_object_mut().ok_or("Invalid scene plan.")?;
         for (key, label) in [
@@ -855,18 +855,38 @@ impl Project {
         }
         let mut input = json!({"storyTitle":self.view()?.title,"plan":intent,"writingBrief":writing_brief::assemble(plan,index),
             "records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+        if let Some(handoff) = continuity::handoff(index, &recent) {
+            input["passageHandoff"] = json!(handoff);
+        }
         input["startingState"] = starting_state::starting_state(&context, plan);
         if !knowledge.decisions.is_empty() || knowledge.omitted_by_limit > 0 || withheld_recent > 0
         {
             input["situatedKnowledge"] = json!({"perspective":plan.knowledge_perspective,"claims":knowledge.included,"omittedByLimit":knowledge.omitted_by_limit,"withheldRecentPassages":withheld_recent});
         }
+        // A later off-scene single-target connection could be displaced by an
+        // effect on a supplied source. Track that boundary without transmitting
+        // the unselected records or granting permission to replace their links.
+        let scoped_ids: BTreeSet<_> = context.nodes.iter().map(|n| &n.id).collect();
+        let single_target_boundary: Vec<_> = world
+            .edges
+            .iter()
+            .filter(|edge| {
+                scoped_ids.contains(&edge.source_id)
+                    && !scoped_ids.contains(&edge.target_id)
+                    && world
+                        .relation_types
+                        .iter()
+                        .any(|r| r.id == edge.type_id && r.single_target)
+            })
+            .collect();
         let mut fingerprint = story_hash(&(
-            "passage-source-v18-relationship-guidance",
+            "passage-source-v22-continuity-handoff",
             &input,
             &context.node_types,
             &context.component_types,
             &context.relation_types,
             &context.source_annotations,
+            single_target_boundary,
             [
                 settings.system_prompt(TextPromptTask::Passage),
                 settings.system_prompt(TextPromptTask::Effects),
@@ -912,7 +932,11 @@ impl Project {
             .revision
             .as_ref()
             .is_some_and(|r| r.kind == PassageRevisionKind::Wording);
-        if !checking && wording && d.edits.plan.direction.trim().is_empty() {
+        if !checking
+            && wording
+            && d.draft_revision.is_none()
+            && d.edits.plan.direction.trim().is_empty()
+        {
             return Err("Add wording direction before generating a polish candidate.".into());
         }
         if checking && wording {
@@ -954,6 +978,22 @@ impl Project {
             )?;
         }
         append_ai_context(&included, &mut system, &mut input);
+        if !checking {
+            if let Some(revision) = &d.draft_revision {
+                if !wording {
+                    cast_scope::validate_named_cast_scope(
+                        &source_world_data,
+                        &context,
+                        &[revision.prose.as_str(), revision.direction.as_str()],
+                    )?;
+                }
+                input["draftRevision"] = json!({
+                    "prose": revision.prose,
+                    "direction": revision.direction,
+                    "task": "Revise this existing unaccepted draft according to direction, using the supplied scene facts and plan. Return the complete revised passage, not a continuation, commentary or a list of edits. Keep unaffected parts where possible. The draft is editable prose, not established world facts. Wording-only revisions must still preserve all accepted events."
+                });
+            }
+        }
         if !checking {
             scene_context::project_records(&context, &d.edits.plan, &mut input, false);
             let excluded = crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan);
@@ -1048,6 +1088,12 @@ impl Project {
         self.write_passage_draft(&d)?;
         let demo = if checking {
             serde_json::to_string(&PassageEffects::default()).unwrap()
+        } else if let Some(revision) = &d.draft_revision {
+            revision
+                .prose
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
         } else if wording {
             input["originalProse"]
                 .as_str()
@@ -1094,7 +1140,13 @@ impl Project {
                 if checking {
                     d.edits.approved_effects.clear();
                     d.original_effects = text.clone();
-                    d.edits.effects_text = match materialize_effects_text(&text) {
+                    let materialized = (|| {
+                        let source = d.source.as_ref().ok_or("Missing captured extraction source.")?;
+                        let captured: World = self.read_record("worlds", &source.world)?;
+                        let scene = scene_world(&captured, &d.edits.plan)?;
+                        materialize_provider_effects(&text, &scene)
+                    })();
+                    d.edits.effects_text = match materialized {
                         Ok(materialized) => materialized,
                         Err(error) => {
                             response_error = format!("Effects JSON needs editing: {error}");
@@ -1292,6 +1344,13 @@ impl Project {
             )?
         };
         let approved = effects_review.entries.iter().all(|entry| entry.approved);
+        let repeated_passages = if wording {
+            vec![]
+        } else {
+            prepared.as_ref().map_or_else(|_| vec![], |(_, _, input, _, _)| {
+                continuity::repeated_passages(&d.edits.prose, input)
+            })
+        };
         let knowledge_history_omissions = prepared
             .as_ref()
             .ok()
@@ -1328,6 +1387,8 @@ impl Project {
             ),
         };
         Ok(PassageView {
+            draft_revision: d.draft_revision,
+            repeated_passages,
             knowledge_history_omissions,
             effects_review,
             memory,

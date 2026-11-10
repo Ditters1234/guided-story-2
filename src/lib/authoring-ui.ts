@@ -1,7 +1,7 @@
 import type { AuthoringRequest,EditableField,EditableLinkField,NodeCandidate,WorldNode } from './bindings';
 import type { World } from './model';
 import { makeNode } from './model';
-import {defaultProperties} from './node-fields';
+import {defaultProperties,hasCapability,type FieldTarget} from './node-fields';
 export const fieldId=(field:EditableField)=>JSON.stringify([field.nodeId,field.componentId,field.key]);
 export function editableFields(world:World,ids:string[]):(EditableField&{label:string})[]{
   return world.nodes.filter((n)=>ids.includes(n.id)).flatMap((node)=>[
@@ -108,4 +108,35 @@ export function editableLinkFields(world:World,ids:string[]):(EditableLinkField&
 }
 export function newLinkAuthoringRequest(world:World,id:string):AuthoringRequest{
   return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:[],contextIds:[],fields:[],linkTargetIds:[id],linkFields:editableLinkFields(world,[id]).map(({label:_,...field})=>field)};
+}
+
+export function newSelectionAuthoringRequest(world:World,ids:string[]):AuthoringRequest {
+  const selected=[...new Set(ids)];
+  if(!selected.length||selected.length>12||selected.some(id=>!world.nodes.some(n=>n.id===id)))throw Error('Select between 1 and 12 current world nodes for AI revision.');
+  const links=world.edges.filter(edge=>selected.includes(edge.sourceId)&&selected.includes(edge.targetId)).map(edge=>edge.id);
+  if(links.length>24)throw Error('Narrow the selection to at most 24 internal relationships.');
+  const physical=new Set(world.relationTypes.filter(type=>type.physicalPlacement).map(type=>type.id));
+  const neighbors=new Set(world.edges.filter(edge=>physical.has(edge.typeId)&&(selected.includes(edge.sourceId)||selected.includes(edge.targetId))).flatMap(edge=>[edge.sourceId,edge.targetId]));
+  const fields=editableFields(world,selected).filter(field=>field.componentId!==null||field.key!=='name').slice(0,200).map(({label:_,...field})=>field);
+  return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:selected,contextIds:world.nodes.filter(node=>neighbors.has(node.id)&&!selected.includes(node.id)).slice(0,12).map(node=>node.id),fields,
+    linkTargetIds:links,linkFields:editableLinkFields(world,links).slice(0,200-fields.length).map(({label:_,...field})=>field)};
+}
+
+export function revisionAdditionTypes(world:World):string[]{return world.nodeTypes.filter(type=>type.components.includes('core.item')).map(type=>type.id);}
+export function allowRevisionAdditions(world:World,request:AuthoringRequest,enabled:boolean):AuthoringRequest {
+  return {...request,bundle:enabled,creationTypeIds:enabled?revisionAdditionTypes(world):undefined};
+}
+
+export function unplacedCandidateGarments(world:World,candidate:NodeCandidate){
+  const physical=new Set(world.relationTypes.filter(r=>r.physicalPlacement).map(r=>r.id));
+  return candidate.nodes.filter(n=>hasCapability(n,'core.wearable')&&!candidate.edges.some(e=>e.sourceId===n.id&&physical.has(e.typeId)));
+}
+export function garmentPlacementTargets(world:World,garment:WorldNode,references:FieldTarget[]){
+  return world.relationTypes.filter(r=>r.physicalPlacement&&['core.worn-by','core.stored-in'].includes(r.id)&&(!r.sourceCapability||hasCapability(garment,r.sourceCapability))).flatMap(relation=>references.filter(n=>n.id!==garment.id&&(!relation.targetCapability||hasCapability(n,relation.targetCapability))).map(target=>({typeId:relation.id,targetId:target.id,label:relation.label+' → '+target.name})));
+}
+export function placeCandidateGarment(world:World,candidate:NodeCandidate,garmentId:string,typeId:string,targetId:string,references:FieldTarget[]):NodeCandidate {
+  const garment=unplacedCandidateGarments(world,candidate).find(n=>n.id===garmentId&&n.id.startsWith('new:'));
+  if(!garment||!garmentPlacementTargets(world,garment,references).some(t=>t.typeId===typeId&&t.targetId===targetId))throw Error('Choose an unplaced proposed garment and a supplied wearer or holder.');
+  const relation=world.relationTypes.find(r=>r.id===typeId)!;
+  return {...candidate,edges:[...candidate.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId,sourceId:garmentId,targetId,description:'',properties:defaultProperties({fields:relation.fields??[]})}]};
 }

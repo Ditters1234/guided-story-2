@@ -12,6 +12,7 @@ pub(crate) mod creation;
 mod existing_context;
 mod prompt_contract;
 mod references;
+mod selection_revision;
 pub use existing_context::*;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
@@ -180,12 +181,13 @@ fn hash<T: Serialize>(value: &T) -> Result<String, String> {
 }
 fn bounded_request(request: &AuthoringRequest) -> Result<(), String> {
     if request.direction.chars().count() > 12000
-        || request.target_ids.len() + request.link_target_ids.len() > 12
+        || request.target_ids.len() > 12
+        || request.link_target_ids.len() > 24
         || request.context_ids.len() > 12
         || request.fields.len() + request.link_fields.len() > 200
     {
         return Err(
-            "Narrow the request: at most 12 targets/references and 200 editable fields.".into(),
+            "Narrow the request: at most 12 nodes, 24 relationships, 12 references and 200 editable fields.".into(),
         );
     }
     for id in request
@@ -482,6 +484,22 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
             }
         }
     }
+    if selection_revision::enabled(request) {
+        let additions = selection_revision::additions_request(world, request);
+        let model = creation::schema_world(world, &additions);
+        let mut new_schema = output_schema(&model, &additions);
+        if let Some(groups) = new_schema["properties"]["nodes"]["properties"].as_object_mut() {
+            for group in groups.values_mut() {
+                group["maxItems"] = json!(8);
+            }
+        }
+        new_schema["properties"]["edges"]["maxItems"] = json!(32);
+        schema["properties"]["additions"] = new_schema;
+        schema["required"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("additions"));
+    }
     schema
 }
 pub fn prepare_authoring(
@@ -492,7 +510,7 @@ pub fn prepare_authoring(
     world.validate()?;
     bounded_request(request)?;
     if !request.creation_type_ids.is_empty()
-        && (request.mode != AuthoringMode::Create
+        && ((request.mode != AuthoringMode::Create && !selection_revision::enabled(request))
             || request.type_id.is_some()
             || request.group_type_id.is_some()
             || request.creation_type_ids.len() > 200
@@ -545,8 +563,10 @@ pub fn prepare_authoring(
         if (targets.is_empty() && link_targets.is_empty())
             || targets.len() != request.target_ids.len()
             || link_targets.len() != request.link_target_ids.len()
-            || (request.fields.is_empty() && request.link_fields.is_empty())
-            || request.bundle
+            || (request.fields.is_empty()
+                && request.link_fields.is_empty()
+                && !selection_revision::enabled(request))
+            || (request.bundle && request.creation_type_ids.is_empty())
             || request.creation_scope.is_some()
             || request.group_type_id.is_some()
         {
@@ -611,13 +631,20 @@ pub fn prepare_authoring(
     // Revisions cannot add types, capabilities or relationships. Send only the
     // schema needed to interpret the supplied targets/references, not the catalogue.
     if request.mode == AuthoringMode::Revise {
-        let types: BTreeSet<_> = context.nodes.iter().map(|n| n.type_id.clone()).collect();
-        let components: BTreeSet<_> = context
+        let mut types: BTreeSet<_> = context.nodes.iter().map(|n| n.type_id.clone()).collect();
+        let mut components: BTreeSet<_> = context
             .nodes
             .iter()
             .flat_map(|n| n.components.keys().cloned())
             .collect();
-        let relations: BTreeSet<_> = context.edges.iter().map(|e| e.type_id.clone()).collect();
+        let mut relations: BTreeSet<_> = context.edges.iter().map(|e| e.type_id.clone()).collect();
+        if selection_revision::enabled(request) {
+            let additions = selection_revision::additions_request(world, request);
+            let offered = creation::schema_world(&context, &additions);
+            types.extend(offered.node_types.iter().map(|d| d.id.clone()));
+            components.extend(offered.component_types.iter().map(|d| d.id.clone()));
+            relations.extend(offered.relation_types.iter().map(|d| d.id.clone()));
+        }
         context.node_types.retain(|d| types.contains(&d.id));
         context
             .component_types
@@ -676,6 +703,10 @@ pub fn prepare_authoring(
     let mut input = json!({"request":effective_request,"records":records,"links":context.edges,"nodeTypes":node_types,"capabilities":crate::prompt_context::capabilities(&model_schema, formal_schema),"relationships":crate::prompt_context::relationships(&model_schema, formal_schema),"sources":context.source_annotations,"responseBudget":creation::budget(&model_schema,request,settings.max_tokens)});
     input["operation"] = prompt_contract::operation(request);
     input["recordPermissions"] = prompt_contract::permissions(&context, request);
+    if selection_revision::enabled(request) {
+        input["additionGuide"] = selection_revision::guide(&context, request);
+        input["allowedAdditionTypeIds"] = json!(request.creation_type_ids);
+    }
     input["catalogueRules"] = json!("fieldDefaults shares metadata. An omitted label means the field key. The output schema supplies omitted kinds, requirements and choices; local $defs share identical contracts. Empty components declare capabilities; absent optional references are unspecified.");
     if request.mode == AuthoringMode::Create {
         input["creationGuide"] = creation::guide(&model_schema, request);
@@ -816,6 +847,51 @@ pub fn prepare_authoring(
             }
             // These additions only guide generation. Match earlier requests at
             // the same source/settings so their retained candidates can still be reviewed.
+            previous_guide_fingerprints.push(fingerprint_for(&user)?);
+            user = guided;
+            estimated_input_tokens = guided_tokens;
+        }
+    }
+    if request.mode == AuthoringMode::Create
+        && request.bundle
+        && request.creation_scope == Some(CreationScope::Group)
+    {
+        // Add guidance without invalidating an already captured, otherwise
+        // identical proposal. Optional examples never displace required scope.
+        let mut placement = creation::placement_guide(&model_schema);
+        if placement.get("clothing").is_some() {
+            placement["clothing"] = json!("Every garment intended to be worn needs its own explicit edges record: id new:<label>, typeId core.worn-by, sourceId the garment ID, targetId its proposed or supplied wearer ID, description. Multiple garments can share a wearer. Include these edges even when the garment fields already describe an owner/outfit; text is not a link. Stored/spare garments instead use one stored-in edge to a supplied holder/container. Leave unplaced only when intentional. Before finishing, check every garment's placement; reserve output tokens for all these edges before optional detail. Never add both worn-by and stored-in for one garment.");
+        }
+        let mut enhancements = vec![("physicalPlacement", placement)];
+        let can_supply_wearer = model_schema
+            .node_types
+            .iter()
+            .any(|t| t.components.iter().any(|c| c == "core.character"))
+            || context
+                .nodes
+                .iter()
+                .any(|n| n.components.contains_key("core.character"))
+            || existing_context.as_ref().is_some_and(|c| {
+                c.catalog
+                    .iter()
+                    .any(|n| n.capabilities.iter().any(|id| id == "core.character"))
+            });
+        if can_supply_wearer {
+            if let Some(example) = clothing_example(&model_schema) {
+                enhancements.push(("clothingExample", example));
+            }
+        }
+        for (key, guide) in enhancements {
+            if key == "clothingExample" {
+                input[key] = guide;
+            } else {
+                input["creationGuide"][key] = guide;
+            }
+            let guided = serde_json::to_string(&input).map_err(|e| e.to_string())?;
+            let guided_tokens = estimate(&guided);
+            if guided_tokens.saturating_add(settings.max_tokens) > settings.context_tokens {
+                break;
+            }
             previous_guide_fingerprints.push(fingerprint_for(&user)?);
             user = guided;
             estimated_input_tokens = guided_tokens;
@@ -984,6 +1060,21 @@ fn proposal_warnings(
             format!("{} has no linked worn items. Add outfit items before Apply, or keep this if intentional. Clothing written only in a character description is not an item-based outfit.",n.name)
         }
     }).collect();
+    for garment in candidate
+        .nodes
+        .iter()
+        .filter(|n| n.components.contains_key("core.wearable"))
+    {
+        if !candidate.edges.iter().any(|edge| {
+            edge.source_id == garment.id
+                && source
+                    .relation_types
+                    .iter()
+                    .any(|relation| relation.id == edge.type_id && relation.physical_placement)
+        }) {
+            warnings.push(format!("{} has no wearer or storage link. Choose its wearer/holder in proposal review, or keep it unplaced if intentional. A garment record alone is not part of an outfit.", garment.name));
+        }
+    }
     if request.type_id.is_none()
         && request.creation_scope != Some(CreationScope::Group)
         && candidate
@@ -1044,6 +1135,9 @@ fn candidate_world(
         || candidate.edges.len() > 80
     {
         return Err("A proposal needs 1–20 nodes and at most 80 links.".into());
+    }
+    if selection_revision::enabled(&record.request) {
+        return selection_revision::candidate(source, record, candidate);
     }
     let request = &record.request;
     let create = request.mode == AuthoringMode::Create;
@@ -1397,16 +1491,18 @@ fn candidate_world(
         edge.id = resolve(&edge.id);
         edge.source_id = resolve(&edge.source_id);
         edge.target_id = resolve(&edge.target_id);
-        changes.push(format!(
-            "Connect {} → {}.",
-            edge.type_id,
-            world
-                .nodes
-                .iter()
-                .find(|n| n.id == edge.target_id)
-                .map(|n| n.name.as_str())
-                .unwrap_or("reference")
-        ));
+        if create || source.edges.iter().find(|old| old.id == edge.id) != Some(&edge) {
+            changes.push(format!(
+                "Connect {} → {}.",
+                edge.type_id,
+                world
+                    .nodes
+                    .iter()
+                    .find(|n| n.id == edge.target_id)
+                    .map(|n| n.name.as_str())
+                    .unwrap_or("reference")
+            ));
+        }
         if create {
             world.edges.push(edge);
         } else {
@@ -1807,7 +1903,9 @@ impl Project {
         if record.incomplete {
             record.error="Provider output was cut off. Edit and review the retained candidate before applying, or generate another candidate.".into();
         }
-        let created_node_ids = if record.request.mode == AuthoringMode::Create {
+        let created_node_ids = if record.request.mode == AuthoringMode::Create
+            || selection_revision::enabled(&record.request)
+        {
             serde_json::from_str::<NodeCandidate>(&record.candidate_text)
                 .ok()
                 .map(|c| {
@@ -2075,7 +2173,7 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
         }
         nodes
     };
-    serde_json::to_string_pretty(&NodeCandidate {
+    let mut candidate = NodeCandidate {
         nodes,
         edges: world
             .edges
@@ -2105,8 +2203,56 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                 edge
             })
             .collect(),
-    })
-    .map_err(|e| e.to_string())
+    };
+    if selection_revision::enabled(request) {
+        if let (Some(preset), Some(target)) = (
+            world.node_types.iter().find(|t| {
+                request.creation_type_ids.contains(&t.id)
+                    && t.components.iter().any(|c| c == "core.item")
+            }),
+            world
+                .nodes
+                .iter()
+                .find(|n| request.target_ids.contains(&n.id)),
+        ) {
+            candidate.nodes.push(WorldNode {
+                id: "new:selection-item".into(),
+                type_id: preset.id.clone(),
+                name: "Demo related item".into(),
+                description: format!("Offline related addition: {}", request.direction),
+                visual_description: String::new(),
+                components: preset
+                    .components
+                    .iter()
+                    .map(|id| {
+                        (
+                            id.clone(),
+                            world
+                                .component_types
+                                .iter()
+                                .find(|d| &d.id == id)
+                                .map(crate::default_properties)
+                                .unwrap_or_default(),
+                        )
+                    })
+                    .collect(),
+            });
+            candidate.edges.push(WorldEdge {
+                id: "new:selection-link".into(),
+                type_id: if crate::model::capability(target, "core.holder") {
+                    "core.stored-in"
+                } else {
+                    "core.related"
+                }
+                .into(),
+                source_id: "new:selection-item".into(),
+                target_id: target.id.clone(),
+                description: String::new(),
+                properties: BTreeMap::new(),
+            });
+        }
+    }
+    serde_json::to_string_pretty(&candidate).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

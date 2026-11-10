@@ -38,6 +38,7 @@ fn accept_effects(p: &Project, prose: &str, effects: PassageEffects) -> String {
             prose: prose.into(),
             effects_text: serde_json::to_string(&effects).unwrap(),
             close_chapter: true,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )

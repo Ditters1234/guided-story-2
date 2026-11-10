@@ -18,6 +18,8 @@ mod sources;
 use sources::*;
 mod backups;
 use backups::*;
+mod node_library;
+use node_library::*;
 
 #[derive(Default)]
 struct AppState(Mutex<Option<Project>>);
@@ -319,6 +321,11 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             save_draft,
             clear_matching_draft,
             preview_world_edit,
+            list_node_library,
+            choose_node_library,
+            prepare_library_export,
+            save_node_library,
+            load_node_library,
             validate_world,
             preview_source_edit,
             node_sources,
@@ -357,6 +364,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             accept_passage,
             begin_passage_revision,
             clone_passage_draft,
+            revise_passage_draft,
             passage_versions,
             chapter_memory_status,
             list_memory_drafts,

@@ -19,6 +19,11 @@ export const commands = {
 	saveDraft: (draft: EditorDraft_Deserialize) => typedError<null, string>(__TAURI_INVOKE("save_draft", { draft })),
 	clearMatchingDraft: (title: string, world: World_Deserialize) => typedError<null, string>(__TAURI_INVOKE("clear_matching_draft", { title, world })),
 	previewWorldEdit: (world: World_Deserialize, edit: WorldEdit_Deserialize) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_world_edit", { world, edit })),
+	listNodeLibrary: () => typedError<LibraryListing_Serialize, string>(__TAURI_INVOKE("list_node_library")),
+	chooseNodeLibrary: (folderPath: string) => typedError<LibraryListing_Serialize, string>(__TAURI_INVOKE("choose_node_library", { folderPath })),
+	prepareLibraryExport: (world: World_Deserialize, nodeIds: string[], positions: { [key in string]: Position }, name: string, description: string) => typedError<LibraryExport_Serialize, string>(__TAURI_INVOKE("prepare_library_export", { world, nodeIds, positions, name, description })),
+	saveNodeLibrary: (requestId: string, entry: LibraryEntry_Deserialize) => typedError<string, string>(__TAURI_INVOKE("save_node_library", { requestId, entry })),
+	loadNodeLibrary: (fileName: string, sha256: string) => typedError<LibraryEntry_Serialize, string>(__TAURI_INVOKE("load_node_library", { fileName, sha256 })),
 	validateWorld: (world: World_Deserialize) => typedError<World_Serialize, string>(__TAURI_INVOKE("validate_world", { world })),
 	previewSourceEdit: (storyId: string, world: World_Deserialize, edit: SourceEdit_Deserialize) => typedError<WorldEditPreview_Serialize, string>(__TAURI_INVOKE("preview_source_edit", { storyId, world, edit })),
 	nodeSources: (storyId: string, world: World_Deserialize, nodeId: string) => typedError<NodeSourceView_Serialize[], string>(__TAURI_INVOKE("node_sources", { storyId, world, nodeId })),
@@ -57,6 +62,7 @@ export const commands = {
 	acceptPassage: (storyId: string, id: string, expectedVersion: number) => typedError<PassageAcceptance_Serialize, string>(__TAURI_INVOKE("accept_passage", { storyId, id, expectedVersion })),
 	beginPassageRevision: (storyId: string, id: string, passageId: string, source: RecordRef, kind: PassageRevisionKind) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("begin_passage_revision", { storyId, id, passageId, source, kind })),
 	clonePassageDraft: (storyId: string, sourceId: string, expectedVersion: number, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("clone_passage_draft", { storyId, sourceId, expectedVersion, id })),
+	revisePassageDraft: (storyId: string, sourceId: string, expectedVersion: number, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("revise_passage_draft", { storyId, sourceId, expectedVersion, id })),
 	passageVersions: (storyId: string, id: string) => typedError<PassageVersions_Serialize, string>(__TAURI_INVOKE("passage_versions", { storyId, id })),
 	chapterMemoryStatus: (storyId: string) => typedError<ChapterMemoryStatus[], string>(__TAURI_INVOKE("chapter_memory_status", { storyId })),
 	listMemoryDrafts: (storyId: string) => typedError<MemoryDraftSummary[], string>(__TAURI_INVOKE("list_memory_drafts", { storyId })),
@@ -449,6 +455,13 @@ export type ContinuityNote = {
 
 export type CreationScope = "world" | "group";
 
+export type DraftRevision = {
+	sourceId: string,
+	sourceVersion: number,
+	prose: string,
+	direction: string,
+};
+
 export type EarlierPassageVersion = EarlierPassageVersion_Serialize | EarlierPassageVersion_Deserialize;
 
 export type EarlierPassageVersion_Deserialize = {
@@ -507,19 +520,44 @@ export type EditorDraft_Serialize = {
 	world: World_Serialize,
 };
 
-export type EffectReviewEntry = {
+/**
+ *  Keep the original scalar representation of retained effects/anchors intact.
+ *  New effects may cite several separate, exact excerpts on the same review card.
+ */
+export type EffectEvidence = string | string[];
+
+export type EffectReviewEntry = EffectReviewEntry_Serialize | EffectReviewEntry_Deserialize;
+
+export type EffectReviewEntry_Deserialize = {
 	kind: EffectReviewKind,
 	index: number,
 	key: string,
 	approved: boolean,
 	issues: string[],
+	displacedLinks: WorldEdge_Deserialize[],
+};
+
+export type EffectReviewEntry_Serialize = {
+	kind: EffectReviewKind,
+	index: number,
+	key: string,
+	approved: boolean,
+	issues: string[],
+	displacedLinks: WorldEdge_Serialize[],
 };
 
 export type EffectReviewKind = "change" | "note";
 
-export type EffectsReview = {
+export type EffectsReview = EffectsReview_Serialize | EffectsReview_Deserialize;
+
+export type EffectsReview_Deserialize = {
 	checked: boolean,
-	entries: EffectReviewEntry[],
+	entries: EffectReviewEntry_Deserialize[],
+};
+
+export type EffectsReview_Serialize = {
+	checked: boolean,
+	entries: EffectReviewEntry_Serialize[],
 };
 
 export type ExistingAuthoringContext = ExistingAuthoringContext_Serialize | ExistingAuthoringContext_Deserialize;
@@ -814,6 +852,72 @@ export type KnowledgePreview_Serialize = {
 	included: ClaimContext_Serialize[],
 	decisions: ClaimPreview[],
 	omittedByLimit: number,
+};
+
+export type LibraryEntry = LibraryEntry_Serialize | LibraryEntry_Deserialize;
+
+export type LibraryEntry_Deserialize = {
+	schemaVersion: number,
+	name: string,
+	description: string,
+	world: World_Deserialize,
+	positions?: { [key in string]: Position },
+};
+
+export type LibraryEntry_Serialize = {
+	schemaVersion: number,
+	name: string,
+	description: string,
+	world: World_Serialize,
+	positions?: { [key in string]: Position },
+};
+
+export type LibraryExport = LibraryExport_Serialize | LibraryExport_Deserialize;
+
+export type LibraryExport_Deserialize = {
+	entry: LibraryEntry_Deserialize,
+	notices: string[],
+};
+
+export type LibraryExport_Serialize = {
+	entry: LibraryEntry_Serialize,
+	notices: string[],
+};
+
+export type LibraryFile = LibraryFile_Serialize | LibraryFile_Deserialize;
+
+export type LibraryFile_Deserialize = {
+	fileName: string,
+	name: string,
+	description: string,
+	nodeCount: number,
+	connectionCount: number,
+	sha256: string,
+	error?: string | null,
+};
+
+export type LibraryFile_Serialize = {
+	fileName: string,
+	name: string,
+	description: string,
+	nodeCount: number,
+	connectionCount: number,
+	sha256: string,
+	error: string | null,
+};
+
+export type LibraryListing = LibraryListing_Serialize | LibraryListing_Deserialize;
+
+export type LibraryListing_Deserialize = {
+	folderPath: string,
+	files: LibraryFile_Deserialize[],
+	warnings: string[],
+};
+
+export type LibraryListing_Serialize = {
+	folderPath: string,
+	files: LibraryFile_Serialize[],
+	warnings: string[],
 };
 
 export type LlmConnection = LlmConnection_Serialize | LlmConnection_Deserialize;
@@ -1131,6 +1235,7 @@ export type PassageAcceptance_Serialize = {
 export type PassageEdits = PassageEdits_Serialize | PassageEdits_Deserialize;
 
 export type PassageEdits_Deserialize = {
+	revisionDirection?: string,
 	plan: PassagePlan_Deserialize,
 	prose: string,
 	effectsText: string,
@@ -1139,6 +1244,7 @@ export type PassageEdits_Deserialize = {
 };
 
 export type PassageEdits_Serialize = {
+	revisionDirection?: string,
 	plan: PassagePlan_Serialize,
 	prose: string,
 	effectsText: string,
@@ -1148,9 +1254,9 @@ export type PassageEdits_Serialize = {
 
 export type PassageEffect = PassageEffect_Serialize | PassageEffect_Deserialize;
 
-export type PassageEffect_Deserialize = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge_Deserialize; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
+export type PassageEffect_Deserialize = { kind: "putNode"; node: WorldNode; evidence: EffectEvidence } | { kind: "putLink"; link: WorldEdge_Deserialize; evidence: EffectEvidence } | { kind: "removeLink"; id: string; evidence: EffectEvidence };
 
-export type PassageEffect_Serialize = { kind: "putNode"; node: WorldNode; evidence: string } | { kind: "putLink"; link: WorldEdge_Serialize; evidence: string } | { kind: "removeLink"; id: string; evidence: string };
+export type PassageEffect_Serialize = { kind: "putNode"; node: WorldNode; evidence: EffectEvidence } | { kind: "putLink"; link: WorldEdge_Serialize; evidence: EffectEvidence } | { kind: "removeLink"; id: string; evidence: EffectEvidence };
 
 export type PassageEffects = PassageEffects_Serialize | PassageEffects_Deserialize;
 
@@ -1171,6 +1277,26 @@ export type PassageEntry = {
 	chapterId: string,
 	title: string,
 	record: RecordRef,
+};
+
+export type PassageHandoff = PassageHandoff_Serialize | PassageHandoff_Deserialize;
+
+export type PassageHandoff_Deserialize = {
+	withheld: boolean,
+	passageId?: string | null,
+	source?: RecordRef | null,
+	title?: string,
+	chapterRelation?: string,
+	endingExcerpt?: string,
+};
+
+export type PassageHandoff_Serialize = {
+	withheld: boolean,
+	passageId?: string,
+	source?: RecordRef,
+	title?: string,
+	chapterRelation?: string,
+	endingExcerpt?: string,
 };
 
 export type PassagePlan = PassagePlan_Serialize | PassagePlan_Deserialize;
@@ -1252,6 +1378,9 @@ export type PassageStage = "draft" | "narrating" | "needsCheck" | "checking" | "
 export type PassageSummary = PassageSummary_Serialize | PassageSummary_Deserialize;
 
 export type PassageSummary_Deserialize = {
+	sourceDraftId?: string | null,
+	targetPassageId?: string | null,
+	revisionDirection?: string,
 	revisionKind?: PassageRevisionKind | null,
 	id: string,
 	title: string,
@@ -1261,6 +1390,9 @@ export type PassageSummary_Deserialize = {
 };
 
 export type PassageSummary_Serialize = {
+	sourceDraftId?: string,
+	targetPassageId?: string,
+	revisionDirection?: string,
 	revisionKind: PassageRevisionKind | null,
 	id: string,
 	title: string,
@@ -1284,7 +1416,9 @@ export type PassageVersions_Serialize = {
 export type PassageView = PassageView_Serialize | PassageView_Deserialize;
 
 export type PassageView_Deserialize = {
-	effectsReview: EffectsReview,
+	draftRevision?: DraftRevision | null,
+	repeatedPassages: string[],
+	effectsReview: EffectsReview_Deserialize,
 	memory: MemoryContext_Deserialize,
 	revision?: PassageRevisionView_Deserialize | null,
 	narrationProvider: string,
@@ -1306,7 +1440,9 @@ export type PassageView_Deserialize = {
 };
 
 export type PassageView_Serialize = {
-	effectsReview: EffectsReview,
+	draftRevision?: DraftRevision,
+	repeatedPassages: string[],
+	effectsReview: EffectsReview_Serialize,
 	memory: MemoryContext_Serialize,
 	revision: PassageRevisionView_Serialize | null,
 	narrationProvider: string,
@@ -1441,6 +1577,7 @@ export type SceneContextPreview_Deserialize = {
 	guidance: AiContextSection[],
 	error: string,
 	writingBrief?: WritingBrief_Deserialize | null,
+	passageHandoff?: PassageHandoff_Deserialize | null,
 };
 
 export type SceneContextPreview_Serialize = {
@@ -1448,6 +1585,7 @@ export type SceneContextPreview_Serialize = {
 	guidance: AiContextSection[],
 	error: string,
 	writingBrief?: WritingBrief_Serialize,
+	passageHandoff?: PassageHandoff_Serialize,
 };
 
 export type SceneResource = {
@@ -1653,9 +1791,9 @@ export type WorldEditPreview_Serialize = {
 	changes: string[],
 };
 
-export type WorldEdit_Deserialize = { kind: "putLink"; link: WorldEdge_Deserialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
+export type WorldEdit_Deserialize = { kind: "putLink"; link: WorldEdge_Deserialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeSelection"; nodeIds: string[]; edgeIds: string[] } | { kind: "pasteNodes"; nodes: WorldNode[]; edges: WorldEdge_Deserialize[] } | { kind: "insertLibrary"; entry: LibraryEntry_Deserialize } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
 
-export type WorldEdit_Serialize = { kind: "putLink"; link: WorldEdge_Serialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
+export type WorldEdit_Serialize = { kind: "putLink"; link: WorldEdge_Serialize } | { kind: "removeLink"; id: string } | { kind: "removeNode"; id: string } | { kind: "removeSelection"; nodeIds: string[]; edgeIds: string[] } | { kind: "pasteNodes"; nodes: WorldNode[]; edges: WorldEdge_Serialize[] } | { kind: "insertLibrary"; entry: LibraryEntry_Serialize } | { kind: "removeCapability"; id: string; capability: string } | { kind: "addCapability"; id: string; capability: string } | { kind: "retypeNode"; id: string; typeId: string };
 
 /**  All entities share one identity; capabilities and typed links supply behavior. */
 export type WorldNode = {
@@ -1694,7 +1832,7 @@ export type WritingBrief_Deserialize = {
 	chapterStatus: string,
 	acceptedPassages: number,
 	chapterId?: string | null,
-	chapterRemaining?: string,
+	chapterDirection?: string,
 	alreadyCovered?: string,
 	passageDirection?: string,
 	stopAfter?: string,
@@ -1705,7 +1843,7 @@ export type WritingBrief_Serialize = {
 	chapterStatus: string,
 	acceptedPassages: number,
 	chapterId?: string,
-	chapterRemaining?: string,
+	chapterDirection?: string,
 	alreadyCovered?: string,
 	passageDirection?: string,
 	stopAfter?: string,

@@ -1,9 +1,50 @@
 import {describe,it,expect} from 'vitest';
 import type {PassageEffects,PassageEffect} from './bindings';
 import {emptyWorld,exampleWorld,makeNode} from './model';
-import {parseEffects,evidenceIssue,passageQuotes,removalPlan,removeProposals,nodeDiff,proposedNodes,effectTitle,connectionIdentity} from './effects-ui';
+import {parseEffects,evidenceIssue,passageQuotes,removalPlan,removeProposals,nodeDiff,proposedNodes,effectTitle,connectionIdentity,addReviewProposal,reviewNodes} from './effects-ui';
 const none=():PassageEffects=>({changes:[],notes:[],suggestChapterEnd:false});
 describe('structured passage effects',()=>{
+  it('retains separate exact excerpts and diagnoses any bad quote, duplicates or excess quotes',()=>{
+    const first="Glass cut Mara's hand.",last='She chose to reach the clinic.',prose=first+' '+('Rain fell. '.repeat(70))+last;
+    expect(evidenceIssue(prose,[first,last])).toBe('');
+    expect(evidenceIssue(prose,[first,'She arrived at the clinic.'])).toContain('Quote 2');
+    expect(evidenceIssue(prose,[first,'  '+first])).toContain('duplicate');
+    expect(evidenceIssue(prose,[])).toContain('one to four');expect(evidenceIssue(prose,Array(5).fill(first))).toContain('one to four');
+    const w=exampleWorld(),effects={...none(),changes:[{kind:'putNode',node:w.nodes[0],evidence:[first,last]}]};
+    expect(parseEffects(JSON.stringify(effects))).toEqual(effects);
+    expect(parseEffects(JSON.stringify({...effects,changes:[{...effects.changes[0],evidence:[first,42]}]}))).toBeNull();
+    // A bounded invalid count remains editable on cards, without losing its text.
+    expect(parseEffects(JSON.stringify({...effects,changes:[{...effects.changes[0],evidence:Array(5).fill(first)}]}))).not.toBeNull();
+  });
+  it('adds missing proposals from exact scoped baselines without mutating facts, approvals or unrelated proposals',()=>{
+    const w=exampleWorld(),person=w.nodes.find(n=>n.components['core.character'])!,other=makeNode(w,'core.character','Outside scene');w.nodes.push(other);
+    person.components['detail.intent']={objective:'Repair the pump',emotion:'Calm'};
+    const link=w.edges.find(e=>e.sourceId===person.id)!,scope=[person.id,link.targetId],before=structuredClone(w);
+    const empty=none(),withNode=addReviewProposal(w,empty,scope,'node',person.id);
+    expect(withNode.changes[0]).toEqual({kind:'putNode',node:person,evidence:''});
+    if(withNode.changes[0].kind==='putNode')withNode.changes[0].node.components['detail.intent'].emotion='Worried';
+    expect(person.components['detail.intent'].emotion).toBe('Calm');
+    expect(()=>addReviewProposal(w,withNode,scope,'node',person.id)).toThrow('existing proposal');
+    expect(()=>addReviewProposal(w,empty,scope,'node',other.id)).toThrow('supplied');
+    const withLink=addReviewProposal(w,withNode,scope,'link',link.id);
+    expect(withLink.changes[1]).toEqual({kind:'putLink',link:{...link,properties:{...link.properties}},evidence:''});
+    expect(()=>addReviewProposal(w,withLink,scope,'removeLink',link.id)).toThrow('existing proposal');
+    expect(()=>addReviewProposal(w,empty,[person.id],'link',link.id)).toThrow('supplied');
+    const removed=addReviewProposal(w,empty,scope,'removeLink',link.id);expect(removed.changes[0]).toEqual({kind:'removeLink',id:link.id,evidence:''});
+    const withNote=addReviewProposal(w,withLink,scope,'note');expect(withNote.notes[0]).toEqual({text:'',evidence:'',nodeIds:[]});
+    expect(withNote.changes).toEqual(withLink.changes);expect(empty).toEqual(none());expect(w).toEqual(before);
+  });
+  it('keeps new link endpoints inside captured/proposed records and enforces proposal limits',()=>{
+    const w=exampleWorld(),scope=w.nodes.slice(0,2).map(n=>n.id),newNode=makeNode(w,'core.item','Proposed item','new:item');
+    const effects:PassageEffects={...none(),changes:[{kind:'putNode',node:newNode,evidence:'A complete source quote.'}]};
+    expect(reviewNodes(w,effects,scope).map(n=>n.id)).toEqual([...scope,newNode.id]);
+    const next=addReviewProposal(w,effects,scope,'link'),link=next.changes.at(-1)!;
+    expect(link.kind).toBe('putLink');if(link.kind==='putLink'){expect(link.link.typeId).toBe('core.related');expect(reviewNodes(w,effects,scope).map(n=>n.id)).toContain(link.link.sourceId);expect(reviewNodes(w,effects,scope).map(n=>n.id)).toContain(link.link.targetId);expect(link.link.id).toMatch(/^new:link-/);}
+    expect(()=>addReviewProposal(w,{...none(),changes:Array(80).fill(effects.changes[0])},scope,'link')).toThrow('80');
+    expect(()=>addReviewProposal(w,{...none(),notes:Array(12).fill({text:'',evidence:'',nodeIds:[]})},scope,'note')).toThrow('12');
+    const guidance=makeNode(w,'core.narration-style','Narration');w.nodes.push(guidance);
+    expect(()=>addReviewProposal(w,none(),[guidance.id],'node',guidance.id)).toThrow('editable');
+  });
   it('distinguishes a new connection from an update or a missing reference, without guessing from endpoints',()=>{
     const world=exampleWorld(),old=world.edges.find(e=>e.typeId==='core.present-at')!,newLink={...old,id:'new:movement'};
     expect(connectionIdentity(world,old)).toBe(old.id);expect(connectionIdentity(world,newLink)).toBe('new');
@@ -39,6 +80,13 @@ describe('structured passage effects',()=>{
   });
   it('removes a note independently without altering other proposals',()=>{
     const effects:PassageEffects={...none(),notes:[{text:'One',evidence:'Source text one.',nodeIds:[]},{text:'Two',evidence:'Source text two.',nodeIds:[]}]};const next=removeProposals(effects,removalPlan(emptyWorld(),effects,'note',0));expect(next.notes.map(n=>n.text)).toEqual(['Two']);expect(effects.notes).toHaveLength(2);
+  });
+  it('removing a single-target replacement includes its paired old-connection removal',()=>{
+    const w=exampleWorld(),old={...w.edges.find(e=>e.typeId==='core.present-at')!,id:crypto.randomUUID(),typeId:'custom.single'};
+    w.relationTypes.push({id:'custom.single',name:'Single',label:'single',description:'',sourceCapability:null,targetCapability:null,physicalPlacement:false,singleTarget:true});
+    w.edges.push(old);
+    const effects:PassageEffects={...none(),changes:[{kind:'putLink',link:{...old,id:'new:replacement',targetId:w.nodes.find(n=>n.id!==old.targetId&&n.id!==old.sourceId)!.id},evidence:'A complete source quote.'},{kind:'removeLink',id:old.id,evidence:'A complete source quote.'}]};
+    expect(removalPlan(w,effects,'change',0)).toEqual({changes:[0,1],notes:[]});
   });
   it('shows human names and schema field labels in generic before/after comparisons',()=>{
     const w=exampleWorld(),coat=w.nodes.find(n=>n.components['core.wearable'])!,next=structuredClone(coat);next.components['core.wearable'].layer=3;next.visualDescription='A different color.';const person=w.nodes.find(n=>n.components['core.character'])!;w.componentTypes.push({id:'custom.refs',name:'Refs',description:'',fields:[{key:'literal',label:'Literal',kind:'text',required:false,defaultValue:''},{key:'target',label:'Target',kind:'nodeRef',required:false,defaultValue:null}]});coat.components['custom.refs']={literal:'old',target:null};next.components['custom.refs']={literal:person.id,target:person.id};const effects:PassageEffects={...none(),changes:[{kind:'putNode',node:next,evidence:'Source text.'}]};const nodes=proposedNodes(w,effects),diff=nodeDiff(w,nodes,next);expect(diff.find(r=>r.label==='Refs · Literal')?.after).toBe(person.id);expect(diff.find(r=>r.label==='Refs · Target')?.after).toBe(person.name);expect(diff.find(r=>r.label==='Wearable · Layer')).toEqual({label:'Wearable · Layer',before:'2',after:'3'});expect(effectTitle(w,effects,effects.changes[0])).toContain(coat.name);expect(w.nodes.find(n=>n.id===coat.id)?.components['core.wearable'].layer).toBe(2);expect(nodes.filter(n=>n.id===coat.id)).toHaveLength(1);

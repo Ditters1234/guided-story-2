@@ -5,20 +5,24 @@
   import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
   import NodeFields from './NodeFields.svelte';
-  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField,candidatePlacementConflicts,repairCandidatePlacement } from './authoring-ui';
+  import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField,candidatePlacementConflicts,repairCandidatePlacement,unplacedCandidateGarments,garmentPlacementTargets,placeCandidateGarment } from './authoring-ui';
   let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
   let linksOpen=$state(untrack(()=>request.mode==='revise'));
-  const linkAllowed=(id:string,property:string|null)=>request.mode==='create'||(request.linkFields??[]).some(f=>f.linkId===id&&f.property===property);
+  const isNew=(id:string)=>request.mode==='create'||(request.bundle&&id.startsWith('new:'));
+  const linkAllowed=(id:string,property:string|null)=>isNew(id)||(request.linkFields??[]).some(f=>f.linkId===id&&f.property===property);
   const node=$derived(candidate.nodes.find((n)=>n.id===selected)??candidate.nodes[0]);
   const references=$derived([...new Map([...existingNodes,...schema.nodes,...candidate.nodes].map(n=>[n.id,n])).values()]);
   const allowedTypes=$derived(candidateNodeTypes(schema,request));
   const garmentTypes=$derived(allowedTypes.map(t=>t.id));
+  const canAddNode=$derived(candidate.nodes.length<20&&(request.mode==='create'||candidate.nodes.filter(n=>isNew(n.id)).length<8));
+  const canAddLink=$derived(candidate.edges.length<80&&(request.mode==='create'||candidate.edges.filter(e=>isNew(e.id)).length<32));
   const canAddGarment=$derived(!!wornItemType(schema,garmentTypes));
   const unsupported=$derived(node?unsupportedCandidateFields(schema,node):[]);
-  const placementConflicts=$derived(request.mode==='create'?candidatePlacementConflicts(schema,candidate):[]);
+  const placementConflicts=$derived(request.mode==='create'||request.bundle?candidatePlacementConflicts(schema,candidate).filter(conflict=>isNew(conflict.sourceId)):[]);
+  const unplacedGarments=$derived(unplacedCandidateGarments(schema,candidate).filter(n=>isNew(n.id)));
   const nameOf=(id:string)=>references.find(node=>node.id===id)?.name||id;
-  const allowed=(id:string,componentId:string|null,key:string)=>request.mode==='create'||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);
+  const allowed=(id:string,componentId:string|null,key:string)=>isNew(id)||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);
   function edit(key:'name'|'description'|'visualDescription',value:string){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,[key]:value})));}
   function property(componentId:string,key:string,value:PropertyValue){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,components:{...n.components,[componentId]:{...n.components[componentId],[key]:value}}})));}
   function edge(index:number,key:'typeId'|'sourceId'|'targetId'|'description',value:string){onChange({...candidate,edges:candidate.edges.map((e,i)=>i===index?(key==='typeId'?changeLinkType(schema,e,value):{...e,[key]:value}):e)});}
@@ -35,28 +39,40 @@
     {#if conflict.canReverse}<button class="secondary-button" onclick={()=>onChange(repairCandidatePlacement(candidate,conflict.indexes))}>Make {nameOf(conflict.sourceId)} contain these places</button>{/if}
   </section>
 {/each}
+{#if unplacedGarments.length}
+  <section class="candidate-conflict" aria-label="Unlinked clothing">
+    <strong>Unlinked clothing ({unplacedGarments.length})</strong>
+    <p class="field-help">Choose who wears each garment, or where it is stored. Leave unplaced only when intentional. These links stay in the proposal until Apply.</p>
+    {#each unplacedGarments as garment (garment.id)}
+      <label class="field">{garment.name}<select aria-label={`Place ${garment.name}`} value="" disabled={!canAddLink} onchange={event=>{if(event.currentTarget.value){const [typeId,targetId]=JSON.parse(event.currentTarget.value);onChange(placeCandidateGarment(schema,candidate,garment.id,typeId,targetId,references));}}}>
+        <option value="">Choose wearer / holder…</option>
+        {#each garmentPlacementTargets(schema,garment,references) as target}<option value={JSON.stringify([target.typeId,target.targetId])}>{target.label}</option>{/each}
+      </select></label>
+    {/each}
+  </section>
+{/if}
 <nav class="candidate-node-tabs" aria-label="Proposed nodes">{#each candidate.nodes as entry}<button class:active={node?.id===entry.id} onclick={()=>{selected=entry.id;}}>{entry.name||'Unnamed node'}</button>{/each}</nav>
 {#if node}
   <div class="candidate-type">{schema.nodeTypes.find((d)=>d.id===node.typeId)?.name??node.typeId}</div>
-  {#if request.mode==='create'&&unsupported.length}<details class="capability" open><summary>Unsupported fields ({unsupported.length})</summary><p class="field-help">These keys are not in this project's schema. Move useful text into a declared field, then remove the unsupported field.</p>{#each unsupported as field}<div><strong>{field.label}</strong><pre class="unsupported-value">{field.value}</pre><button class="text-action danger-text" onclick={()=>onChange(removeUnsupportedCandidateField(schema,candidate,node!.id,field.componentId,field.key))}>Remove {field.label}</button></div>{/each}</details>{/if}
+  {#if isNew(node.id)&&unsupported.length}<details class="capability" open><summary>Unsupported fields ({unsupported.length})</summary><p class="field-help">These keys are not in this project's schema. Move useful text into a declared field, then remove the unsupported field.</p>{#each unsupported as field}<div><strong>{field.label}</strong><pre class="unsupported-value">{field.value}</pre><button class="text-action danger-text" onclick={()=>onChange(removeUnsupportedCandidateField(schema,candidate,node!.id,field.componentId,field.key))}>Remove {field.label}</button></div>{/each}</details>{/if}
   <label class="field">Name<input value={node.name} maxlength={200} disabled={!allowed(node.id,null,'name')} oninput={(event)=>edit('name',event.currentTarget.value)} /></label>
   <label class="field">Story notes<textarea value={node.description} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'description')} oninput={(event)=>edit('description',event.currentTarget.value)}></textarea></label>
   <label class="field">Visible description<textarea value={node.visualDescription} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'visualDescription')} oninput={(event)=>edit('visualDescription',event.currentTarget.value)}></textarea></label>
-  {#if request.mode==='create'&&node.components['core.character']}<section class="capability"><strong>Worn items</strong>{#each candidate.edges.filter(e=>e.typeId==='core.worn-by'&&e.targetId===node!.id) as link}{@const garment=candidate.nodes.find(n=>n.id===link.sourceId)}{#if garment}<button class="text-action" onclick={()=>{selected=garment.id;}}>{garment.name} ↗</button>{/if}{:else}<p class="field-help">No worn items proposed.</p>{/each}{#if request.mode==='create'&&request.bundle}<button class="secondary-button" disabled={!canAddGarment||candidate.nodes.length>=20} onclick={()=>{const next=addCandidateWornItem(schema,candidate,node!.id,garmentTypes);selected=next.nodes.at(-1)!.id;onChange(next);}}>＋ Add worn item</button>{/if}</section>{/if}
+  {#if node.components['core.character']}<section class="capability"><strong>Worn items</strong>{#each candidate.edges.filter(e=>e.typeId==='core.worn-by'&&e.targetId===node!.id) as link}{@const garment=candidate.nodes.find(n=>n.id===link.sourceId)}{#if garment}<button class="text-action" onclick={()=>{selected=garment.id;}}>{garment.name} ↗</button>{/if}{:else}<p class="field-help">No worn items proposed.</p>{/each}{#if request.bundle}<button class="secondary-button" disabled={!canAddGarment||!canAddNode||!canAddLink} onclick={()=>{const next=addCandidateWornItem(schema,candidate,node!.id,garmentTypes);selected=next.nodes.at(-1)!.id;onChange(next);}}>＋ Add worn item</button>{/if}</section>{/if}
   <NodeFields world={schema} {node} nodes={references} canEdit={(componentId,key)=>allowed(node!.id,componentId,key)} onChange={property}/>
-  {#if request.mode==='create'}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
+  {#if isNew(node.id)}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
 {/if}
 <style>.unsupported-value{white-space:pre-wrap;overflow-wrap:anywhere;max-height:10rem;overflow:auto;font-size:.85rem;}</style>
-{#if request.mode==='create'&&request.bundle}
-  <div class="candidate-group-actions"><select aria-label="Add a proposed node" value="" onchange={(event)=>{if(event.currentTarget.value){onChange(addCandidateNode(schema,candidate,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add proposed node…</option>{#each allowedTypes as type}<option value={type.id}>{type.name}</option>{/each}</select>{#if node&&node.id!=='new:root'}<button class="text-action danger-text" onclick={()=>{onChange({nodes:candidate.nodes.filter((n)=>n.id!==node!.id),edges:candidate.edges.filter((e)=>e.sourceId!==node!.id&&e.targetId!==node!.id)});}}>Remove proposed node</button>{/if}</div>
+{#if request.bundle}
+  <div class="candidate-group-actions"><select disabled={!canAddNode} aria-label="Add a proposed node" value="" onchange={(event)=>{if(event.currentTarget.value){onChange(addCandidateNode(schema,candidate,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add proposed node…</option>{#each allowedTypes as type}<option value={type.id}>{type.name}</option>{/each}</select>{#if node&&isNew(node.id)&&node.id!=='new:root'}<button class="text-action danger-text" onclick={()=>{onChange({nodes:candidate.nodes.filter((n)=>n.id!==node!.id),edges:candidate.edges.filter((e)=>e.sourceId!==node!.id&&e.targetId!==node!.id)});}}>Remove proposed node</button>{/if}</div>
 {/if}
-{#if candidate.edges.length||request.mode==='create'}
+{#if candidate.edges.length||request.mode==='create'||request.bundle}
   <details class="candidate-links" bind:open={linksOpen}><summary>Proposed connections ({candidate.edges.length})</summary>{#each candidate.edges as link,index}<div class="candidate-link">
-    <label class="field">Source<select value={link.sourceId} disabled={request.mode==='revise'} onchange={event=>edge(index,'sourceId',event.currentTarget.value)}>{#each (request.mode==='create'?candidate.nodes:references) as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
-    <label class="field">Relationship<select value={link.typeId} disabled={request.mode==='revise'} onchange={event=>edge(index,'typeId',event.currentTarget.value)}>{#each schema.relationTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
-    <label class="field">Target<select value={link.targetId} disabled={request.mode==='revise'} onchange={event=>edge(index,'targetId',event.currentTarget.value)}><option value="">Choose target…</option>{#each references.filter(n=>n.id!==link.sourceId) as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
+    <label class="field">Source<select value={link.sourceId} disabled={!isNew(link.id)} onchange={event=>edge(index,'sourceId',event.currentTarget.value)}>{#each (isNew(link.id)?candidate.nodes.filter(n=>isNew(n.id)):references) as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
+    <label class="field">Relationship<select value={link.typeId} disabled={!isNew(link.id)} onchange={event=>edge(index,'typeId',event.currentTarget.value)}>{#each schema.relationTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label>
+    <label class="field">Target<select value={link.targetId} disabled={!isNew(link.id)} onchange={event=>edge(index,'targetId',event.currentTarget.value)}><option value="">Choose target…</option>{#each references.filter(n=>n.id!==link.sourceId) as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
     <div class="candidate-link-details"><label class="field">Connection notes<textarea value={link.description} rows={2} maxlength={16000} disabled={!linkAllowed(link.id,null)} oninput={event=>edge(index,'description',event.currentTarget.value)}></textarea></label>
     <LinkFields world={schema} {link} nodes={references} canEdit={key=>linkAllowed(link.id,key)} onChange={(key,value)=>onChange({...candidate,edges:candidate.edges.map((e,i)=>i===index?setLinkProperty(e,key,value):e)})}/></div>
-    {#if request.mode==='create'}<button class="text-action danger-text" onclick={()=>onChange({...candidate,edges:candidate.edges.filter((_,i)=>i!==index)})}>Remove proposed connection</button>{/if}
-  </div>{/each}{#if request.mode==='create'}<button class="secondary-button" onclick={()=>onChange({...candidate,edges:[...candidate.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId:'core.related',sourceId:candidate.nodes[0]?.id??'',targetId:references.find(n=>n.id!==candidate.nodes[0]?.id)?.id??'',description:''}]})}>＋ Add proposed connection</button>{/if}</details>
+    {#if isNew(link.id)}<button class="text-action danger-text" onclick={()=>onChange({...candidate,edges:candidate.edges.filter((_,i)=>i!==index)})}>Remove proposed connection</button>{/if}
+  </div>{/each}{#if request.mode==='create'||request.bundle}<button class="secondary-button" disabled={!canAddLink||!candidate.nodes.some(n=>isNew(n.id))} onclick={()=>onChange({...candidate,edges:[...candidate.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId:'core.related',sourceId:candidate.nodes.find(n=>isNew(n.id))?.id??'',targetId:references.find(n=>n.id!==candidate.nodes.find(n=>isNew(n.id))?.id)?.id??'',description:''}]})}>＋ Add proposed connection</button>{/if}</details>
 {/if}

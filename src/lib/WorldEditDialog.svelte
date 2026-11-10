@@ -21,7 +21,7 @@
   const savedLink = $derived(world.edges.find((edge) =>
     edge.id === (candidate.kind === 'removeLink' ? candidate.id : link?.id)));
   const definition = $derived(world.relationTypes.find((d) => d.id === link?.typeId));
-  const title = $derived(candidate.kind === 'putLink' ? (savedLink ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove extension' : candidate.kind==='addCapability'?'Add extension':candidate.kind==='retypeNode'?'Change preset':'Remove connection');
+  const title = $derived(candidate.kind === 'putLink' ? (savedLink ? 'Edit connection' : 'Connect world nodes') : candidate.kind === 'insertLibrary' ? 'Add from library' : candidate.kind === 'pasteNodes' ? 'Paste nodes' : candidate.kind === 'removeSelection' ? (candidate.nodeIds.length?'Delete selection':'Unlink connections') : candidate.kind === 'removeNode' ? 'Remove node' : candidate.kind === 'removeCapability' ? 'Remove extension' : candidate.kind==='addCapability'?'Add extension':candidate.kind==='retypeNode'?'Change preset':'Remove connection');
   function supports(node: WorldNode, capability: string | null | undefined) {
     return !capability || !!node.components[capability] || (capability === 'core.holder' && !!node.components['core.container']);
   }
@@ -68,6 +68,22 @@
       <p class="field-help">{world.componentTypes.find(d=>candidate.kind==='addCapability'&&d.id===candidate.capability)?.description}</p>
     {:else if candidate.kind==='retypeNode'}
       <label class="field">Preset<select bind:value={candidate.typeId}>{#each world.nodeTypes as type}<option value={type.id}>{type.name}</option>{/each}</select></label><p>Existing extensions, values and connections are retained. Missing extensions from this preset are added with their declared defaults.</p>
+    {:else if candidate.kind === 'insertLibrary'}
+      <p><strong>{candidate.entry.name}</strong></p>
+      {#if candidate.entry.description}<p>{candidate.entry.description}</p>{/if}
+      <p>Create {candidate.entry.world.nodes.length} independent nodes and {candidate.entry.world.edges.length} internal connections. Names and fields are retained; every node and connection gets a new identity.</p>
+      <p class="field-help">Required custom definitions are added on Apply. Existing definitions and nodes stay intact. Review any schema conflict before importing. Placement on the canvas does not attach the group to an existing node.</p>
+      <ul>{#each candidate.entry.world.nodes as node}<li>{node.name}</li>{/each}</ul>
+    {:else if candidate.kind === 'pasteNodes'}
+      <p>Create {candidate.nodes.length} independent {candidate.nodes.length === 1 ? 'node' : 'nodes'} and {candidate.edges.length} internal {candidate.edges.length===1?'connection':'connections'} with new identities.</p>
+      <p class="field-help">Connections and typed references outside the copied group are omitted. Source citations, AI context inclusion and images are not copied. Required references must still pass validation.</p>
+    {:else if candidate.kind === 'removeSelection'}
+      {#if candidate.nodeIds.length}
+        <p>Delete {candidate.nodeIds.length} selected {candidate.nodeIds.length === 1 ? 'node' : 'nodes'}{candidate.edgeIds.length?` and ${candidate.edgeIds.length} selected connections`:''} from the current world.</p>
+        <p>Connections to deleted nodes and typed references are cleared. Unselected contents remain as unplaced nodes. Previous saved worlds stay intact.</p>
+      {:else}
+        <p>Remove {candidate.edgeIds.length} selected {candidate.edgeIds.length===1?'connection':'connections'}. All nodes are kept. Sources of removed physical placement links become unplaced.</p>
+      {/if}
     {:else if candidate.kind === 'removeNode'}
       <p>Remove <strong>{world.nodes.find((n) => n.id === ('id' in candidate?candidate.id:null))?.name}</strong> from the current world. Contents remain as unplaced nodes. Connections and typed references to this node are cleared. Previous saved worlds stay intact.</p>
     {:else if candidate.kind === 'removeCapability'}

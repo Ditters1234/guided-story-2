@@ -1,13 +1,13 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import type {PassageEdits_Serialize as PassageEdits,PassageView_Serialize} from './bindings';
-const api=vi.hoisted(()=>({get:vi.fn(),save:vi.fn(),clone:vi.fn()}));
-vi.mock('./native',()=>({commands:{getPassageDraft:api.get,savePassageDraft:api.save,clonePassageDraft:api.clone},unwrap:(r:{status:string;data?:unknown;error?:string})=>{if(r.status!=='ok')throw Error(r.error);return r.data;}}));
+const api=vi.hoisted(()=>({get:vi.fn(),save:vi.fn(),clone:vi.fn(),revise:vi.fn()}));
+vi.mock('./native',()=>({commands:{getPassageDraft:api.get,savePassageDraft:api.save,clonePassageDraft:api.clone,revisePassageDraft:api.revise},unwrap:(r:{status:string;data?:unknown;error?:string})=>{if(r.status!=='ok')throw Error(r.error);return r.data;}}));
 import {PassageSession} from './passage-session.svelte';
 const edits=():PassageEdits=>({plan:{chapterTitle:'Chapter 1',chapterPlan:'',title:'At the window',direction:'Wait for the rain.',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450},prose:'First sentence.',effectsText:'{"changes":[],"notes":[],"suggestChapterEnd":false}',closeChapter:false});
-const view=(value=edits(),version=1):PassageView_Serialize=>({effectsReview:{checked:true,entries:[]},memory:{points:[],coverage:{olderPassages:0,closedChapters:0,currentSummaries:0,missingSummaries:0,staleSummaries:0,unavailableSummaries:0,unrepresentedPassages:0,availablePoints:0,selectedPoints:0,omittedPoints:0,byteBudget:6000}},revision:null,id:'10000000-0000-4000-8000-000000000001',version,stage:'ready',edits:value,error:'',stale:false,changes:[],canAccept:true,suggestedChapterEnd:false,sceneContext:{resources:[],guidance:[],error:""},recentPassages:[],originalProse:'',originalEffects:'',narrationProvider:'',effectsProvider:''});
+const view=(value=edits(),version=1):PassageView_Serialize=>({repeatedPassages:[],effectsReview:{checked:true,entries:[]},memory:{points:[],coverage:{olderPassages:0,closedChapters:0,currentSummaries:0,missingSummaries:0,staleSummaries:0,unavailableSummaries:0,unrepresentedPassages:0,availablePoints:0,selectedPoints:0,omittedPoints:0,byteBudget:6000}},revision:null,id:'10000000-0000-4000-8000-000000000001',version,stage:'ready',edits:value,error:'',stale:false,changes:[],canAccept:true,suggestedChapterEnd:false,sceneContext:{resources:[],guidance:[],error:""},recentPassages:[],originalProse:'',originalEffects:'',narrationProvider:'',effectsProvider:''});
 const ok=(data:PassageView_Serialize)=>({status:'ok',data});
 describe('passage draft queue',()=>{
-  beforeEach(()=>{vi.useFakeTimers();api.clone.mockReset();api.get.mockReset().mockResolvedValue(ok(view()));api.save.mockReset().mockImplementation(async(_story:string,_id:string,version:number,value:PassageEdits)=>ok(view(value,version+1)));});
+  beforeEach(()=>{vi.useFakeTimers();api.revise.mockReset();api.clone.mockReset();api.get.mockReset().mockResolvedValue(ok(view()));api.save.mockReset().mockImplementation(async(_story:string,_id:string,version:number,value:PassageEdits)=>ok(view(value,version+1)));});
   afterEach(()=>{vi.clearAllTimers();vi.useRealTimers();});
   it('saves prose typed during a previous write without replacing it with the earlier response',async()=>{
     const session=new PassageSession('story');await session.open(view().id);
@@ -47,5 +47,21 @@ describe('passage draft queue',()=>{
     session.value!.prose='Pending typing';session.touch();session.clear();
     finish(ok(view()));await refreshing;await vi.advanceTimersByTimeAsync(500);await session.flush();
     expect(session.id).toBeNull();expect(session.value).toBeNull();expect(session.view).toBeNull();expect(session.dirty).toBe(false);expect(api.save).not.toHaveBeenCalled();
+  });
+  it('flushes current prose and revision instructions before creating a revision candidate',async()=>{
+    const session=new PassageSession('story');await session.open(view().id);
+    session.value!.prose='Current manual changes.';session.value!.revisionDirection='Make the dialogue shorter.';session.touch();
+    const candidate={...view({...edits(),prose:'Current manual changes.'}),id:'10000000-0000-4000-8000-000000000003',stage:'needsCheck' as const,canAccept:false,draftRevision:{sourceId:view().id,sourceVersion:2,prose:'Current manual changes.',direction:'Make the dialogue shorter.'}};
+    api.revise.mockResolvedValue(ok(candidate));await session.revise();
+    expect(api.save.mock.calls[0][3].prose).toBe('Current manual changes.');
+    expect(api.save.mock.calls[0][3].revisionDirection).toBe('Make the dialogue shorter.');
+    expect(api.revise.mock.calls[0].slice(0,3)).toEqual(['story',view().id,2]);
+    expect(api.clone).not.toHaveBeenCalled();expect(session.view?.draftRevision?.prose).toBe('Current manual changes.');expect(session.readyToAccept).toBe(false);
+  });
+  it('keeps the original draft and instructions when saving fails before revision',async()=>{
+    const session=new PassageSession('story');await session.open(view().id);
+    session.value!.revisionDirection='Keep the ending.';session.touch();api.save.mockRejectedValueOnce(Error('Disk unavailable'));
+    await expect(session.revise()).rejects.toThrow('Disk unavailable');
+    expect(api.revise).not.toHaveBeenCalled();expect(session.id).toBe(view().id);expect(session.value!.revisionDirection).toBe('Keep the ending.');
   });
 });

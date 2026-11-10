@@ -93,6 +93,7 @@ impl Project {
         index: &StoryIndex,
         plan: &PassagePlan,
         world: &World,
+        source_world: &World,
         budget: u32,
     ) -> Result<MemoryContext, String> {
         let cutoff = index.passages.len().saturating_sub(2);
@@ -116,6 +117,9 @@ impl Project {
         let mut represented = BTreeSet::new();
         let mut summarized = BTreeSet::new();
         let mut candidates = vec![];
+        let excluded = crate::knowledge::excluded_claims(source_world, plan);
+        let excluded_passages = crate::knowledge::excluded_claim_passages(source_world, plan);
+        let mut blocked_summaries = BTreeSet::new();
         for chapter in &index.chapters {
             if !chapter.closed {
                 continue;
@@ -129,6 +133,19 @@ impl Project {
                 MemoryStatus::Unavailable => coverage.unavailable_summaries += 1,
             }
             if let Some(record) = record {
+                if record
+                    .sources
+                    .iter()
+                    .any(|s| excluded_passages.contains(&s.passage_id))
+                    || record
+                        .ai_context
+                        .as_ref()
+                        .is_some_and(|c| c.iter().any(|s| excluded.contains(&s.node_id)))
+                {
+                    if let Some(reference) = index.memories.get(&chapter.id) {
+                        blocked_summaries.insert(reference.id.clone());
+                    }
+                }
                 for source in &record.sources {
                     if older.contains(&source.passage_id) {
                         represented.insert(source.passage_id.clone());
@@ -178,6 +195,21 @@ impl Project {
             }
         }
         coverage.unrepresented_passages = older.difference(&represented).count() as u32;
+        // Scope before ranking/limiting: omitted history must not consume the
+        // point or byte allowance and crowd out an eligible lower-ranked point.
+        let mut excluded_points = BTreeSet::new();
+        candidates.retain(|point| {
+            let allowed = !excluded_passages.contains(&point.passage_id)
+                && !point.node_ids.iter().any(|id| excluded.contains(id))
+                && !point
+                    .summary
+                    .as_ref()
+                    .is_some_and(|r| blocked_summaries.contains(&r.id));
+            if !allowed {
+                excluded_points.insert((point.passage_id.clone(), point.text.clone()));
+            }
+            allowed
+        });
         let score =
             |point: &RememberedPoint| {
                 let mut value = 0;
@@ -219,7 +251,7 @@ impl Project {
         });
         let mut deduplicated = BTreeSet::new();
         candidates.retain(|p| deduplicated.insert((p.passage_id.clone(), p.text.clone())));
-        coverage.available_points = candidates.len() as u32;
+        coverage.available_points = deduplicated.union(&excluded_points).count() as u32;
         let mut points = vec![];
         let mut bytes = 2usize;
         for mut point in candidates {

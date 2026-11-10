@@ -21,7 +21,7 @@
   import StoryWorkspace from './lib/StoryWorkspace.svelte';
   import ImageDialog from './lib/ImageDialog.svelte';
   import type {MediaTarget,PassageReading_Serialize,TextPromptTask} from './lib/bindings';
-  import { newAuthoringRequest,newLinkAuthoringRequest } from './lib/authoring-ui';
+  import { newAuthoringRequest,newLinkAuthoringRequest,newSelectionAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
   import { exampleWorld, emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
@@ -72,6 +72,7 @@
   $effect(() => { applyAppearance(appearance.value, systemDark); });
   let sourceNodeId=$state<string|null>(null);
   async function openSources(id:string){if(!project||busy)return;try{if(!historyWorld)await flush();sourceNodeId=id;}catch(caught){error=describe(caught);}}
+  let structuralPositions = $state<Workspace['positions']>({});
   let structuralEdit = $state<WorldEdit | null>(null);
   let showRelationshipType = $state(false);
   let showCreate = $state(false);
@@ -127,6 +128,10 @@
     showAi=true;
   }
   function openAiLink(id:string){if(!project||busy||historyWorld||passageRunning||imagePromptRunning||imagePromptRetained)return;if(aiRunning){showAi=true;return;}aiRequest=newLinkAuthoringRequest(world,id);aiRunId=null;showAi=true;}
+  function reviseSelection(ids:string[]){
+    if(!project||busy||historyWorld||aiRunning||passageRunning||imagePromptRunning||imagePromptRetained)return;
+    try{aiRequest=newSelectionAuthoringRequest(world,ids);aiRunId=null;showAi=true;}catch(caught){error=describe(caught);}
+  }
   async function beforeAiAction(){await flush();if(!project)throw Error('Open a project first.');return structuredClone($state.snapshot(project));}
   async function applyAi(result:ApplyAuthoringResult_Serialize){await adopt(result.commit.project);showAi=false;aiRunId=result.proposal.id;aiRequest=result.proposal.request;const id=result.proposal.createdNodeIds[0]??result.proposal.request.targetIds[0];if(id)select(id);}
   async function switchSurface(next:'world'|'story'){
@@ -363,16 +368,23 @@
       : node?.components['core.place'] && destination?.components['core.place'] ? 'core.inside' : 'core.related';
     structuralEdit = {kind:'putLink',link:{id:crypto.randomUUID(),typeId,sourceId:source,targetId:target,description:''}};
   }
-  function reviewEdit(edit: WorldEdit) { if (project && !busy && !historyWorld) structuralEdit = edit; }
+  function reviewEdit(edit: WorldEdit, positions: Workspace['positions'] = {}) { if (project && !busy && !historyWorld) {structuralPositions=positions;structuralEdit = edit;} }
   function applyStructure(next: World, source: string) {
     if (!project || historyWorld || JSON.stringify(world) !== source) { error = 'The world changed while reviewing. Review this operation again.'; structuralEdit = null; return; }
+    const added = next.nodes.filter(node => !world.nodes.some(old => old.id === node.id));
     const changed = next.edges.filter((edge) => !world.edges.some((old) => old.id === edge.id && old.sourceId === edge.sourceId && old.targetId === edge.targetId));
+    const pastedPositions: Workspace['positions'] = {};
+    if(structuralEdit?.kind==='pasteNodes'||structuralEdit?.kind==='insertLibrary') {
+      const copied=structuralEdit.kind==='pasteNodes'?structuralEdit.nodes:structuralEdit.entry.world.nodes;
+      const offset=structuralEdit.kind==='pasteNodes'?48:0;
+      added.forEach((node,index)=>{const original=structuralPositions[copied[index]?.id];if(original)pastedPositions[node.id]={x:(original.x??0)+offset,y:(original.y??0)+offset};});
+    }
     world = next;
     const ids = new Set(next.nodes.map((n) => n.id));
     // Layout cleanup is separate from canonical world publication.
-    workspace = {...workspace,selectedId:workspace.selectedId && ids.has(workspace.selectedId) ? workspace.selectedId : next.nodes[0]?.id ?? null,
+    workspace = {...workspace,selectedId:added[0]?.id ?? (workspace.selectedId && ids.has(workspace.selectedId) ? workspace.selectedId : next.nodes[0]?.id ?? null),
       expandedIds:[...new Set([...workspace.expandedIds.filter((id) => ids.has(id)), ...changed.map((e) => e.targetId)])],
-      positions:Object.fromEntries(Object.entries(workspace.positions).filter(([id]) => ids.has(id)))};
+      positions:{...Object.fromEntries(Object.entries(workspace.positions).filter(([id]) => ids.has(id))),...pastedPositions}};
     workspace = {...workspace,expandedIds:revealRecord(worldRecords(next), workspace.expandedIds, workspace.selectedId)};
     for (const edge of changed) workspace = {...workspace,expandedIds:revealRecord(worldRecords(next), workspace.expandedIds, edge.sourceId)};
     structuralEdit = null; scheduleSave(); persistLayout();
@@ -459,7 +471,7 @@
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning||imagePromptRunning||imagePromptRetained} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
             {#if project&&surface==='world'}<button class="text-action" disabled={busy||!!historyWorld} onclick={()=>{void openContext();}}>AI context</button>{/if}
           </div></div>
-          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} /></SvelteFlowProvider></div>
+          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.folderPath}:${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} aiEditable={!!project&&!busy&&!historyWorld&&!aiRunning&&!passageRunning&&!imagePromptRunning&&!imagePromptRetained} onAiSelection={reviseSelection} onEdit={reviewEdit} onExpand={(ids,expanded)=>{const current=historyWorld?historyWorkspace:workspace;const next={...current,expandedIds:expanded?[...new Set([...current.expandedIds,...ids])]:current.expandedIds.filter(id=>!ids.includes(id))};if(historyWorld)historyWorkspace=next;else{workspace=next;persistLayout();}}} /></SvelteFlowProvider></div>
           {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onContext={()=>{void openContext();}} onPanels={registerStoryPanels} onSettings={(section='llm',task='passage')=>{void storyPanel?.flushDraft().then(()=>{promptTask=task;settingsSection=section;showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>

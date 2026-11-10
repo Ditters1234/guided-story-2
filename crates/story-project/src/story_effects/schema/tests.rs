@@ -11,6 +11,209 @@ fn id() -> String {
 }
 
 #[test]
+fn relationship_planning_fields_are_bound_to_saved_values_or_new_link_defaults() {
+    let mut world = World::default();
+    let a = make(&world, "core.character", &id(), "Mara");
+    let b = make(&world, "core.character", &id(), "Jon");
+    let mut definition = world
+        .relation_types
+        .iter()
+        .find(|r| r.id == "core.related")
+        .unwrap()
+        .clone();
+    definition.id = "custom.planning".into();
+    definition.fields = [
+        ("plan", FieldKind::Text, false, PropertyValue::Null),
+        (
+            "enabled",
+            FieldKind::Boolean,
+            false,
+            PropertyValue::Boolean(false),
+        ),
+        (
+            "count",
+            FieldKind::Number,
+            false,
+            PropertyValue::Number(0.0),
+        ),
+        (
+            "requiredPlan",
+            FieldKind::Text,
+            true,
+            PropertyValue::Text("Default plan".into()),
+        ),
+        ("unset", FieldKind::NodeRef, false, PropertyValue::Null),
+    ]
+    .into_iter()
+    .map(|(key, kind, required, default_value)| FieldDefinition {
+        key: key.into(),
+        label: key.into(),
+        kind,
+        required,
+        default_value,
+        metadata: Some(FieldMetadata {
+            uses: vec![FieldUse::Planning],
+            ..Default::default()
+        }),
+    })
+    .collect();
+    for (key, usage) in [("story", FieldUse::Story), ("visual", FieldUse::Visual)] {
+        definition.fields.push(FieldDefinition {
+            key: key.into(),
+            label: key.into(),
+            kind: FieldKind::Text,
+            required: false,
+            default_value: PropertyValue::Null,
+            metadata: Some(FieldMetadata {
+                uses: vec![usage],
+                ..Default::default()
+            }),
+        });
+    }
+    let mut old = WorldEdge {
+        id: id(),
+        type_id: definition.id.clone(),
+        source_id: a.id.clone(),
+        target_id: b.id.clone(),
+        description: String::new(),
+        properties: default_field_values(&definition.fields),
+    };
+    old.properties
+        .insert("plan".into(), PropertyValue::Text("Save the reveal".into()));
+    world.nodes = vec![a, b];
+    world.edges.push(old.clone());
+    world.relation_types.push(definition.clone());
+    world.validate().unwrap();
+    let schema = effects_schema(&world);
+    let choices = operation(&schema, "putLinks")["properties"]["link"]["anyOf"]
+        .as_array()
+        .unwrap();
+    let saved = choices
+        .iter()
+        .find(|v| {
+            v["properties"]["typeId"]["const"] == definition.id
+                && v["properties"]["id"].to_string().contains(&old.id)
+        })
+        .unwrap();
+    let protected = &saved["properties"]["properties"];
+    assert!(saved["required"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("properties")));
+    for key in ["plan", "enabled", "count", "requiredPlan"] {
+        assert_eq!(
+            protected["properties"][key]["const"],
+            json!(old.properties[key])
+        );
+        assert!(protected["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(key)));
+    }
+    assert_eq!(protected["properties"]["unset"], json!({"const":null}));
+    assert!(choices
+        .iter()
+        .filter(|v| v["properties"]["typeId"]["const"] != definition.id)
+        .all(|v| !v["properties"]["id"].to_string().contains(&old.id)));
+    let fresh = choices
+        .iter()
+        .find(|v| {
+            v["properties"]["typeId"]["const"] == definition.id
+                && v["properties"]["id"].get("pattern").is_some()
+        })
+        .unwrap();
+    assert_eq!(
+        fresh["properties"]["properties"]["properties"]["requiredPlan"]["const"],
+        "Default plan"
+    );
+    assert_eq!(
+        fresh["properties"]["properties"]["properties"]["enabled"]["anyOf"],
+        json!([{"const":false},{"type":"null"}])
+    );
+
+    let prose = "Mara waited beside Jon at the window.";
+    let preview = |link| {
+        preview_passage_effects(
+            &world,
+            &world,
+            prose,
+            &PassageEffects {
+                changes: vec![PassageEffect::PutLink {
+                    link,
+                    evidence: prose.into(),
+                }],
+                ..Default::default()
+            },
+            &mut BTreeMap::new(),
+        )
+    };
+    for key in ["plan", "enabled", "count", "requiredPlan"] {
+        let mut changed = old.clone();
+        changed.properties.remove(key);
+        assert!(preview(changed)
+            .unwrap_err()
+            .contains("author planning guidance"));
+        let mut changed = old.clone();
+        changed.properties.insert(key.into(), PropertyValue::Null);
+        assert!(preview(changed)
+            .unwrap_err()
+            .contains("author planning guidance"));
+    }
+    for (key, value) in [
+        ("plan", PropertyValue::Text("Changed plan".into())),
+        ("enabled", PropertyValue::Boolean(true)),
+        ("count", PropertyValue::Number(1.0)),
+        ("unset", PropertyValue::Text(world.nodes[1].id.clone())),
+    ] {
+        let mut changed = old.clone();
+        changed.properties.insert(key.into(), value);
+        assert!(preview(changed)
+            .unwrap_err()
+            .contains("author planning guidance"));
+    }
+    let mut ordinary = old.clone();
+    ordinary.properties.insert(
+        "story".into(),
+        PropertyValue::Text("They cooperated".into()),
+    );
+    ordinary.properties.insert(
+        "visual".into(),
+        PropertyValue::Text("Sleeves rolled".into()),
+    );
+    ordinary
+        .properties
+        .insert("unset".into(), PropertyValue::Null);
+    assert!(preview(ordinary).is_ok());
+    let mut changed_type = old.clone();
+    changed_type.type_id = "core.related".into();
+    changed_type.properties.clear();
+    assert!(preview(changed_type)
+        .unwrap_err()
+        .contains("author planning guidance"));
+    let fresh = WorldEdge {
+        id: "new:defaulted".into(),
+        source_id: world.nodes[1].id.clone(),
+        target_id: world.nodes[0].id.clone(),
+        properties: default_field_values(&definition.fields),
+        ..old.clone()
+    };
+    assert!(preview(fresh.clone()).is_ok());
+    let mut invalid = fresh.clone();
+    invalid
+        .properties
+        .insert("plan".into(), PropertyValue::Text("Invented plan".into()));
+    assert!(preview(invalid)
+        .unwrap_err()
+        .contains("author planning guidance"));
+    let mut unset_defaults = fresh;
+    unset_defaults.properties.remove("enabled");
+    unset_defaults
+        .properties
+        .insert("count".into(), PropertyValue::Null);
+    assert!(preview(unset_defaults).is_ok());
+}
+
+#[test]
 fn effect_reference_fields_filter_capabilities_and_keep_exact_previous_lists() {
     let mut world = World::default();
     world.component_types.push(ComponentDefinition {
@@ -109,7 +312,8 @@ fn provider_groups_have_single_kind_items_and_explicit_empty_unavailable_operati
         let item = operation(&schema, group);
         assert!(item.get("anyOf").is_none());
         assert_eq!(item["properties"]["kind"]["const"], kind);
-        assert_eq!(item["properties"]["evidence"]["minLength"], 8);
+        assert_eq!(item["properties"]["evidence"]["items"]["minLength"], 8);
+        assert_eq!(item["properties"]["evidence"]["maxItems"], 4);
         assert_eq!(item["additionalProperties"], false);
     }
     assert_eq!(changes["properties"]["removeLinks"]["maxItems"], 0);
@@ -257,9 +461,14 @@ fn effects_use_concrete_custom_presets_and_actual_existing_capabilities() {
         .unwrap();
     let caps = &existing["properties"]["components"];
     assert!(caps["properties"].get("core.character").is_none());
+    assert_eq!(caps["required"], json!([]));
     assert_eq!(
-        caps["required"],
-        json!(w.nodes[0].components.keys().collect::<Vec<_>>())
+        caps["properties"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        w.nodes[0].components.keys().collect::<Vec<_>>()
     );
     let supply = nodes
         .iter()
@@ -482,6 +691,145 @@ fn identical_existing_profiles_share_a_scoped_id_branch_without_merging_capabili
             .len(),
         2
     );
+}
+
+#[test]
+fn sparse_existing_nodes_omit_unchanged_fields_while_links_keep_complete_contracts() {
+    let mut w = World::default();
+    let mut nora = make(&w, "core.character", &id(), "Nora");
+    let otis = make(&w, "core.character", &id(), "Otis");
+    let mut lena = make(&w, "core.character", &id(), "Lena");
+    nora.components.get_mut("detail.intent").unwrap().insert(
+        "objective".into(),
+        PropertyValue::Text("Repair the pump".into()),
+    );
+    lena.components.get_mut("detail.intent").unwrap().insert(
+        "objective".into(),
+        PropertyValue::Text("Find shelter".into()),
+    );
+    let component = ComponentDefinition {
+        id: "custom.state".into(),
+        name: "State".into(),
+        description: String::new(),
+        fields: [
+            ("flag", FieldKind::Boolean),
+            ("count", FieldKind::Number),
+            ("people", FieldKind::NodeRefs),
+        ]
+        .into_iter()
+        .map(|(key, kind)| FieldDefinition {
+            key: key.into(),
+            label: key.into(),
+            kind,
+            required: false,
+            default_value: PropertyValue::Null,
+            metadata: None,
+        })
+        .collect(),
+    };
+    let values = BTreeMap::from([
+        ("flag".into(), PropertyValue::Boolean(false)),
+        ("count".into(), PropertyValue::Number(0.0)),
+        (
+            "people".into(),
+            PropertyValue::NodeRefs(vec![otis.id.clone()]),
+        ),
+    ]);
+    nora.components.insert(component.id.clone(), values.clone());
+    lena.components.insert(component.id.clone(), values.clone());
+    w.component_types.push(component.clone());
+    let link = WorldEdge {
+        id: id(),
+        type_id: "custom.state-link".into(),
+        source_id: nora.id.clone(),
+        target_id: otis.id.clone(),
+        description: String::new(),
+        properties: values,
+    };
+    w.relation_types.push(RelationDefinition {
+        id: link.type_id.clone(),
+        name: "State link".into(),
+        label: "state".into(),
+        source_capability: None,
+        target_capability: None,
+        physical_placement: false,
+        single_target: false,
+        description: String::new(),
+        fields: component.fields,
+    });
+    w.edges.push(link.clone());
+    w.nodes.extend([nora.clone(), otis.clone(), lena.clone()]);
+    let schema = effects_schema(&w);
+    let branch = |id: &str| {
+        node_variants(&schema)
+            .iter()
+            .find(|v| {
+                v["properties"]["id"]["enum"]
+                    .as_array()
+                    .is_some_and(|ids| ids.contains(&json!(id)))
+            })
+            .unwrap()
+    };
+    let nora_schema = branch(&nora.id);
+    assert_eq!(
+        nora_schema["properties"]["id"]["enum"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(nora_schema["required"], json!(["id"]));
+    assert_eq!(
+        nora_schema["properties"]["components"]["required"],
+        json!([])
+    );
+    assert!(
+        !branch(&otis.id)["properties"]["components"]["properties"]["detail.intent"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("objective"))
+    );
+    let required =
+        &nora_schema["properties"]["components"]["properties"]["custom.state"]["required"];
+    for key in ["flag", "count", "people"] {
+        assert!(!required.as_array().unwrap().contains(&json!(key)));
+    }
+    // Required presence is not a value lock: evidenced clearing stays explicit.
+    assert!(
+        nora_schema["properties"]["components"]["properties"]["detail.intent"]["properties"]
+            ["objective"]
+            .to_string()
+            .contains("null")
+    );
+    let links = operation(&schema, "putLinks")["properties"]["link"]["anyOf"]
+        .as_array()
+        .unwrap();
+    let saved = links
+        .iter()
+        .find(|v| {
+            v["properties"]["typeId"]["const"] == link.type_id
+                && v["properties"]["id"]["enum"]
+                    .as_array()
+                    .is_some_and(|ids| ids.contains(&json!(link.id)))
+        })
+        .unwrap();
+    let fresh = links
+        .iter()
+        .find(|v| {
+            v["properties"]["typeId"]["const"] == link.type_id
+                && v["properties"]["id"].to_string().contains("new:")
+        })
+        .unwrap();
+    for key in ["flag", "count", "people"] {
+        assert!(saved["properties"]["properties"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(key)));
+        assert!(!fresh["properties"]["properties"]["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!(key)));
+    }
 }
 
 #[test]
@@ -717,6 +1065,7 @@ fn furnished_two_person_scene_fits_real_effects_preflight_at_32k() {
         prose: "Nora pressed the brass key into Otis's hand. He closed his fingers around it and waited beside the workshop bench.".into(),
         effects_text: serde_json::to_string(&PassageEffects::default()).unwrap(),
         close_chapter: false,
+        revision_direction: String::new(),
         approved_effects: vec![],
     }).unwrap();
     let settings = LlmConnection {

@@ -19,12 +19,16 @@ Malformed or truncated responses remain available in **Response JSON / manual re
 ## What the writer receives
 
 - Current structured scene records and recent prose remain the primary context.
+- Passage writing and AI planning also receive a native `passageHandoff`: the exact latest accepted source/version and a final excerpt capped at 1,200 UTF-8 bytes. It never includes pending prose or substitutes an older passage when claim access withholds the latest one. **Continue after…** previews that ending; a withheld latest passage is explained before generation.
 - Current summaries represent completed chapters. Older passages without a current summary can supply their accepted continuity notes instead.
 - Selection favors explicit scene references, viewpoint, participants, location and other selected resources, then recency. Related-node IDs work with custom node presets too; name matching is a fallback for unlinked points.
-- Each request includes at most 12 historical points within a maximum 6,000-byte JSON allowance. Required system/schema/scene/prose context and output are reserved first; optional memory shrinks to fit. Required context that still cannot fit blocks before a provider request.
+- Each request includes at most 12 historical points within a maximum 6,000-byte JSON allowance. Claim access and source eligibility are checked before ranking and applying these limits, so excluded points and summaries cannot crowd out usable history. Required system/schema/scene/prose context and output are reserved first; optional memory shrinks to fit. Required context that still cannot fit blocks before a provider request.
+- AI scene/chapter planning uses the same eligible older notes and reviewed summaries. It reserves scene facts, included instructions, the latest handoff and output before older memory, then adds optional recent excerpts/accepted notes if space remains. It does not start a separate memory request. The prose writer still receives both recent passages in full.
 - **Generation context** shows selected points and their source passages, current/missing/stale/unavailable summary counts, older passages without summaries/notes and available points omitted by limits. These counts describe source representation, not complete recall of every detail. A reviewed summary can deliberately contain no lasting facts.
 
 The existing conservative byte-based token estimate is not the provider's tokenizer. This improves bounded older-context retrieval; it does not establish unlimited novel-length recall, semantic accuracy or measured 30B-model quality.
+
+The extraction prompt asks for useful notes about settled dialogue, answers, decisions, promises made and unfinished ending actions. Each note still requires its own approval and passage acceptance. Empty notes remain valid; old passages without notes are not summarized automatically. Chapter direction is the author's arc and may retain completed beats; accepted prose/notes/memory establish progress. The author recap stays separate and editable. Saved custom prompts are preserved, so the revised default instructions apply only to tasks using their defaults.
 
 ## Revisions, corruption and forks
 

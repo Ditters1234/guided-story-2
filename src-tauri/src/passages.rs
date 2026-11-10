@@ -337,6 +337,21 @@ pub(crate) fn clone_passage_draft(
 }
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn revise_passage_draft(
+    story_id: String,
+    source_id: String,
+    expected_version: u32,
+    id: String,
+    app: tauri::AppHandle,
+) -> Result<PassageView, String> {
+    with_project(&app.state::<AppState>(), |p| {
+        check_story(p, &story_id)?;
+        p.revise_passage_draft(&source_id, expected_version, &id)
+    })?;
+    view(&app, &story_id, &id)
+}
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn passage_versions(
     story_id: String,
     id: String,

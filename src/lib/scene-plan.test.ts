@@ -1,9 +1,39 @@
 import {describe,it,expect} from 'vitest';
 import type {PassagePlan} from './bindings';
 import {emptyWorld,makeNode} from './model';
-import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast,sceneConditionChoices} from './scene-plan';
+import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast,sceneConditionChoices,sceneReferenceSuggestions} from './scene-plan';
 
 const base=():PassagePlan=>({chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450});
+
+describe('explicit bounded scene reference suggestions',()=>{
+  it('offers nested inventory, focus objects and directly linked threads without selecting or traversing the wider world',()=>{
+    const world=emptyWorld();
+    const [room,remote,mara,bag,remedy,lantern,thread,otherThread,deepBox,deepItem]=[
+      makeNode(world,'core.place','Workshop'),makeNode(world,'core.place','Harbor'),makeNode(world,'core.character','Mara'),makeNode(world,'core.item','Satchel'),makeNode(world,'core.item','Remedy'),makeNode(world,'core.item','Lantern'),makeNode(world,'core.thread','Find the cure'),makeNode(world,'core.thread','Unselected followup'),makeNode(world,'core.item','Inner box'),makeNode(world,'core.item','Too deep')
+    ];
+    bag.components['core.container']={};deepBox.components['core.container']={};
+    world.nodes=[room,remote,mara,bag,remedy,lantern,thread,otherThread,deepBox,deepItem];
+    for(const [typeId,sourceId,targetId]of [['core.present-at',mara.id,room.id],['core.stored-in',bag.id,mara.id],['core.stored-in',remedy.id,bag.id],['core.stored-in',lantern.id,room.id],['core.related',thread.id,mara.id],['core.related',otherThread.id,thread.id],['core.stored-in',deepBox.id,remedy.id],['core.stored-in',deepItem.id,deepBox.id]])world.edges.push({id:crypto.randomUUID(),typeId,sourceId,targetId,description:''});
+    const plan={...base(),locationId:room.id,viewpointId:mara.id},original=structuredClone(world);
+    const result=sceneReferenceSuggestions(world,plan,[room.id,mara.id,bag.id]);
+    expect(result.suggestions.map(s=>s.id)).toEqual([remedy.id,lantern.id,thread.id]);
+    expect(result.omitted).toBe(0);expect(plan.referenceIds).toEqual([]);expect(world).toEqual(original);
+    expect(sceneReferenceSuggestions(world,{...plan,referenceIds:[remedy.id]},[bag.id]).suggestions.some(s=>s.id===remedy.id)).toBe(false);
+    expect(sceneReferenceSuggestions(world,plan,[],lantern.name).suggestions[0].id).toBe(lantern.id);
+  });
+  it('caps visible candidates, reports omissions and keeps room boundaries and custom capability behavior',()=>{
+    const world=emptyWorld(),room=makeNode(world,'core.place','Workshop'),remote=makeNode(world,'core.place','Harbor'),bag=makeNode(world,'core.item','Custom case');
+    bag.typeId='custom.case';bag.components['core.container']={};world.nodes=[room,remote,bag];
+    world.relationTypes.push({id:'custom.physical',name:'Attached',label:'attached',physicalPlacement:true,singleTarget:true,sourceCapability:null,targetCapability:null});
+    for(let i=0;i<18;i++){
+      const item=makeNode(world,'core.item',`Supply ${String(i).padStart(2,'0')}`);world.nodes.push(item);world.edges.push({id:crypto.randomUUID(),typeId:'custom.physical',sourceId:item.id,targetId:i===17?remote.id:bag.id,description:''});
+    }
+    const plan={...base(),locationId:room.id,referenceIds:[bag.id]};
+    const result=sceneReferenceSuggestions(world,plan);
+    expect(result.suggestions).toHaveLength(12);expect(result.omitted).toBe(5);expect(result.suggestions.some(s=>s.name==='Supply 17')).toBe(false);
+    expect(sceneReferenceSuggestions(world,plan,[],'Supply 16').suggestions[0].name).toBe('Supply 16');
+  });
+});
 function fixture(){
   const world=emptyWorld();
   world.nodeTypes.push({id:'custom.settler',name:'Settler',description:'',components:['core.character','core.holder']});

@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile, cp } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -23,12 +23,15 @@ await mkdir(dirname(folder), { recursive: true });
 await mkdir(folder);
 await copyFile(executable, join(folder, 'Guided Story 2.exe'));
 await copyFile(join(root, 'MANUAL_TESTING.md'), join(folder, 'START HERE.md'));
+await copyFile(join(root, 'NODE_LIBRARY.md'), join(folder, 'NODE LIBRARY.md'));
+await copyFile(join(root, 'AI_AUTHORING.md'), join(folder, 'AI WORLD AUTHORING.md'));
+await cp(join(root, 'examples/node-library'), join(folder, 'Library examples'), { recursive: true, errorOnExist: true, force: false });
 await writeFile(join(folder, 'THIRD_PARTY_NOTICES.txt'), notices.text, { flag: 'wx' });
 await writeFile(join(folder, 'BUILD.json'), JSON.stringify({
   application: 'Guided Story 2', version: pkg.version, platform: process.platform, arch: process.arch,
   createdAt, sourceCommit: commit, workingTreeModified: git('status', '--porcelain').length > 0,
   executableSha256: createHash('sha256').update(binary).digest('hex'),
-  contents: ['Guided Story 2.exe', 'START HERE.md', 'THIRD_PARTY_NOTICES.txt', 'BUILD.json'],
+  contents: ['Guided Story 2.exe', 'START HERE.md', 'NODE LIBRARY.md', 'AI WORLD AUTHORING.md', 'Library examples', 'THIRD_PARTY_NOTICES.txt', 'BUILD.json'],
   dependenciesWithoutPackagedLicenseText: notices.missing,
 }, null, 2) + '\n', { flag: 'wx' });
 console.log(`Manual testing build: ${folder}`);

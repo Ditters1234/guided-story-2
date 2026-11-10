@@ -195,7 +195,7 @@ fn import_failures_identify_template_node_component_field_and_parent() {
     ] {
         let mut value = raw[0].clone();
         let nodes = value["nodes"].as_array_mut().unwrap();
-        let key = nodes[0]["key"].as_str().unwrap().to_string();
+        let mut key = nodes[0]["key"].as_str().unwrap().to_string();
         match case {
             "preset" => nodes[0]["typeId"] = serde_json::json!("missing.preset"),
             "extension" => nodes[0]["components"]["missing.extension"] = serde_json::json!({}),
@@ -206,8 +206,15 @@ fn import_failures_identify_template_node_component_field_and_parent() {
             "parent" => nodes[0]["parent"] = serde_json::json!("missing-parent"),
             "duplicate" => nodes.push(nodes[0].clone()),
             "nonphysical-parent" => {
-                nodes[0]["typeId"] = serde_json::json!("core.time");
-                nodes[0]["parent"] = nodes[1]["key"].clone();
+                // Leave the catalogue's place and its connections intact.
+                // Changing its preset alone would retain explicit place capabilities.
+                let parent = key;
+                key = "nonphysical-child".into();
+                nodes.push(serde_json::json!({
+                    "key":key, "typeId":"core.time", "name":"Invalid physical child",
+                    "description":"A fictional time marker without placement capabilities.",
+                    "visualDescription":"", "parent":parent, "components":{}
+                }));
             }
             "parse-kind" => nodes[0]["visualDescription"] = serde_json::json!(42),
             _ => nodes[0]["unexpected"] = serde_json::json!(true),
@@ -225,6 +232,43 @@ fn import_failures_identify_template_node_component_field_and_parent() {
     assert!(parse_catalogue("[")
         .unwrap_err()
         .contains("location-templates.json"));
+}
+
+#[test]
+fn template_parent_eligibility_follows_capabilities_instead_of_the_preset() {
+    for has_place in [false, true] {
+        let text = serde_json::json!([{
+            "id":"capability-fixture", "name":"Capability fixture",
+            "description":"An isolated fictional placement fixture.",
+            "nodes":[
+                {"key":"root", "typeId":"core.place", "name":"Workshop", "description":"A fictional workshop.", "visualDescription":""},
+                {"key":"child", "typeId":"core.time", "name":"Time marker", "description":"A fictional time marker.", "visualDescription":"", "parent":"root",
+                    "components":if has_place { serde_json::json!({"core.place":{}}) } else { serde_json::json!({}) }}
+            ]
+        }]).to_string();
+        let templates = parse_catalogue(&text).unwrap();
+        let result = assemble_template(&templates[0]);
+        if has_place {
+            let world = result.unwrap();
+            world.validate().unwrap();
+            let child = world
+                .nodes
+                .iter()
+                .find(|n| n.type_id == "core.time")
+                .unwrap();
+            assert!(world
+                .edges
+                .iter()
+                .any(|e| e.source_id == child.id && e.type_id == "core.inside"));
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.contains("nodes[child] / parent[root]")
+                    && error.contains("cannot have a physical parent"),
+                "{error}"
+            );
+        }
+    }
 }
 
 #[test]

@@ -1,0 +1,908 @@
+{
+  "schemaVersion": 1,
+  "name": "Surveyor and belongings",
+  "description": "An adult surveyor with a carried satchel and four separate worn garments. No location is assigned.",
+  "world": {
+    "nodes": [
+      {
+        "id": "b1000000-0000-4000-8000-000000000001",
+        "typeId": "core.character",
+        "name": "Rowan the surveyor",
+        "description": "An adult travelling surveyor who repairs field instruments and keeps careful route notes.",
+        "visualDescription": "An adult with short black hair, brown eyes and a practical walking build.",
+        "components": {
+          "core.character": {},
+          "core.holder": {},
+          "detail.profile": {},
+          "detail.personality": {},
+          "detail.motivation": {},
+          "detail.voice": {},
+          "detail.appearance": {},
+          "detail.condition": {},
+          "detail.intent": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000002",
+        "typeId": "core.item",
+        "name": "Canvas satchel",
+        "description": "A shoulder bag for tools and route notes.",
+        "visualDescription": "Olive canvas with a leather strap and two exterior pockets.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.condition": {},
+          "core.container": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000003",
+        "typeId": "core.wearable-item",
+        "name": "Work shirt",
+        "description": "A long-sleeved everyday shirt.",
+        "visualDescription": "A blue linen shirt with button cuffs.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "core.wearable": {
+            "regions": "torso, arms",
+            "layer": 1
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.wearable": {},
+          "detail.condition": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000004",
+        "typeId": "core.wearable-item",
+        "name": "Work trousers",
+        "description": "Sturdy full-length trousers.",
+        "visualDescription": "Brown canvas trousers with reinforced knees.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "core.wearable": {
+            "regions": "waist, hips, legs",
+            "layer": 1
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.wearable": {},
+          "detail.condition": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000005",
+        "typeId": "core.wearable-item",
+        "name": "Walking boots",
+        "description": "One paired item representing practical walking boots.",
+        "visualDescription": "Dark leather ankle boots with firm soles.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "pair"
+          },
+          "core.wearable": {
+            "regions": "feet, ankles",
+            "layer": 1
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.wearable": {},
+          "detail.condition": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000006",
+        "typeId": "core.wearable-item",
+        "name": "Field coat",
+        "description": "A weather-resistant outer coat.",
+        "visualDescription": "A green waxed-cotton coat with a high collar.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "core.wearable": {
+            "regions": "torso, arms",
+            "layer": 2
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.wearable": {},
+          "detail.condition": {}
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b1000000-0000-4000-8000-000000000101",
+        "typeId": "core.stored-in",
+        "sourceId": "b1000000-0000-4000-8000-000000000002",
+        "targetId": "b1000000-0000-4000-8000-000000000001",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000103",
+        "typeId": "core.worn-by",
+        "sourceId": "b1000000-0000-4000-8000-000000000003",
+        "targetId": "b1000000-0000-4000-8000-000000000001",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000104",
+        "typeId": "core.worn-by",
+        "sourceId": "b1000000-0000-4000-8000-000000000004",
+        "targetId": "b1000000-0000-4000-8000-000000000001",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000105",
+        "typeId": "core.worn-by",
+        "sourceId": "b1000000-0000-4000-8000-000000000005",
+        "targetId": "b1000000-0000-4000-8000-000000000001",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000106",
+        "typeId": "core.worn-by",
+        "sourceId": "b1000000-0000-4000-8000-000000000006",
+        "targetId": "b1000000-0000-4000-8000-000000000001",
+        "description": ""
+      }
+    ],
+    "nodeTypes": [
+      {
+        "id": "core.character",
+        "name": "Character",
+        "description": "A scene participant with optional profile, goals, voice and appearance.",
+        "components": [
+          "core.character",
+          "core.holder",
+          "detail.profile",
+          "detail.personality",
+          "detail.motivation",
+          "detail.voice",
+          "detail.appearance",
+          "detail.condition",
+          "detail.intent"
+        ]
+      },
+      {
+        "id": "core.item",
+        "name": "Item",
+        "description": "A counted object, with function and visible design.",
+        "components": [
+          "core.item",
+          "detail.item",
+          "detail.design",
+          "detail.condition"
+        ]
+      },
+      {
+        "id": "core.wearable-item",
+        "name": "Clothing / wearable item",
+        "description": "An inventory item that can be worn.",
+        "components": [
+          "core.item",
+          "core.wearable",
+          "detail.item",
+          "detail.design",
+          "detail.wearable",
+          "detail.condition"
+        ]
+      }
+    ],
+    "componentTypes": [
+      {
+        "id": "core.place",
+        "name": "Place",
+        "description": "Can be a scene location.",
+        "fields": []
+      },
+      {
+        "id": "core.character",
+        "name": "Character",
+        "description": "Can participate in a scene.",
+        "fields": []
+      },
+      {
+        "id": "core.holder",
+        "name": "Holds possessions",
+        "description": "Can hold items directly.",
+        "fields": []
+      },
+      {
+        "id": "core.item",
+        "name": "Inventory item",
+        "description": "Tracks explicit units.",
+        "fields": [
+          {
+            "key": "quantity",
+            "label": "Quantity",
+            "kind": "number",
+            "required": true,
+            "defaultValue": 1
+          },
+          {
+            "key": "unit",
+            "label": "Unit",
+            "kind": "text",
+            "required": true,
+            "defaultValue": "item"
+          }
+        ]
+      },
+      {
+        "id": "core.container",
+        "name": "Container",
+        "description": "Can store items; add to an item or a custom node.",
+        "fields": []
+      },
+      {
+        "id": "core.wearable",
+        "name": "Wearable",
+        "description": "Describes clothing coverage and layer.",
+        "fields": [
+          {
+            "key": "regions",
+            "label": "Coverage",
+            "kind": "text",
+            "required": true,
+            "defaultValue": "torso"
+          },
+          {
+            "key": "layer",
+            "label": "Layer",
+            "kind": "number",
+            "required": true,
+            "defaultValue": 1
+          }
+        ]
+      },
+      {
+        "id": "core.thread",
+        "name": "Story thread",
+        "description": "Tracks a development.",
+        "fields": []
+      },
+      {
+        "id": "detail.profile",
+        "name": "Profile",
+        "description": "Identity and relevant background.",
+        "fields": [
+          {
+            "key": "pronouns",
+            "label": "Pronouns",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Use the author's chosen pronouns.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "age",
+            "label": "Actual age",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Leave unknown ages unspecified.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "apparentAge",
+            "label": "Apparent age",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Visible age, when different or useful.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "occupation",
+            "label": "Occupation / social role",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What this person does or their position in society.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "background",
+            "label": "Background",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Relevant established history; avoid an exhaustive biography.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.appearance",
+        "name": "Appearance",
+        "description": "Persistent visible identity, separate from clothing and image composition.",
+        "fields": [
+          {
+            "key": "form",
+            "label": "Species / form",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Physical form; do not assume human anatomy.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "presentation",
+            "label": "Gender / presentation",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Author-specified visible presentation.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "build",
+            "label": "Build / silhouette",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Distinctive proportions and build.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "surface",
+            "label": "Skin / surface",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Complexion, fur, scales or other surface.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "face",
+            "label": "Face",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Recognisable facial features.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "hair",
+            "label": "Hair",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Colour, texture and usual arrangement.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "eyes",
+            "label": "Eyes",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Colour and distinguishing details.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "distinctive",
+            "label": "Distinctive features",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Scars, markings and other persistent identifiers.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.personality",
+        "name": "Personality",
+        "description": "Values and characteristic ways of behaving.",
+        "fields": [
+          {
+            "key": "values",
+            "label": "Values",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What matters to this individual.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "temperament",
+            "label": "Temperament / habits",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Specific behaviour, rather than a list of generic adjectives.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "contradictions",
+            "label": "Strengths / contradictions",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Useful tensions or limitations; an elaborate flaw is not required.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.motivation",
+        "name": "Goals",
+        "description": "Ongoing intentions, pressures and stakes; usable by people or groups.",
+        "fields": [
+          {
+            "key": "wants",
+            "label": "Long-term wants",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What they want, without claiming it has happened.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "stakes",
+            "label": "Reasons / stakes",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Why the outcome matters to them.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "obstacles",
+            "label": "Obstacles",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What currently makes the goal difficult.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.voice",
+        "name": "Voice",
+        "description": "Dialogue guidance grounded in this individual.",
+        "fields": [
+          {
+            "key": "style",
+            "label": "Speaking style",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Sentence patterns, vocabulary and directness.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "habits",
+            "label": "Conversational habits",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "How they respond, evade or initiate; avoid compulsory catchphrases.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "example",
+            "label": "Dialogue example",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "A short illustrative line, not an event that occurred.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.condition",
+        "name": "Current condition",
+        "description": "Changing physical or visible condition of any node.",
+        "fields": [
+          {
+            "key": "condition",
+            "label": "Condition",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Current injuries, wear, damage or other physical state.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "state"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.intent",
+        "name": "Current intent",
+        "description": "Changing emotional state and immediate objective.",
+        "fields": [
+          {
+            "key": "emotion",
+            "label": "Emotional state",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Current feeling; not automatically known to other characters.",
+              "uses": [
+                "story"
+              ],
+              "stability": "state"
+            }
+          },
+          {
+            "key": "objective",
+            "label": "Immediate objective",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What they are trying to achieve now, not a completed event.",
+              "uses": [
+                "story"
+              ],
+              "stability": "state"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.design",
+        "name": "Design",
+        "description": "Visible construction and design of places or objects.",
+        "fields": [
+          {
+            "key": "form",
+            "label": "Form / construction",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Shape, layout or construction details.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "materials",
+            "label": "Materials",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Established materials and finish.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "colours",
+            "label": "Colours / pattern",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Visible colours and patterns.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "distinctive",
+            "label": "Distinctive details",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Recognisable design details.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.item",
+        "name": "Function and history",
+        "description": "How an object can be used and why it matters.",
+        "fields": [
+          {
+            "key": "function",
+            "label": "Function",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What the item enables someone to do.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "constraints",
+            "label": "Requirements / limitations",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Fuel, access, compatibility or other relevant limits.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "provenance",
+            "label": "Provenance / significance",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Relevant origin or meaning, when known.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.wearable",
+        "name": "Garment design",
+        "description": "Additional garment design; coverage/layer live in the wearable capability.",
+        "fields": [
+          {
+            "key": "cut",
+            "label": "Cut / style",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Construction and style of this garment.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "fit",
+            "label": "Fit",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "How this item fits; changing its wearer does not redesign it.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      }
+    ],
+    "relationTypes": [
+      {
+        "id": "core.inside",
+        "name": "Inside",
+        "label": "inside",
+        "sourceCapability": "core.place",
+        "targetCapability": "core.place",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.present-at",
+        "name": "Present at",
+        "label": "present at",
+        "sourceCapability": "core.character",
+        "targetCapability": "core.place",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.stored-in",
+        "name": "Stored in / carried by",
+        "label": "stored in",
+        "sourceCapability": "core.item",
+        "targetCapability": "core.holder",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.worn-by",
+        "name": "Worn by",
+        "label": "worn by",
+        "sourceCapability": "core.wearable",
+        "targetCapability": "core.character",
+        "physicalPlacement": true,
+        "singleTarget": true,
+        "fields": [
+          {
+            "key": "configuration",
+            "label": "Wearing details",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "How the item is currently worn: open or fastened, hood up, sleeves rolled. Do not duplicate the garment design.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "state"
+            }
+          }
+        ]
+      },
+      {
+        "id": "core.related",
+        "name": "Related to",
+        "label": "related to",
+        "sourceCapability": null,
+        "targetCapability": null,
+        "physicalPlacement": false,
+        "singleTarget": false
+      }
+    ]
+  }
+}

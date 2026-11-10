@@ -223,6 +223,9 @@ impl<'a> ReferenceScope<'a> {
         variants(&mut schema["properties"]["edges"]["items"], &mut |link| {
             self.link(link, model, &mut used)
         });
+        if let Some(additions) = schema["properties"].get_mut("additions") {
+            used.extend(self.authoring(additions, model));
+        }
         used
     }
 

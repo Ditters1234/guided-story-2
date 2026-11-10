@@ -15,6 +15,7 @@ pub struct EffectReviewEntry {
     pub key: String,
     pub approved: bool,
     pub issues: Vec<String>,
+    pub displaced_links: Vec<WorldEdge>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -135,6 +136,15 @@ pub(super) fn effect_review(
             key,
             approved,
             issues: issues.get(index).cloned().unwrap_or_default(),
+            displaced_links: match change {
+                PassageEffect::PutLink { link, .. } => {
+                    crate::story_effects::displaced_links(world, link)
+                        .into_iter()
+                        .cloned()
+                        .collect()
+                }
+                _ => vec![],
+            },
         });
     }
     for (index, note) in effects.notes.iter().enumerate() {
@@ -154,6 +164,7 @@ pub(super) fn effect_review(
             key,
             approved,
             issues: vec![],
+            displaced_links: vec![],
         });
     }
     Ok(EffectsReview { checked, entries })

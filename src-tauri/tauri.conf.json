@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "Guided Story 2", "width": 1440, "height": 940, "minWidth": 1000, "minHeight": 720 }],
+    "windows": [{ "label": "main", "title": "Guided Story 2", "width": 1440, "height": 940, "minWidth": 1000, "minHeight": 720, "dragDropEnabled": false }],
     "security": { "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost" }
   },
   "bundle": { "active": false }

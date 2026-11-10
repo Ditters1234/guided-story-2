@@ -290,6 +290,7 @@ fn edits(f: &Fixture, prose: &str) -> PassageEdits {
         prose: prose.into(),
         effects_text: empty_effects(),
         close_chapter: false,
+        revision_direction: String::new(),
         approved_effects: vec![],
     }
 }

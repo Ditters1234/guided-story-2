@@ -1,4 +1,5 @@
 use super::*;
+mod memory_selection;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -97,6 +98,7 @@ fn save(p: &Project, plan: &PassagePlan, prose: &str) -> String {
             prose: prose.into(),
             effects_text: empty_effects(),
             close_chapter: false,
+            revision_direction: String::new(),
             approved_effects: vec![],
         },
     )

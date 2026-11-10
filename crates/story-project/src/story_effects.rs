@@ -5,14 +5,96 @@ use specta::Type;
 use std::collections::{BTreeMap, BTreeSet};
 mod diagnostics;
 mod schema;
+mod transport;
 pub(crate) use diagnostics::effect_record_issues;
+pub(crate) use transport::materialize_provider_effects;
+
+/// Keep the original scalar representation of retained effects/anchors intact.
+/// New effects may cite several separate, exact excerpts on the same review card.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(untagged)]
+pub enum EffectEvidence {
+    Quote(String),
+    Quotes(Vec<String>),
+}
+impl From<String> for EffectEvidence {
+    fn from(value: String) -> Self {
+        Self::Quote(value)
+    }
+}
+impl From<&str> for EffectEvidence {
+    fn from(value: &str) -> Self {
+        Self::Quote(value.into())
+    }
+}
+impl EffectEvidence {
+    pub fn quotes(&self) -> &[String] {
+        match self {
+            Self::Quote(quote) => std::slice::from_ref(quote),
+            Self::Quotes(quotes) => quotes,
+        }
+    }
+    pub(crate) fn quote_issues(&self, prose: Option<&str>) -> Vec<(String, String)> {
+        let quotes = self.quotes();
+        if !(1..=4).contains(&quotes.len()) {
+            return vec![(
+                String::new(),
+                "Use one to four exact source quotes per change.".into(),
+            )];
+        }
+        let mut issues = vec![];
+        let mut seen = BTreeSet::new();
+        for (i, quote) in quotes.iter().enumerate() {
+            let suffix = if matches!(self, Self::Quotes(_)) {
+                format!("[{i}]")
+            } else {
+                String::new()
+            };
+            let normalized = quote.split_whitespace().collect::<Vec<_>>().join(" ");
+            let count = normalized.chars().count();
+            if !(8..=600).contains(&count) {
+                issues.push((
+                    suffix.clone(),
+                    format!("quote has {count} characters; expected 8–600."),
+                ));
+            } else if prose.is_some_and(|prose| !prose.contains(&normalized)) {
+                issues.push((
+                    suffix.clone(),
+                    "quote does not appear as one continuous excerpt in the current passage."
+                        .into(),
+                ));
+            }
+            if !seen.insert(normalized) {
+                issues.push((
+                    suffix,
+                    "Duplicate source quote; keep each excerpt once.".into(),
+                ));
+            }
+        }
+        issues
+    }
+}
+impl std::fmt::Display for EffectEvidence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.quotes().join("” · “"))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum PassageEffect {
-    PutNode { node: WorldNode, evidence: String },
-    PutLink { link: WorldEdge, evidence: String },
-    RemoveLink { id: String, evidence: String },
+    PutNode {
+        node: WorldNode,
+        evidence: EffectEvidence,
+    },
+    PutLink {
+        link: WorldEdge,
+        evidence: EffectEvidence,
+    },
+    RemoveLink {
+        id: String,
+        evidence: EffectEvidence,
+    },
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -79,6 +161,14 @@ pub(crate) fn materialize_effects_text(text: &str) -> Result<String, String> {
 }
 pub(crate) fn planning_only(field: &FieldDefinition) -> bool {
     !field.used_for(FieldUse::Story) && !field.used_for(FieldUse::Visual)
+}
+pub(crate) fn populated(value: &PropertyValue) -> bool {
+    match value {
+        PropertyValue::Null => false,
+        PropertyValue::Text(text) => !text.trim().is_empty(),
+        PropertyValue::NodeRefs(ids) => !ids.is_empty(),
+        PropertyValue::Boolean(_) | PropertyValue::Number(_) => true,
+    }
 }
 pub(crate) fn authoring_only_components(
     world: &World,
@@ -179,6 +269,41 @@ fn link_label(world: &World, edge: &WorldEdge) -> String {
         name(&edge.target_id)
     )
 }
+/// Existing connections removed as a side effect of this link's final placement/cardinality.
+/// Callers must review and scope these just like an explicit RemoveLink.
+pub(crate) fn displaced_links<'a>(world: &'a World, link: &WorldEdge) -> Vec<&'a WorldEdge> {
+    let Some(definition) = world.relation_types.iter().find(|r| r.id == link.type_id) else {
+        return vec![];
+    };
+    world
+        .edges
+        .iter()
+        .filter(|old| {
+            old.id != link.id
+                && old.source_id == link.source_id
+                && ((definition.single_target && old.type_id == link.type_id)
+                    || (definition.physical_placement
+                        && world
+                            .relation_types
+                            .iter()
+                            .any(|r| r.id == old.type_id && r.physical_placement)))
+        })
+        .collect()
+}
+
+pub(crate) fn has_planning_link_values(world: &World, link: &WorldEdge) -> bool {
+    world
+        .relation_types
+        .iter()
+        .find(|r| r.id == link.type_id)
+        .is_some_and(|r| {
+            r.fields.iter().filter(|f| planning_only(f)).any(|f| {
+                link.properties
+                    .get(&f.key)
+                    .is_some_and(|v| v != &PropertyValue::Null)
+            })
+        })
+}
 pub(crate) fn preview_passage_effects(
     source: &World,
     context: &World,
@@ -198,8 +323,8 @@ pub(crate) fn preview_passage_effects(
             | PassageEffect::PutLink { evidence, .. }
             | PassageEffect::RemoveLink { evidence, .. } => evidence,
         };
-        if let Err(reason) = evidence(&normalized_prose, quote) {
-            quote_errors.push(format!("changes[{index}].evidence: {reason}"));
+        for (suffix, reason) in quote.quote_issues(Some(&normalized_prose)) {
+            quote_errors.push(format!("changes[{index}].evidence{suffix}: {reason}"));
         }
     }
     for (index, note) in effects.notes.iter().enumerate() {

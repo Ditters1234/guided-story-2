@@ -18,7 +18,7 @@ fn typed_wearing_details_require_approval_and_publish_with_immutable_snapshots_a
     edit.effects_text = serde_json::to_string(&PassageEffects {
         changes: vec![PassageEffect::PutLink {
             link: link.clone(),
-            evidence: edit.prose.clone(),
+            evidence: edit.prose.clone().into(),
         }],
         ..Default::default()
     })

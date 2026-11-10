@@ -16,6 +16,7 @@ fn interrupted_draft_deletion_and_backup_restore_keep_durable_markers() {
                 prose: "Fictional unsaved canon.".into(),
                 effects_text: r#"{"changes":[],"notes":[],"suggestChapterEnd":false}"#.into(),
                 close_chapter: false,
+                revision_direction: String::new(),
                 approved_effects: vec![],
             },
         )

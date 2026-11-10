@@ -340,6 +340,9 @@ pub(super) fn materialize_text(
     request: &AuthoringRequest,
     text: &str,
 ) -> Result<String, String> {
+    if selection_revision::enabled(request) {
+        return selection_revision::materialize(world, request, text);
+    }
     if request.mode != AuthoringMode::Create {
         return Ok(text.into());
     }

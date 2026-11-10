@@ -101,12 +101,12 @@ fn components(world: &World, required: &[String], old: Option<&WorldNode>) -> Va
                 if old.is_some() && previous.is_none() { return None; }
                 json!({"const":previous.unwrap_or(&f.default_value)})
             } else { crate::authoring::field_schema(f) };
-            if f.required || (planning_only(f) && previous.is_some()) { required_fields.push(f.key.clone()); }
+            if old.is_none() && f.required { required_fields.push(f.key.clone()); }
             Some((f.key.clone(), schema))
         }).collect();
         (d.id.clone(), json!({"type":"object","properties":fields,"required":required_fields,"additionalProperties":false}))
     }).collect();
-    json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
+    json!({"type":"object","properties":properties,"required":if old.is_some(){&[] as &[String]}else{required},"additionalProperties":false})
 }
 
 fn node(
@@ -116,15 +116,20 @@ fn node(
     required: &[String],
     old: Option<&WorldNode>,
 ) -> Value {
-    json!({"type":"object","properties":{
+    let mut schema = json!({"type":"object","properties":{
         "id":id,"typeId":{"const":type_id},"name":{"type":"string","minLength":1,"maxLength":200},
         "description":{"type":"string","maxLength":16000},"visualDescription":{"type":"string","maxLength":16000},
         "components":components(world,required,old)
-    },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false})
+    },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
+    if old.is_some() {
+        schema["required"] = json!(["id"]);
+        schema["minProperties"] = json!(2);
+    }
+    schema
 }
 
 fn nodes(world: &World) -> Vec<Value> {
-    // Records with the same actual capabilities and protected planning values
+    // Sparse existing records share capabilities and protected planning values;
     // share a branch so several same-preset participants do not duplicate their
     // whole field schema. Their ID enum still permits only captured records.
     let mut groups: BTreeMap<String, (&WorldNode, Vec<String>)> = BTreeMap::new();
@@ -184,10 +189,89 @@ fn nodes(world: &World) -> Vec<Value> {
     choices
 }
 
+fn link_properties(definition: &RelationDefinition, old: Option<&WorldEdge>) -> Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = vec![];
+    for field in &definition.fields {
+        let previous = old.and_then(|e| e.properties.get(&field.key));
+        let schema = if planning_only(field) {
+            if old.is_some() {
+                json!({"const":previous.unwrap_or(&PropertyValue::Null)})
+            } else if !field.required && field.default_value != PropertyValue::Null {
+                json!({"anyOf":[{"const":field.default_value},{"type":"null"}]})
+            } else {
+                json!({"const":field.default_value})
+            }
+        } else {
+            crate::authoring::field_schema(field)
+        };
+        if field.required
+            || previous.is_some_and(populated)
+            || (planning_only(field) && previous.is_some_and(|v| v != &PropertyValue::Null))
+        {
+            required.push(field.key.clone());
+        }
+        properties.insert(field.key.clone(), schema);
+    }
+    json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
+}
+
+fn links(world: &World, scoped: &BTreeSet<&str>) -> Vec<Value> {
+    let catalogue = crate::authoring::relationship_schema(world);
+    let mut choices = vec![];
+    for template in catalogue["anyOf"].as_array().into_iter().flatten() {
+        let definition = world
+            .relation_types
+            .iter()
+            .find(|r| template["properties"]["typeId"]["const"] == r.id)
+            .unwrap();
+        // Share exact protected-property contracts, keeping saved targets and
+        // new connections distinct only when their planning values differ.
+        let fresh = link_properties(definition, None);
+        let mut groups = BTreeMap::from([(fresh.to_string(), (fresh, vec![], true))]);
+        for edge in world.edges.iter().filter(|e| {
+            scoped.contains(e.source_id.as_str()) && scoped.contains(e.target_id.as_str())
+        }) {
+            if edge.type_id != definition.id && has_planning_link_values(world, edge) {
+                continue;
+            }
+            let fields =
+                link_properties(definition, (edge.type_id == definition.id).then_some(edge));
+            groups
+                .entry(fields.to_string())
+                .or_insert_with(|| (fields, vec![], false))
+                .1
+                .push(edge.id.clone());
+        }
+        for (_, (properties, ids, new_alias)) in groups {
+            let mut variant = template.clone();
+            variant["properties"]["id"] = reference(ids, new_alias).unwrap();
+            variant["properties"]["sourceId"] =
+                endpoint_reference(world, definition.source_capability.as_deref());
+            variant["properties"]["targetId"] =
+                endpoint_reference(world, definition.target_capability.as_deref());
+            if properties["required"]
+                .as_array()
+                .is_some_and(|p| !p.is_empty())
+            {
+                variant["required"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!("properties"));
+            }
+            variant["properties"]["properties"] = properties;
+            choices.push(variant);
+        }
+    }
+    choices
+}
+
 pub(super) fn effects_schema(world: &World) -> Value {
     let quote = json!({"type":"string","minLength":8,"maxLength":600,"description":"Copy one continuous excerpt verbatim from the current supplied prose. Preserve words, capitalization and punctuation; no inserted ellipses, joined excerpts or earlier-passage quotes."});
+    let excerpts =
+        json!({"type":"array","minItems":1,"maxItems":4,"uniqueItems":true,"items":quote});
     let nodes = nodes(world);
-    let put_nodes = (!nodes.is_empty()).then(|| json!({"type":"object","properties":{"kind":{"const":"putNode"},"node":{"anyOf":nodes},"evidence":quote},"required":["kind","node","evidence"],"additionalProperties":false}));
+    let put_nodes = (!nodes.is_empty()).then(|| json!({"type":"object","properties":{"kind":{"const":"putNode"},"node":{"anyOf":nodes},"evidence":excerpts},"required":["kind","node","evidence"],"additionalProperties":false}));
     let node_ids = reference(world.nodes.iter().map(|n| n.id.clone()), true).unwrap();
     let scoped: BTreeSet<_> = world.nodes.iter().map(|n| n.id.as_str()).collect();
     let link_ids: Vec<_> = world
@@ -196,25 +280,9 @@ pub(super) fn effects_schema(world: &World) -> Value {
         .filter(|e| scoped.contains(e.source_id.as_str()) && scoped.contains(e.target_id.as_str()))
         .map(|e| e.id.clone())
         .collect();
-    let mut links = crate::authoring::relationship_schema(world);
-    let put_links = if let Some(variants) = links.get_mut("anyOf").and_then(Value::as_array_mut) {
-        for v in variants {
-            let relation = v["properties"]["typeId"]["const"]
-                .as_str()
-                .and_then(|id| world.relation_types.iter().find(|r| r.id == id));
-            v["properties"]["id"] = reference(link_ids.clone(), true).unwrap();
-            v["properties"]["sourceId"] =
-                endpoint_reference(world, relation.and_then(|r| r.source_capability.as_deref()));
-            v["properties"]["targetId"] =
-                endpoint_reference(world, relation.and_then(|r| r.target_capability.as_deref()));
-        }
-        Some(
-            json!({"type":"object","properties":{"kind":{"const":"putLink"},"link":links,"evidence":quote},"required":["kind","link","evidence"],"additionalProperties":false}),
-        )
-    } else {
-        None
-    };
-    let remove_links = reference(link_ids, false).map(|ids|json!({"type":"object","properties":{"kind":{"const":"removeLink"},"id":ids,"evidence":quote},"required":["kind","id","evidence"],"additionalProperties":false}));
+    let links = links(world, &scoped);
+    let put_links = (!links.is_empty()).then(|| json!({"type":"object","properties":{"kind":{"const":"putLink"},"link":{"anyOf":links},"evidence":excerpts},"required":["kind","link","evidence"],"additionalProperties":false}));
+    let remove_links = reference(link_ids, false).map(|ids|json!({"type":"object","properties":{"kind":{"const":"removeLink"},"id":ids,"evidence":excerpts},"required":["kind","id","evidence"],"additionalProperties":false}));
     let mut schema = json!({"type":"object","properties":{
         "changes":{"type":"object","properties":{
             "putNodes":operation_array(put_nodes),

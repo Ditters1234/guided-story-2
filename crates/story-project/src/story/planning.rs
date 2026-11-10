@@ -73,11 +73,14 @@ impl Project {
         let included = crate::knowledge::resolve_narrative_context(&world, task, plan)?;
         let mut system = settings.system_prompt(task);
         input["planKind"] = json!(kind);
-        // Optional history fits after the selected scene facts and required bindings.
+        // The exact latest ending is a required handoff. Older memory and
+        // additional excerpts fit after scene facts, bindings and output.
         let mut recent = input["recentPassages"].take();
         let input_fields = input.as_object_mut().ok_or("Invalid planning context.")?;
-        input_fields.remove("earlierMemory");
         input_fields.remove("recentPassages");
+        if input["earlierMemory"]["coverage"]["olderPassages"].as_u64() == Some(0) {
+            input.as_object_mut().unwrap().remove("earlierMemory");
+        }
         append_ai_context(&included, &mut system, &mut input);
         scene_context::project_records(&context, plan, &mut input, true);
         let excluded = crate::knowledge::excluded_claims(&world, plan);
@@ -94,6 +97,19 @@ impl Project {
         if !fits(&user) {
             return Err("Required planning context exceeds the configured budget. Narrow scene references or shorten included guidance.".into());
         }
+        let available_bytes = (settings.context_tokens.saturating_sub(output_tokens + 256)
+            as usize)
+            .saturating_mul(3);
+        let memory_budget = available_bytes
+            .saturating_sub(system.len() + user.len() + 128)
+            .min(default_memory_budget() as usize) as u32;
+        if memory_budget > 0 && input.get("earlierMemory").is_some() {
+            let (_, _, expanded, _, _) =
+                self.draft_input_budget(&draft, settings, memory_budget)?;
+            input["earlierMemory"] = expanded["earlierMemory"].clone();
+            crate::knowledge::scrub_references(&mut input, &excluded);
+            user = input.to_string();
+        }
         let mut excerpts = vec![];
         for entry in recent.as_array().into_iter().flatten().rev() {
             let prose = entry["prose"].as_str().unwrap_or_default();
@@ -101,7 +117,8 @@ impl Project {
             excerpts.insert(
                 0,
                 json!({"id":entry["id"],"version":entry["version"],"chapterRelation":entry["chapterRelation"],
-                    "title":entry["title"],"endingExcerpt":&prose[start..]}),
+                    "title":entry["title"],"endingExcerpt":&prose[start..],"notes":entry["notes"],
+                    "evidenceFromEarlierWording":entry["evidenceFromEarlierWording"]}),
             );
             input["recentPassages"] = json!(excerpts);
             let expanded = input.to_string();
@@ -109,6 +126,9 @@ impl Project {
                 break;
             }
             user = expanded;
+        }
+        if !fits(&user) {
+            return Err("Required planning context exceeds the configured budget. Narrow scene references or shorten included guidance.".into());
         }
         let demo = match kind {
             PlanFillKind::Scene => "Give the viewpoint character a small decision tied to their present surroundings. End when they commit to a next step.",

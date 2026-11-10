@@ -11,6 +11,8 @@
         "description": "A coeducational four-grade high school serving roughly 1,000 students. Its two-storey academic wing, shared activity spaces and gym frame a sheltered courtyard. The school is known as the Westbridge Hawks; navy blue and silver appear on its signs, sports uniforms and awards, without dominating every room.",
         "visualDescription": "Pale buff brick, generous full-height glazing, warm timber soffits and navy directional signs create a modern, well-maintained campus. A narrow blue tile line leads across the bright atrium toward the courtyard; a restrained silver hawk crest appears beside the entrance. A rain garden softens the front approach.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Secondary education, independent study, clubs, athletics, performances, student services and community events.",
             "layout": "From the south, a student-and-staff parking lot connects by walkway to the front plaza and glazed atrium. Academic corridors extend east, with a stair to a second floor of additional classrooms; the library and administrative suite are west-front. The auditorium, music room and cafeteria open from rear passages. North-facing atrium doors lead to a courtyard, whose enclosed north connector reaches the gym; a controlled path continues to the outdoor field. Only representative rooms are mapped.",
@@ -18,6 +20,12 @@
             "routines": "Before school the parking lot and plaza fill, lockers open and morning notices appear. Short, crowded class changes punctuate teaching periods; students spread between cafeteria, courtyard and library at lunch. Clubs, band rehearsals and Hawks practices continue after the final bell.",
             "resources": "Teaching rooms, lockers, library, student services, cafeteria, auditorium, music and art rooms, science lab, gym, changing rooms, field, accessible lift and the posted school calendar.",
             "obstacles": "Bell-time crowding affects corridors, stairs and doorways. Facilities may be reserved, supervised or locked outside scheduled use; ordinary classrooms and service spaces beyond the named examples exist without individual map nodes."
+          },
+          "detail.design": {
+            "form": "Contemporary two-storey school campus with glazed atrium and open courtyard.",
+            "materials": "Pale buff brick, full-height glazing and timber soffits",
+            "colours": "Buff, navy blue and silver",
+            "distinctive": "Thin blue atrium tile line, silver hawk crest and front rain garden"
           }
         }
       },
@@ -29,6 +37,8 @@
         "description": "An ordinary paved parking area for student drivers, staff vehicles and after-school event parking, separated from the bus curb and main pedestrian plaza.",
         "visualDescription": "Marked asphalt bays, a few small planted islands, bicycle warning signs and navy-and-silver WESTBRIDGE HAWKS directional markers flank a sidewalk leading toward the glass entrance.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Parking, arrivals, departures and meeting rides.",
             "layout": "Southwest of the front plaza, a marked pedestrian walkway leads from the parking bays to the plaza. A vehicle driveway meets the public street; the bus drop-off curb is on the separate plaza side. The school entrance is visible beyond the front plaza, but pedestrians must follow the marked walkway rather than crossing the bus curb.",
@@ -36,6 +46,12 @@
             "routines": "Mostly fills before first bell, thins during the afternoon and becomes busy at dismissal or evening games.",
             "resources": "Marked parking spaces, lighting, accessible bays, pedestrian walkway, bike-warning signs and waste bins.",
             "obstacles": "Slow-moving vehicles, poor visibility between parked cars and winter snowbanks complicate walking routes."
+          },
+          "detail.design": {
+            "form": "Marked asphalt bays, a few small planted islands, bicycle warning signs and navy-and-silver WESTBRIDGE HAWKS directional markers flank a sidewalk leading toward the glass entrance.",
+            "materials": "Asphalt bays, planted islands and pedestrian sidewalk",
+            "colours": "Asphalt grey, navy and silver",
+            "distinctive": "Westbridge Hawks signs beside the parking walkway"
           }
         }
       },
@@ -47,6 +63,8 @@
         "description": "A broad pedestrian approach to the school entrance, busy with arriving students, bikes and people meeting before and after classes.",
         "visualDescription": "Pale concrete pavers, low timber benches, bicycle hoops and a planted rain garden sit below the glass atrium. Navy lettering spells WESTBRIDGE HIGH SCHOOL beneath a small silver hawk emblem.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Arrivals, departures, informal meetings and waiting for pickup.",
             "layout": "The main doors face south across the plaza. A pedestrian walkway runs southwest to the adjacent student-and-staff parking lot, and another path meets the public sidewalk and bus drop-off curb. The plaza doors lead directly into the entrance atrium; delivery vehicles have no route through it.",
@@ -54,6 +72,12 @@
             "routines": "Students gather here before the first bell, then disperse into classes. At dismissal, bikes roll out, school buses load at the curb and students wait for rides or walk to the parking lot.",
             "resources": "Bike hoops, benches, exterior school sign, covered doorway, accessible ramp and sheltered waiting spot.",
             "obstacles": "People on foot and bicycles converge at the entrance; snow, ice or wet paving can make the approach slippery."
+          },
+          "detail.design": {
+            "form": "Pale concrete pavers, low timber benches, bicycle hoops and a planted rain garden sit below the glass atrium.",
+            "materials": "Concrete pavers and timber benches",
+            "colours": "Pale concrete, navy and silver",
+            "distinctive": "Bicycle hoops, rain garden and school name under hawk emblem"
           }
         }
       },
@@ -65,6 +89,8 @@
         "description": "The two-storey entrance atrium and main social crossroads, connecting classrooms, administration, the library, performance and dining areas, and the courtyard.",
         "visualDescription": "Daylight falls onto pale terrazzo through two-storey glass. A thin blue floor line points toward the courtyard; suspended translucent panels float above the staircase. A glass-fronted trophy display holds Hawks awards, with a silver hawk crest on the wall beside rotating club and game posters.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Main circulation, visitor reception, announcements and casual student gathering.",
             "layout": "The secure vestibule and front plaza are south. Reception and the administrative passage are to the right, the library is left, and the classroom corridor opens to the east beside the main stair and lift. A rear-left passage serves the auditorium and music room; a rear-right passage reaches the cafeteria. Glazed north doors open to the courtyard. The courtyard benches and three silver birches are visible through the north glazing; the doors, not the windows, provide the outside route.",
@@ -72,6 +98,12 @@
             "routines": "Students converge to meet friends and check notices before the bell. Clubs advertise activities on the board; Hawks scores and school announcements rotate on the screen. Traffic ebbs during lessons.",
             "resources": "Reception counter, accessible lift, trophy display, public noticeboard, digital announcement screen, benches, drinking fountain and directional signs. A thin blue tile line across the atrium, silver Hawks emblem, and navy-and-silver event displays identify the school.",
             "obstacles": "The stairs, classroom doors and reception area pinch at class changes; conversations echo across the high glass-lined space."
+          },
+          "detail.design": {
+            "form": "Daylight falls onto pale terrazzo through two-storey glass.",
+            "materials": "Terrazzo floor, two-storey glazing and clear display cases",
+            "colours": "Pale terrazzo, navy blue and silver",
+            "distinctive": "Blue floor line, hanging translucent panels, trophy case and crest"
           }
         }
       },
@@ -83,6 +115,8 @@
         "description": "The broad stair and mezzanine that link the atrium to the second-floor teaching corridors. The upper level contains ordinary rooms that are not mapped individually.",
         "visualDescription": "Pale oak handrails and grey treads with navy-blue edge strips rise behind a clear balustrade. The atrium’s hanging translucent panels are visible from the landing.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Movement between floors and short pauses between classes.",
             "layout": "A broad stair rises from the east side of the atrium beside the classroom-corridor entrance to a mezzanine and unmapped upstairs teaching corridors. A lift beside the lower stair provides step-free access.",
@@ -90,17 +124,25 @@
             "routines": "Class-change traffic moves both ways; the upper window seats are sometimes used for reading or quiet conversations at break.",
             "resources": "Handrails, lift access, wall clock, directional signs and a few recessed window seats.",
             "obstacles": "During class changes the stair is crowded, and voices on the upper landing can be heard from the atrium below."
+          },
+          "detail.design": {
+            "form": "Pale oak handrails and grey treads with navy-blue edge strips rise behind a clear balustrade.",
+            "materials": "Pale oak handrails, grey stair treads and clear balustrade",
+            "colours": "Grey with navy-blue edge strips",
+            "distinctive": "Hanging atrium panels remain visible from the landing"
           }
         }
       },
       {
         "key": "wing",
         "typeId": "core.place",
-        "name": "Classroom corridor",
-        "parent": "hall",
-        "description": "The principal ground-floor teaching corridor, lined with student lockers and connecting a representative classroom, separate student washrooms, art, science and the courtyard.",
+        "name": "Academic wing and classroom corridor",
+        "parent": "school",
+        "description": "The ground-floor academic wing, with its main locker-lined corridor and adjacent teaching rooms, separate student washrooms, art studio and science laboratory, connects the atrium to the courtyard.",
         "visualDescription": "Tall windows illuminate pale-grey lockers with navy number plates. Classroom doors have glazed sidelights; club flyers, exam notices and student art cluster around the drinking fountain, while the floors remain visibly clean and regularly maintained.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Connecting teaching rooms and providing student storage.",
             "layout": "Enter through the east atrium doors. Near the entrance are the general classroom and two separately signed student washrooms. The art studio is midway along the courtyard-facing side, and the science lab is near the north end. A glazed door at the end opens to the courtyard. Additional classrooms branch off this corridor but are not mapped.",
@@ -108,6 +150,12 @@
             "routines": "Students stop at lockers between classes, queue outside teaching rooms and read club notices; the corridor is relatively quiet during lessons.",
             "resources": "Student lockers, corridor notice strips, water fountain, recycling bins, charging shelf and wayfinding signs.",
             "obstacles": "Open locker doors and groups waiting outside rooms reduce walking space during bells; conversations are easily overheard."
+          },
+          "detail.design": {
+            "form": "Tall windows illuminate pale-grey lockers with navy number plates.",
+            "materials": "Metal locker banks, windows and glazed door sidelights",
+            "colours": "Pale grey with navy number plates",
+            "distinctive": "Student artwork, club flyers and exam notices along the corridor"
           }
         }
       },
@@ -119,6 +167,8 @@
         "description": "A representative high-school classroom used for literature, mathematics, social studies, exam preparation and clubs; the building has many more ordinary classrooms that are not individually mapped.",
         "visualDescription": "Large windows face the courtyard above rearrangeable pale-wood desks. A broad whiteboard, interactive display and navy-edged bulletin board give the room a practical, familiar appearance.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Routine lessons, group work, tutoring and after-school clubs.",
             "layout": "The entrance opens near the beginning of the classroom corridor. Desk groups face the teaching wall, and a lockable supply cupboard sits along the corridor-side wall. Tall windows overlook the courtyard planting beds and paths; there is no direct classroom exit outdoors.",
@@ -126,6 +176,12 @@
             "routines": "Different classes use the room across the day. Desks shift between lectures, group projects and tests, and student work remains displayed until the next project cycle.",
             "resources": "Rearrangeable desks, whiteboard, interactive display, school supplies, reference materials and a shared projector.",
             "obstacles": "Furniture and bags can block sightlines when groups form; noise from passing classes filters through the corridor door."
+          },
+          "detail.design": {
+            "form": "Large windows face the courtyard above rearrangeable pale-wood desks.",
+            "materials": "Pale-wood movable desks and broad glazed windows",
+            "colours": "Pale wood and navy trim",
+            "distinctive": "Interactive display and navy-edged bulletin board"
           }
         }
       },
@@ -137,6 +193,8 @@
         "description": "A standard student washroom near the beginning of the academic corridor, with a short privacy entry, toilet stalls and sinks.",
         "visualDescription": "Pale tiled walls, charcoal stall partitions, long mirrors, stainless fixtures and a small navy wall sign. Frosted high windows admit daylight.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Student toilet and handwashing facilities.",
             "layout": "One signed entrance opens directly off the classroom corridor near the general classroom. A short angled entry screens the sinks and stalls from the hall; no internal connection leads to the girls’ washroom.",
@@ -144,6 +202,12 @@
             "routines": "Quiet during most lessons, busier at breaks and lunch; custodial checks occur on a regular schedule.",
             "resources": "Toilet stalls, sinks, mirrors, soap and paper dispensers, hand dryers and waste bins.",
             "obstacles": "The narrow entry can become crowded between bells; tiled surfaces make noise carry."
+          },
+          "detail.design": {
+            "form": "Pale tiled walls, charcoal stall partitions, long mirrors, stainless fixtures and a small navy wall sign.",
+            "materials": "Tiled walls, metal fixtures and stall partitions",
+            "colours": "Pale tile, charcoal and navy",
+            "distinctive": "High frosted windows and long mirrors"
           }
         }
       },
@@ -155,6 +219,8 @@
         "description": "A separate, conventional student washroom near the beginning of the academic corridor, with toilets, sinks and mirrors.",
         "visualDescription": "Pale tile, charcoal stall doors, a long wall mirror, stainless sinks and a navy room sign match the school’s clean contemporary finishes.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Student toilet and handwashing facilities.",
             "layout": "A separate signed door opens off the classroom corridor opposite and slightly farther north than the boys’ washroom. An angled entry leads to sinks and private stalls; there is no door joining the two washrooms.",
@@ -162,6 +228,12 @@
             "routines": "Students visit at breaks, lunch and between lessons, while routine custodial checks are scheduled during quieter periods.",
             "resources": "Toilet stalls, sinks, mirrors, soap and paper dispensers, hand dryers and waste bins.",
             "obstacles": "Queues can extend toward the corridor at busy times; the room has limited conversational privacy."
+          },
+          "detail.design": {
+            "form": "Pale tile, charcoal stall doors, a long wall mirror, stainless sinks and a navy room sign match the school’s clean contemporary finishes.",
+            "materials": "Tile, metal sinks and stall partitions",
+            "colours": "Pale tile, charcoal and navy",
+            "distinctive": "Long wall mirror and signed entrance"
           }
         }
       },
@@ -173,6 +245,8 @@
         "description": "A supervised practical room for demonstrations and student experiments, with a small preparation alcove reserved for staff.",
         "visualDescription": "White worktops with charcoal sink basins, slate-blue stools, glass-fronted equipment cupboards and high windows make the laboratory bright and uncluttered. A blue safety placard hangs by the door.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Science instruction, demonstrations and supervised practical experiments.",
             "layout": "A single student entrance opens near the far end of the classroom corridor. Island benches occupy the centre; sinks and a demonstration station run along the outer wall. A lockable preparation alcove is behind the teaching station.",
@@ -180,6 +254,12 @@
             "routines": "Lessons alternate between desk work and practical setups; equipment is checked and returned after each session.",
             "resources": "Microscopes, measuring equipment, sinks, washable safety goggles, eye-wash station, demonstration display and locked chemical storage.",
             "obstacles": "Benches limit free movement, and active experiments require clear aisles and safety procedures."
+          },
+          "detail.design": {
+            "form": "White worktops with charcoal sink basins, slate-blue stools, glass-fronted equipment cupboards and high windows make the laboratory bright and uncluttered.",
+            "materials": "White worktops, sink basins and glass-fronted cupboards",
+            "colours": "White, charcoal and slate blue",
+            "distinctive": "Blue safety placard beside the laboratory door"
           }
         }
       },
@@ -191,6 +271,8 @@
         "description": "A flexible arts classroom where students can paint, build models, make posters and prepare displays for the rest of the school.",
         "visualDescription": "North-facing windows light long worktables, drying racks and shelves of sketchbooks. Brushes hang from pegboards beside a student-made mosaic in blues and earth tones.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Visual arts lessons, making projects, and preparing school displays.",
             "layout": "The art studio opens from the middle of the classroom corridor; tables occupy the centre, with sinks and drying racks at the far wall and secure tool storage by the teaching station.",
@@ -198,6 +280,12 @@
             "routines": "Works in progress stay on labelled racks; student displays rotate through the atrium and hallway.",
             "resources": "Worktables, easels, sinks, paper cutters, drying racks, basic art supplies and lockable cupboards.",
             "obstacles": "Wet work needs drying space and clear tabletops; the room can smell faintly of paint even after cleanup."
+          },
+          "detail.design": {
+            "form": "North-facing windows light long worktables, drying racks and shelves of sketchbooks.",
+            "materials": "Long worktables, pegboards and drying racks",
+            "colours": "Blues and earth tones in the student mosaic",
+            "distinctive": "North-facing windows and student-made mosaic"
           }
         }
       },
@@ -205,10 +293,12 @@
         "key": "library",
         "typeId": "core.place",
         "name": "Library and media centre",
-        "parent": "hall",
+        "parent": "school",
         "description": "A daylight-filled library and media centre with books, study booths, a browsing area for student publications and room for both quiet work and small group projects.",
         "visualDescription": "Low pale-oak shelves preserve sightlines to the courtyard windows. Blue upholstered reading seats surround a curved borrowing desk, and glass-fronted study booths line the quieter wall. A small display shelf holds school yearbooks and copies of the student newspaper.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Reading, research, individual study and supervised group work.",
             "layout": "Enter from the west side of the atrium opposite reception. The circulation desk faces the entrance; lending shelves fill the centre, while study booths and computer desks sit by the north windows. A student-publications shelf is near the desk. North-facing windows overlook the courtyard, but the library entrance remains on the atrium side.",
@@ -216,6 +306,12 @@
             "routines": "Early arrivals take the window seats before classes; lunch brings readers and students finishing assignments. After school, project groups, tutors and students preparing for exams use the study booths.",
             "resources": "Lending collection, yearbook and school newspaper shelf, catalogue computers, printers, research terminals, study booths and returns cart.",
             "obstacles": "The open study tables offer little conversation privacy, and booked booths are often in demand near deadlines."
+          },
+          "detail.design": {
+            "form": "Low pale-oak shelves preserve sightlines to the courtyard windows.",
+            "materials": "Pale-oak shelving and glazed study booths",
+            "colours": "Pale oak and blue upholstery",
+            "distinctive": "Curved lending desk and student-publications display"
           }
         }
       },
@@ -223,10 +319,12 @@
         "key": "office",
         "typeId": "core.place",
         "name": "School office and reception",
-        "parent": "hall",
+        "parent": "school",
         "description": "The public reception and working administrative office handling attendance, visitors, messages, announcements and student inquiries.",
         "visualDescription": "A wide glass reception panel overlooks the atrium. Behind it sit tidy desks, attendance screens, letter trays and an intercom microphone, with navy appointment cards on the counter.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Administration, attendance, visitor management and staff communication.",
             "layout": "The reception window faces the atrium on the right side of the main entrance. A staff-only door leads behind the counter to the office and a short administrative passage with distinct doors for the principal, guidance office, health room and staff room.",
@@ -234,6 +332,12 @@
             "routines": "Morning attendance and late slips occupy reception after the first bell. Throughout the day staff handle calls, announcements, forms and requests for guidance or health services.",
             "resources": "Phones, computers, attendance system, visitor sign-in, school intercom, desk microphone, staff-held keys, filing storage and routine forms.",
             "obstacles": "Queues form at arrival, lunch and dismissal; confidential conversations cannot happen at the public counter."
+          },
+          "detail.design": {
+            "form": "A wide glass reception panel overlooks the atrium.",
+            "materials": "Glass reception panel and working desks",
+            "colours": "Navy appointment cards",
+            "distinctive": "Attendance screens, intercom microphone and letter trays"
           }
         }
       },
@@ -245,6 +349,8 @@
         "description": "The high-school principal’s modest private office, used for meetings with students, teachers and families, including discipline and school-event planning.",
         "visualDescription": "A plain timber desk, visitor chairs and framed student artwork face a window toward the front rain garden. A small framed navy-and-silver Hawks pennant sits on a shelf, not as a dominant decoration.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Private school leadership meetings, disciplinary discussions and parent conferences.",
             "layout": "The office door opens off the administrative passage behind reception. The desk faces a small seating area; a locked cabinet sits along the interior wall.",
@@ -252,6 +358,12 @@
             "routines": "Brief staff check-ins occur between lessons; longer meetings are usually scheduled outside class-change periods.",
             "resources": "Desk, visitor seating, school calendar, computer, secure files and conference speaker.",
             "obstacles": "Sound carries into the administrative passage if the door is open, and unplanned visits may have to wait."
+          },
+          "detail.design": {
+            "form": "A plain timber desk, visitor chairs and framed student artwork face a window toward the front rain garden.",
+            "materials": "Timber desk, visitor chairs and artwork",
+            "colours": "Navy and silver in a small Hawks pennant",
+            "distinctive": "Window toward the rain garden and framed student art"
           }
         }
       },
@@ -263,6 +375,8 @@
         "description": "A quiet office for academic counselling, course selection, university or employment planning and private student conversations.",
         "visualDescription": "Two soft chairs and a modest desk stand beside a wall of course guides, application calendars and college brochures; frosted glass provides light without opening the room to the hall.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Student advising, course planning and confidential meetings.",
             "layout": "A dedicated door opens from the administrative passage behind reception, separate from the health room and principal’s office. A small conversation area faces the desk; records are stored in a lockable cabinet.",
@@ -270,6 +384,11 @@
             "routines": "Students come for course requests, timetable changes and planning meetings; some drop-ins are handled between scheduled appointments.",
             "resources": "Course guides, application information, computer, seating, paper forms and secure student files.",
             "obstacles": "Appointments can fill near course-registration deadlines; conversations are interrupted if the door is left open."
+          },
+          "detail.design": {
+            "form": "Two soft chairs and a modest desk stand beside a wall of course guides, application calendars and college brochures; frosted glass provides light without opening the room to the hall.",
+            "materials": "Soft seating, desk and frosted glass",
+            "distinctive": "Course guides, application calendars and college brochures"
           }
         }
       },
@@ -281,6 +400,8 @@
         "description": "A small student health room for minor injuries, illness and short rests while an authorized staff member arranges appropriate care.",
         "visualDescription": "Clean white cupboards, a sink, examination cot and folding privacy screen sit under soft daylight from frosted lower windows. A navy-blue curtain can screen the cot from the doorway.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Basic first aid, assessment of minor illness and temporary rest.",
             "layout": "A separate door opens from the administrative passage behind reception. A small waiting chair sits by the entrance; the cot and sink are farther inside, with locked supplies along the interior wall.",
@@ -288,6 +409,12 @@
             "routines": "Students visit for everyday ailments or minor injuries throughout the day; the cot is reset between uses and supplies are checked routinely.",
             "resources": "First-aid supplies, examination cot, sink, clean water, tissues, disposable gloves and locked storage.",
             "obstacles": "The room has limited space for several visitors at once, and privacy requires the door to remain closed during assessment."
+          },
+          "detail.design": {
+            "form": "Clean white cupboards, a sink, examination cot and folding privacy screen sit under soft daylight from frosted lower windows.",
+            "materials": "Cupboards, examination cot, sink and folding screen",
+            "colours": "White with a navy curtain",
+            "distinctive": "Cot screened from the doorway"
           }
         }
       },
@@ -299,6 +426,8 @@
         "description": "A comfortable but functional room for staff breaks, brief planning sessions and informal conversations away from student circulation.",
         "visualDescription": "Pale cabinets, a long light-wood table, soft grey seats and a wall of staff pigeonholes sit beneath windows overlooking the front plaza. A crowded mug shelf is its most personal feature.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Staff breaks, preparation, informal meetings and coordination.",
             "layout": "A door from the staff-only administrative passage behind reception opens to the kitchenette and shared table; pigeonholes and lockers line the far wall. Students do not use it as a shortcut.",
@@ -306,6 +435,12 @@
             "routines": "Coffee and briefings happen before the first bell; staff rotate through at breaks and gather for short after-school meetings.",
             "resources": "Kitchenette, refrigerator, microwave, kettle, worktable, staff pigeonholes, lockers and shared notices.",
             "obstacles": "The room becomes crowded during breaks, and conversations are not acoustically private."
+          },
+          "detail.design": {
+            "form": "Pale cabinets, a long light-wood table, soft grey seats and a wall of staff pigeonholes sit beneath windows overlooking the front plaza.",
+            "materials": "Cabinets, long wood table and grey chairs",
+            "colours": "Pale finishes and soft grey",
+            "distinctive": "Staff pigeonholes and crowded mug shelf"
           }
         }
       },
@@ -313,10 +448,12 @@
         "key": "auditorium",
         "typeId": "core.place",
         "name": "Auditorium",
-        "parent": "hall",
+        "parent": "school",
         "description": "A compact theatre and assembly hall used for school plays, band concerts, presentations, debates, awards and community events.",
         "visualDescription": "Retractable tiered seating faces a low black stage framed by navy curtains. Pale acoustic timber panels and adjustable high-window blinds keep the room bright or dark as needed. A small Hawks banner hangs by the side entrance.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Assemblies, performances, guest presentations and evening events.",
             "layout": "Double doors open off the rear-left activity passage from the atrium. Rows of seats face a raised stage; a side stage door leads directly to a separately mapped backstage area, and a lockable control booth overlooks the seats.",
@@ -324,6 +461,12 @@
             "routines": "Assemblies interrupt the usual class schedule, while drama rehearsals, concerts and club events often happen after school.",
             "resources": "Stage, retractable seating, sound system, projection screen, microphones, lighting controls and side-stage access.",
             "obstacles": "Sound carries into the rear passage; extended seating limits how equipment can be moved across the room."
+          },
+          "detail.design": {
+            "form": "Retractable tiered seating faces a low black stage framed by navy curtains.",
+            "materials": "Retractable tiered seating, stage and acoustic timber panels",
+            "colours": "Black stage and navy curtains",
+            "distinctive": "High-window blinds and small Hawks banner"
           }
         }
       },
@@ -335,6 +478,8 @@
         "description": "A narrow but useful backstage area for actors, musicians and stage crew, with prop storage and direct access to the auditorium stage.",
         "visualDescription": "Black-painted walls, masking curtains, labelled prop shelves, costume rails, a lighted mirror and a scuffed rolling trunk fill the working area.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Stage preparation, props, costumes, scene changes and rehearsal support.",
             "layout": "A side-stage door opens directly from the auditorium stage into the backstage work zone. A second controlled door reaches the rear-left activity passage so crew members can enter without crossing the audience.",
@@ -342,6 +487,12 @@
             "routines": "Used for setup and costume checks before rehearsals or performances; crew members return props to labelled places afterward.",
             "resources": "Costume rail, make-up mirror, prop shelves, rolling prop trunk, work lights, tape marks and stage access.",
             "obstacles": "Narrow passages and stored scenery make movement awkward; noise or light behind the curtain can reach the stage."
+          },
+          "detail.design": {
+            "form": "Black-painted walls, masking curtains, labelled prop shelves, costume rails, a lighted mirror and a scuffed rolling trunk fill the working area.",
+            "materials": "Painted walls, masking curtains and rolling storage",
+            "colours": "Black walls",
+            "distinctive": "Costume rails, prop shelves and lighted mirror"
           }
         }
       },
@@ -349,10 +500,12 @@
         "key": "music",
         "typeId": "core.place",
         "name": "Music room",
-        "parent": "hall",
+        "parent": "school",
         "description": "A well-used teaching and rehearsal room for band, choir, small ensembles and music clubs.",
         "visualDescription": "Tall windows face the courtyard. Black music stands, a slightly worn upright piano, instrument lockers and pale acoustic wall panels fill the room, with a neat row of student concert posters by the door.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Music instruction, rehearsals, practice and storage of school instruments.",
             "layout": "The rear-left activity passage from the atrium leads past the auditorium to the music-room door. Chairs and stands occupy the central floor; instrument racks line the inner wall, with two small supervised practice booths at the far end.",
@@ -360,6 +513,12 @@
             "routines": "Classes rehearse during the day; band and choir meet for extra practice after school, especially before concerts.",
             "resources": "Piano, sheet music, instruments, stands, chairs, metronomes, acoustic panels and practice booths.",
             "obstacles": "Playing can be heard in the adjacent passage; instruments and stands need clearing to change between ensembles."
+          },
+          "detail.design": {
+            "form": "Tall windows face the courtyard.",
+            "materials": "Acoustic wall panels, stands and instrument lockers",
+            "colours": "Black stands and pale panels",
+            "distinctive": "Upright piano, courtyard windows and student concert posters"
           }
         }
       },
@@ -367,10 +526,12 @@
         "key": "dining",
         "typeId": "core.place",
         "name": "Cafeteria",
-        "parent": "hall",
+        "parent": "school",
         "description": "The bright main cafeteria, used for lunch, informal conversation, student-club meetings and occasional school events.",
         "visualDescription": "Floor-to-ceiling windows face the courtyard above rows of movable tables. Navy acoustic baffles hang over the serving line, while a large student-painted mural of the nearby river fills one wall. A modest Hawks athletics poster is pinned beside the lunch menu.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Lunch service, social time and flexible school gatherings.",
             "layout": "A passage from the atrium’s rear-right side leads in. The serving line and staff-only kitchen hatch run along the west wall, while north-facing doors open to the courtyard. Tables fill the centre; an alcove accommodates vending machines and notice stands. The courtyard can be seen through the north windows; the nearby double doors provide the outdoor access.",
@@ -378,6 +539,12 @@
             "routines": "Students arrive in lunch waves, meet friends and carry trays to tables. Staff clean and reset the space afterward; some clubs use a corner after school.",
             "resources": "Serving counter, tables, chairs, menu boards, drinking-water station, waste sorting, vending alcove and student poster stands. A student-painted river mural fills one wall, alongside ordinary school notices and Hawks athletics posters.",
             "obstacles": "Queueing students and trays create pinch points during lunch, while large glass surfaces make the room lively and noisy."
+          },
+          "detail.design": {
+            "form": "Floor-to-ceiling windows face the courtyard above rows of movable tables.",
+            "materials": "Movable tables, floor-to-ceiling glazing and acoustic baffles",
+            "colours": "Navy baffles and school notices",
+            "distinctive": "Student-painted river mural and menu board"
           }
         }
       },
@@ -389,6 +556,8 @@
         "description": "The food preparation and service area behind the cafeteria's counter, with delivery access separate from student routes.",
         "visualDescription": "Bright white tile, stainless counters, clearly labelled food storage and an uninterrupted line of ventilation hoods give it an efficient, clean look.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Preparing and serving school meals.",
             "layout": "The serving counter and hatch face the cafeteria; a locked staff-side door stands beside the counter. A separate exterior delivery entrance meets the rear service lane and does not cross the courtyard or student parking.",
@@ -396,6 +565,12 @@
             "routines": "Morning preparation precedes lunch rotations; deliveries, dishwashing and sanitation follow separate routines.",
             "resources": "Commercial preparation benches, cookers, sinks, refrigerators, storage racks and food-service carts.",
             "obstacles": "Hot surfaces, busy workstations and moving carts require clear aisles; deliveries cannot use student corridors."
+          },
+          "detail.design": {
+            "form": "Bright white tile, stainless counters, clearly labelled food storage and an uninterrupted line of ventilation hoods give it an efficient, clean look.",
+            "materials": "White tile, stainless counters and labelled storage",
+            "colours": "White and stainless-steel grey",
+            "distinctive": "Uninterrupted food-service work line"
           }
         }
       },
@@ -403,10 +578,12 @@
         "key": "courtyard",
         "typeId": "core.place",
         "name": "Central courtyard",
-        "parent": "hall",
+        "parent": "school",
         "description": "A sheltered outdoor commons enclosed on three sides by school wings, linking the atrium, teaching corridor, cafeteria and gym.",
         "visualDescription": "Three silver birches grow from gravel islands among pale planter benches. Wide glazed walls mirror the sky; a narrow navy-blue paving strip continues the atrium’s floor line toward the gym connector.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Break-time socializing, outdoor lessons, informal gatherings and access to recreation.",
             "layout": "The atrium opens to the south side of the courtyard. The classroom-corridor rear door is east and the cafeteria doors are west. On the north side, a glazed, weather-protected indoor connector leads directly to the gym entry lobby; beside it, a controlled outdoor gate opens to the path toward the playing field.",
@@ -414,6 +591,12 @@
             "routines": "Before and after lessons students cross between wings. At lunch groups occupy the benches; in suitable weather classes use the planters for outdoor activities.",
             "resources": "Planter benches, paved gathering space, sheltered walkways, exterior event power and an assembly marker. Three silver birches, low benches and raised planting beds form familiar gathering spots.",
             "obstacles": "Rain and wind affect the exposed centre, and group conversations can echo under the covered edges."
+          },
+          "detail.design": {
+            "form": "Three silver birches grow from gravel islands among pale planter benches.",
+            "materials": "Gravel islands, glazed walls and planter benches",
+            "colours": "Pale planters and silver birch bark",
+            "distinctive": "Three silver birches at the centre of the courtyard"
           }
         }
       },
@@ -421,10 +604,12 @@
         "key": "gym",
         "typeId": "core.place",
         "name": "Gymnasium",
-        "parent": "courtyard",
+        "parent": "school",
         "description": "The main high-school gym for physical education, Hawks basketball and volleyball games, pep rallies, tournaments and assemblies.",
         "visualDescription": "A polished maple floor has navy boundary lines and a large silver hawk silhouette at centre court. Retractable bleachers, a digital scoreboard, navy wall padding and high ribbon windows give it a bright, recognizable school-sports atmosphere.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Indoor physical education, team practice, games and larger gatherings.",
             "layout": "A glazed indoor connector from the courtyard ends at the gym entry lobby. Doors ahead enter the court; separate doors off the same lobby lead into the boys’ and girls’ locker rooms, each with a second supervised doorway back to the gym. A locked equipment store and a controlled side exit to the field-side path adjoin the court.",
@@ -432,6 +617,12 @@
             "routines": "PE classes use the gym during teaching periods. Hawks teams practise after school, and bleachers extend for games, rallies and awards.",
             "resources": "Marked court, basketball hoops, volleyball fittings, scoreboard, retractable bleachers, mats, sports equipment store, water fountain and access to separate locker rooms. A silver hawk emblem marks centre court, with navy-and-silver school banners nearby.",
             "obstacles": "Hard surfaces amplify sound; extended bleachers and portable court dividers change circulation space, especially during events."
+          },
+          "detail.design": {
+            "form": "A polished maple floor has navy boundary lines and a large silver hawk silhouette at centre court.",
+            "materials": "Polished maple sports floor and marked boundaries",
+            "colours": "Maple, navy and silver",
+            "distinctive": "Large silver hawk silhouette at centre court"
           }
         }
       },
@@ -443,6 +634,8 @@
         "description": "A conventional changing room serving physical-education classes and school sports, with lockers, benches, showers and toilets.",
         "visualDescription": "Rows of navy metal lockers and pale wood benches stand under high frosted windows. Grey nonslip tile leads toward partitioned showers and toilet cubicles; a small Hawks schedule is pinned beside the exit.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Changing, securing belongings, showering and preparing for PE or team activities.",
             "layout": "A clearly signed door opens from the gym entry lobby. Locker banks and benches occupy the front half, with toilets and a screened shower area behind them. A separate inner door leads directly to the gym court side.",
@@ -450,6 +643,12 @@
             "routines": "Students change before and after PE; after-school teams use the room around practices and home games. Custodial staff clean it between activity blocks.",
             "resources": "Numbered lockers, benches, toilets, sinks, mirrors, screened showers, drinking fountain and hooks.",
             "obstacles": "Benches and open lockers narrow paths when classes arrive together; wet tile near showers requires care."
+          },
+          "detail.design": {
+            "form": "Rows of navy metal lockers and pale wood benches stand under high frosted windows.",
+            "materials": "Metal lockers, wooden benches and nonslip floor",
+            "colours": "Navy, pale wood and grey",
+            "distinctive": "Frosted windows above locker banks"
           }
         }
       },
@@ -461,6 +660,8 @@
         "description": "A separate full-size changing room for physical-education classes and school teams, equipped with lockers, benches, showers and toilets.",
         "visualDescription": "Navy locker banks face pale wood benches; bright overhead panels, frosted windows and grey nonslip tiles match the adjoining changing facilities. A whiteboard lists practice schedules.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Changing, personal storage, showering and preparation for PE or athletic events.",
             "layout": "A separate signed door opens from the gym entry lobby, away from the boys’ room entrance. Locker banks line the main changing area; toilets and screened showers occupy the rear. A second supervised door leads into the gym itself.",
@@ -468,6 +669,12 @@
             "routines": "Busy before and after PE periods and team practices; students store belongings in assigned lockers and staff reset supplies regularly.",
             "resources": "Numbered lockers, benches, toilets, sinks, mirrors, screened showers and coat hooks.",
             "obstacles": "The room grows crowded at team changeovers; damp floor near showers and open locker doors complicate movement."
+          },
+          "detail.design": {
+            "form": "Navy locker banks face pale wood benches; bright overhead panels, frosted windows and grey nonslip tiles match the adjoining changing facilities.",
+            "materials": "Lockers, benches and nonslip floor",
+            "colours": "Navy, pale wood and grey",
+            "distinctive": "Bright ceiling panels and frosted windows"
           }
         }
       },
@@ -475,10 +682,12 @@
         "key": "field",
         "typeId": "core.place",
         "name": "Outdoor playing field",
-        "parent": "courtyard",
+        "parent": "school",
         "description": "The outdoor school sports grounds with an open multipurpose field, a short running loop, an all-weather basketball court and low spectator bleachers.",
         "visualDescription": "A wide green field sits inside a short running loop, beside an outdoor court and modest aluminium bleachers. Navy-and-silver Hawks signs mark the home-spectator side without turning the grounds into a professional stadium.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Outdoor PE, sports practice, games and informal recreation.",
             "layout": "From the courtyard’s north gate a fenced path leads past the outdoor basketball court to the playing field and running loop. Low bleachers sit beside the marked main field; a controlled side route returns to the gym. A perimeter gate opens only for authorized use.",
@@ -486,6 +695,12 @@
             "routines": "Classes practise athletics during the day; teams train after school and spectators take the small bleachers during home games.",
             "resources": "Goals, outdoor court hoops, field markings, short running loop, bleachers, drinking fountain and team benches.",
             "obstacles": "Rain, wind, heat and snow limit activities; balls can roll toward the fence and bleacher steps can be slick when wet."
+          },
+          "detail.design": {
+            "form": "A wide green field sits inside a short running loop, beside an outdoor court and modest aluminium bleachers.",
+            "materials": "Grass field, running loop and aluminium seating",
+            "colours": "Green grass",
+            "distinctive": "Outdoor court and modest spectator seating"
           }
         }
       },
@@ -505,6 +720,12 @@
           "detail.item": {
             "function": "Stores personal belongings when unlocked; the combination is known only if established by the story.",
             "constraints": "Fixed to the corridor wall and secured by a combination; the starter does not assign a code, owner or contents."
+          },
+          "detail.design": {
+            "form": "A tall pale-grey metal locker with a navy number plate, ventilation slots, a recessed handle and a round combination dial.",
+            "materials": "Metal locker with recessed handle and combination dial",
+            "colours": "Pale grey with navy number plate",
+            "distinctive": "Ventilation slots and fixed corridor mounting"
           }
         }
       },
@@ -523,6 +744,12 @@
           "detail.item": {
             "function": "Provides a browsable record of school portraits, clubs, teams and events from the edition it represents.",
             "constraints": "A reference copy normally kept in the library; its particular edition and contents beyond ordinary school records are not specified."
+          },
+          "detail.design": {
+            "form": "A sturdy silver-and-navy hardcover stamped WESTBRIDGE HIGH and a small hawk emblem, with a stack of glossy portrait pages.",
+            "materials": "Hardcover book with glossy pages",
+            "colours": "Silver and navy",
+            "distinctive": "WESTBRIDGE HIGH title and small hawk emblem"
           }
         }
       },
@@ -542,6 +769,12 @@
           "detail.item": {
             "function": "Holds unclaimed student belongings for return through the normal school process.",
             "constraints": "The bin is kept by reception; no particular lost belongings are established."
+          },
+          "detail.design": {
+            "form": "A large navy plastic tote with a hinged lid and a tidy white LOST & FOUND label on a wheeled rack.",
+            "materials": "Plastic tote with hinged lid on wheeled rack",
+            "colours": "Navy with a white label",
+            "distinctive": "LOST & FOUND label"
           }
         }
       },
@@ -560,6 +793,12 @@
           "detail.item": {
             "function": "Displays notices and schedules that characters can read, post to with permission or discuss.",
             "constraints": "Mounted in the atrium; posted information must be established through the story rather than assumed to be current."
+          },
+          "detail.design": {
+            "form": "A large cork-backed board beneath a silver HAWKS header, crowded with neat flyers and updated weekly schedule sheets.",
+            "materials": "Cork-backed display board",
+            "colours": "Silver header",
+            "distinctive": "HAWKS header and pinned weekly schedule sheets"
           }
         }
       },
@@ -578,6 +817,12 @@
           "detail.item": {
             "function": "Allows authorized staff to broadcast announcements to designated school speakers.",
             "constraints": "Connected to the school announcement system and normally controlled by office staff; not a portable broadcasting system."
+          },
+          "detail.design": {
+            "form": "A black gooseneck microphone mounted beside a small intercom selector panel and a laminated announcement reminder.",
+            "materials": "Gooseneck microphone and intercom selector panel",
+            "colours": "Black microphone",
+            "distinctive": "Laminated announcement reminder"
           }
         }
       },
@@ -597,6 +842,12 @@
           "detail.item": {
             "function": "Stores movable theatrical props and accessories for student productions.",
             "constraints": "Bulky storage trunk normally left backstage; individual props are not predefined."
+          },
+          "detail.design": {
+            "form": "A black rolling trunk with reinforced corners, silver clasps and a strip of handwritten tape marked DRAMA.",
+            "materials": "Reinforced rolling storage trunk",
+            "colours": "Black with silver clasps",
+            "distinctive": "Handwritten DRAMA label"
           }
         }
       },
@@ -615,6 +866,12 @@
           "detail.item": {
             "function": "Can be read for school announcements, sports coverage, student opinion and routine event information.",
             "constraints": "A physical copy available to read; no specific article or breaking event is predefined."
+          },
+          "detail.design": {
+            "form": "A folded four-page newspaper with the masthead THE HAWK, a navy header and black-and-white student photographs.",
+            "materials": "Four-page folded print newspaper",
+            "colours": "Navy header and black-and-white photographs",
+            "distinctive": "THE HAWK masthead"
           }
         }
       },
@@ -633,6 +890,12 @@
           "detail.item": {
             "function": "Unlocks only the designated staff-controlled doors or cupboards associated with its labelled keys.",
             "constraints": "Only the labelled administrative and storage locks are covered; this is not a building master key."
+          },
+          "detail.design": {
+            "form": "A few silver keys on a steel split ring, with small navy plastic tags and a plain metal clip.",
+            "materials": "Steel split ring with metal keys and clip",
+            "colours": "Silver metal and navy tags",
+            "distinctive": "Small navy plastic key tags"
           }
         }
       },
@@ -720,9 +983,7 @@
         "components": {
           "detail.organization": {
             "purpose": "Provide secondary education, student services, clubs, athletics and community activities.",
-            "resources": "Teaching facilities, library, auditorium, athletics spaces, school records, posted schedules and the navy-and-silver Hawks identity.",
-            "history": null,
-            "tensions": null
+            "resources": "Teaching facilities, library, auditorium, athletics spaces, school records, posted schedules and the navy-and-silver Hawks identity."
           }
         },
         "visualDescription": ""
@@ -1316,6 +1577,133 @@
         "properties": {
           "scope": "Exposed outdoor space at this place; sheltered areas may differ."
         }
+      },
+      {
+        "key": "view_hall_courtyard",
+        "typeId": "story.view-of",
+        "sourceKey": "hall",
+        "targetKey": "courtyard",
+        "properties": {
+          "view": "Courtyard benches and three silver birches through the north glazing.",
+          "limitations": "The glazing provides a view, not a walking route; use the courtyard doors."
+        }
+      },
+      {
+        "key": "view_classroom_courtyard",
+        "typeId": "story.view-of",
+        "sourceKey": "classroom",
+        "targetKey": "courtyard",
+        "properties": {
+          "view": "Planting beds and paths through the tall classroom windows.",
+          "limitations": "No direct exit through the windows."
+        }
+      },
+      {
+        "key": "view_library_courtyard",
+        "typeId": "story.view-of",
+        "sourceKey": "library",
+        "targetKey": "courtyard",
+        "properties": {
+          "view": "Courtyard through the library north-facing windows.",
+          "limitations": "The library entrance is from the atrium, not the courtyard."
+        }
+      },
+      {
+        "key": "view_dining_courtyard",
+        "typeId": "story.view-of",
+        "sourceKey": "dining",
+        "targetKey": "courtyard",
+        "properties": {
+          "view": "Courtyard through the north cafeteria windows.",
+          "limitations": "Outdoor access is through the separate double doors."
+        }
+      },
+      {
+        "key": "view_music_courtyard",
+        "typeId": "story.view-of",
+        "sourceKey": "music",
+        "targetKey": "courtyard",
+        "properties": {
+          "view": "Courtyard from the music-room windows."
+        }
+      },
+      {
+        "key": "view_office_hall",
+        "typeId": "story.view-of",
+        "sourceKey": "office",
+        "targetKey": "hall",
+        "properties": {
+          "view": "Atrium circulation visible through the reception glass panel.",
+          "limitations": "The public counter separates the office from the atrium."
+        }
+      },
+      {
+        "key": "view_staff_plaza",
+        "typeId": "story.view-of",
+        "sourceKey": "staff",
+        "targetKey": "plaza",
+        "properties": {
+          "view": "The front plaza through the staff-room windows."
+        }
+      },
+      {
+        "key": "view_stairs_hall",
+        "typeId": "story.view-of",
+        "sourceKey": "stairs",
+        "targetKey": "hall",
+        "properties": {
+          "view": "Atrium hanging translucent panels from the upper landing."
+        }
+      },
+      {
+        "key": "hear_hall_stairs",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "hall",
+        "targetKey": "stairs",
+        "properties": {
+          "sounds": "Voices from the upper landing can reach the atrium below.",
+          "limitations": "Audibility does not establish that any specific conversation was overheard."
+        }
+      },
+      {
+        "key": "hear_classroom_wing",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "classroom",
+        "targetKey": "wing",
+        "properties": {
+          "sounds": "Passing class-change noise comes through the corridor door.",
+          "limitations": "A closed door reduces detail and intelligibility."
+        }
+      },
+      {
+        "key": "hear_hall_music",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "hall",
+        "targetKey": "music",
+        "properties": {
+          "sounds": "Rehearsal sounds reach the rear-left activity passage.",
+          "limitations": "This does not imply music is playing at any particular time."
+        }
+      },
+      {
+        "key": "hear_hall_auditorium",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "hall",
+        "targetKey": "auditorium",
+        "properties": {
+          "sounds": "Assembly and performance sounds can carry into the rear passage.",
+          "limitations": "This does not imply an event is currently taking place."
+        }
+      },
+      {
+        "key": "hear_auditorium_backstage",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "auditorium",
+        "targetKey": "backstage",
+        "properties": {
+          "sounds": "Backstage noise can carry toward the auditorium stage.",
+          "limitations": "Curtains and performance sound may mask quiet conversation."
+        }
       }
     ]
   },
@@ -1331,6 +1719,8 @@
         "description": "A working but comfortable rural homestead in road-accessible southcentral Alaska, built around a sage-green timber house, rust-red-roofed outbuildings, a garden, small livestock facilities and wooded footpaths. It supports ordinary domestic life, seasonal work and visits without a predetermined household or story.",
         "visualDescription": "A sage-green timber house with a weathered rust-red standing-seam roof stands in a gravel clearing ringed by spruce and paper birch. The outbuildings repeat the same red metal roofing in smaller, mismatched forms. A hand-painted alder-leaf sign marks the drive, and a wind-bent birch at the woods edge is visible from the kitchen window.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Home life, gardening, small-scale animal care, repairs, food preservation, recreation and hosting guests.",
             "layout": "A private gravel lane enters from a public road to the west and ends in the main yard. The house occupies the north edge; workshop and woodshed are west, animal barn and paddock east, and a fenced garden with a seasonal high tunnel south. The chicken coop and washing/processing shelter sit near the garden; a guest cabin and woodland path lie beyond the yard to the east. The woodland path branches toward a creek bank with footbridge and toward a low ridge overlook. Only representative interior rooms and outdoor areas are mapped.",
@@ -1338,6 +1728,12 @@
             "routines": "Spring brings thaw, repairs and seed starting; summer brings long daylight, gardening and outdoor work; autumn brings harvest and winter preparations; winter brings snow clearing, wood hauling and care of animals and heating systems. Trips to town and guests are possible year-round when conditions permit.",
             "resources": "Household rooms, garden beds, high tunnel, small livestock facilities, tools, covered wood storage, guest sleeping space, maintained paths, well water, utility power and backup systems.",
             "obstacles": "Mud, ice, snowfall, short winter daylight and the distance between structures change how easy chores and travel are. Wildlife may pass through unfenced land; animals, tools, heating equipment and the creek all require ordinary care. No specific resident, animal personality, incident or conflict is predefined."
+          },
+          "detail.design": {
+            "form": "Road-accessible working homestead with a main house, outbuildings, garden plots and woodland trails.",
+            "materials": "Timber house and working outbuildings",
+            "colours": "Sage green, rust red, spruce green and pale birch bark",
+            "distinctive": "Connected gravel yard, gardens and spruce-and-birch trails"
           }
         }
       },
@@ -1349,6 +1745,8 @@
         "description": "The long entrance track joining the public two-lane road to the homestead clearing, with a mailbox and a place to pull aside.",
         "visualDescription": "Two pale ruts run between dark spruce and white-barked birches. A yellow mailbox sits beside the public road; farther in, a modest timber sign painted with a green alder leaf reads ALDER RUN.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Arrival, departure, deliveries and connection to the surrounding community.",
             "layout": "The west end meets the maintained public road; the eastern end opens directly into the main yard and its vehicle turnaround. There is no separate vehicular route to the creek or overlook.",
@@ -1356,6 +1754,12 @@
             "routines": "Mail and deliveries arrive intermittently. Gravel needs grading in warmer weather, and the drive needs clearing after significant snowfall.",
             "resources": "Mailbox, entrance sign, turnout, tire tracks and a route usable by pickup trucks and service vehicles. A hand-painted alder-leaf sign marks the driveway entrance.",
             "obstacles": "Snowdrifts, spring breakup mud and icy shaded sections can slow or prevent vehicle travel until maintained."
+          },
+          "detail.design": {
+            "form": "Two pale ruts run between dark spruce and white-barked birches.",
+            "materials": "Gravel track between spruce and birch",
+            "colours": "Pale ruts in dark woodland",
+            "distinctive": "Yellow roadside mailbox"
           }
         }
       },
@@ -1367,6 +1771,8 @@
         "description": "The lived-in outdoor hub between the house and working outbuildings, large enough for vehicles and everyday chores without feeling industrial.",
         "visualDescription": "Packed gravel gives way to rough grass at the edges. A rain barrel stands by the house, a wheelbarrow often rests against the workshop, and a wind-bent birch marks the eastern path.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Shared circulation, loading, unloading, casual meetings and short outdoor tasks.",
             "layout": "The lane enters from the west. House mudroom steps are north; workshop and woodshed stand west and northwest; the barn and paddock gate east; garden and coop south. The processing shelter is southwest, while the guest cabin and woodland path are reached by a signed footpath at the east edge. A wind-bent birch marks the start of the eastbound woodland path.",
@@ -1374,6 +1780,12 @@
             "routines": "Vehicles arrive and leave, firewood and feed move between buildings, and routine chores shift with season and daylight.",
             "resources": "Parking and turning space, water tap beside the house, hose, wheelbarrow, rubbish storage with wildlife-resistant lids, shovel rack and outdoor lighting.",
             "obstacles": "Deep snow narrows the usable clearing; stacked deliveries, slippery patches and moving vehicles require attention."
+          },
+          "detail.design": {
+            "form": "Packed gravel gives way to rough grass at the edges.",
+            "materials": "Packed gravel, rough grass and work areas",
+            "colours": "Grey gravel and green grass",
+            "distinctive": "Rain barrel, wheelbarrow and wind-bent birch"
           }
         }
       },
@@ -1385,6 +1797,8 @@
         "description": "A warm, practical timber home with a working kitchen, shared living space and a few private rooms. It is substantial enough for everyday life but plainly built and maintained.",
         "visualDescription": "Sage-green lap siding, deep window trim, a rust-red pitched metal roof with snow guards, and a broad covered porch. The south-facing windows take in the garden; a wood-stove flue rises above the roofline.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Sleeping, meals, indoor leisure, washing and shelter in all seasons.",
             "layout": "The primary everyday entrance is through the west mudroom from the yard. The mudroom opens to kitchen-dining; the living room is adjacent, with a short private passage to bedrooms and bathroom. The kitchen also opens south onto the covered porch. Pantry storage is directly off the kitchen. Other ordinary bedrooms may exist without separate map nodes.",
@@ -1392,6 +1806,12 @@
             "routines": "Meals and household tasks organize the day. Wood heat and backup utilities become important in winter, while open windows and the porch are used more in the warmer months.",
             "resources": "Grid power, private well water with protected lines, indoor plumbing and septic service, wood stove, household furnishings and everyday supplies.",
             "obstacles": "Wet boots, muddy gear, snow tracked indoors and occasional household maintenance are routine concerns. A loss of outside power does not automatically mean loss of all systems, but backup use requires action."
+          },
+          "detail.design": {
+            "form": "Sage-green lap siding, deep window trim, a rust-red pitched metal roof with snow guards, and a broad covered porch.",
+            "materials": "Timber-sided house with pitched standing-seam roof",
+            "colours": "Sage green siding and rust-red roof",
+            "distinctive": "Deep window trim and snow guards"
           }
         }
       },
@@ -1403,6 +1823,8 @@
         "description": "The hard-working threshold between the outdoor yard and the warmth of the house, where boots, coats and tools are left before entering.",
         "visualDescription": "Rubber floor mats, sturdy coat pegs, a bench with boot trays, wool mittens drying on a rack and a narrow window facing the workshop.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Removing outdoor gear, storing frequently used supplies and coming and going.",
             "layout": "The outer west door steps into the main yard; the inner door leads east into the kitchen-dining room. A shallow closet and utility cupboard line the entry wall. A narrow west-facing window overlooks the workshop across the yard.",
@@ -1410,6 +1832,11 @@
             "routines": "Boots and coats gather in bad weather. Wood for the stove, groceries, animal-care gear and wet outdoor clothing pass through daily.",
             "resources": "Boot trays, hooks, bench, drying rack, battery lanterns, property map, household key hooks and basic weather gear.",
             "obstacles": "Bulky coats and stacked boots can crowd the small room; wet floors become slippery."
+          },
+          "detail.design": {
+            "form": "Rubber floor mats, sturdy coat pegs, a bench with boot trays, wool mittens drying on a rack and a narrow window facing the workshop.",
+            "materials": "Rubber mats, coat pegs, bench and boot trays",
+            "distinctive": "Mittens drying on a rack and utilitarian coat storage"
           }
         }
       },
@@ -1421,6 +1848,8 @@
         "description": "The household centre for meals, coffee, preserving garden produce and informal conversation around a sturdy table.",
         "visualDescription": "Pale wooden cabinets, well-used butcher-block counters, a blue enamel kettle, jars on open shelves and a long table by south windows overlooking the garden.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Cooking, shared meals, food preparation and everyday planning.",
             "layout": "The mudroom opens from the west. A broad opening leads into the living room; a narrow door leads to the pantry. A glazed south door opens onto the covered porch. South-facing windows overlook the garden, but the porch door is the only direct outside exit from this room.",
@@ -1428,6 +1857,12 @@
             "routines": "Breakfast and evening meals bookend daily work. Produce is washed, sorted and preserved here in season; coffee and simple indoor chores fill quiet periods.",
             "resources": "Stove, sink, refrigerator, kettle, table, shelves, cooking equipment, household notebook and drinking water.",
             "obstacles": "Cooking crowds the counters; large harvests temporarily consume table space. Food should be stored securely rather than left outdoors."
+          },
+          "detail.design": {
+            "form": "Pale wooden cabinets, well-used butcher-block counters, a blue enamel kettle, jars on open shelves and a long table by south windows overlooking the garden.",
+            "materials": "Wood cabinets, butcher-block counters and open shelves",
+            "colours": "Pale wood and blue enamel",
+            "distinctive": "Blue kettle and preserved jars by the window"
           }
         }
       },
@@ -1439,6 +1874,8 @@
         "description": "A comfortable shared room for reading, talk, quiet evenings and warming up after outside work.",
         "visualDescription": "A black cast-iron wood stove sits on slate tile beneath a simple mantel. There is a faded patterned rug, a patched sofa, board games on shelves and windows onto birch trunks.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Relaxation, indoor social time and a secondary source of house heat.",
             "layout": "A wide interior opening connects to the kitchen. A short hallway behind the bookcase leads to the private bedroom area and bathroom.",
@@ -1446,6 +1883,12 @@
             "routines": "Evenings often gather around the stove in cold weather; long summer evenings may leave the room quiet while people stay outdoors.",
             "resources": "Wood stove with hearth tools, seating, shelves, books, radio, board games and lamps.",
             "obstacles": "The stove and hearth are hot in use, and fuel or ash must be managed safely; heavy winter clothing can dry slowly near the doorway."
+          },
+          "detail.design": {
+            "form": "A black cast-iron wood stove sits on slate tile beneath a simple mantel.",
+            "materials": "Cast-iron stove, slate hearth and domestic seating",
+            "colours": "Black stove and faded patterned textiles",
+            "distinctive": "Wood stove under simple mantel"
           }
         }
       },
@@ -1457,6 +1900,8 @@
         "description": "A simple, unassigned bedroom that can accommodate a household member or overnight guest without establishing a fixed cast.",
         "visualDescription": "A narrow wooden bed, quilt, small dresser, reading lamp and a window facing the stand of birches north of the house.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Sleeping, privacy and storage of personal belongings.",
             "layout": "A door opens from the short private hall beyond the living room. The bathroom opens separately onto that same hall; this room has no exterior door.",
@@ -1464,6 +1909,9 @@
             "routines": "Used for sleep, changing clothes and retreating from shared rooms; bedding and luggage vary with visitors.",
             "resources": "Bed, drawers, reading light, blankets, curtains and spare linens.",
             "obstacles": "Limited floor space and a single entrance make the room poorly suited to storing bulky equipment."
+          },
+          "detail.design": {
+            "form": "A narrow wooden bed, quilt, small dresser, reading lamp and a window facing the stand of birches north of the house."
           }
         }
       },
@@ -1475,6 +1923,8 @@
         "description": "The main indoor washroom serving the mapped household spaces, with normal plumbing rather than an obligatory outdoor privy.",
         "visualDescription": "Plain white tile, a compact bathtub with shower curtain, mirrored cabinet and small frosted window.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Washing, toileting and basic first aid.",
             "layout": "Reached by a separate door from the private hall beyond the living room, near the spare bedroom. Laundry appliances are tucked into a closet off the hall rather than given a separate node.",
@@ -1482,6 +1932,9 @@
             "routines": "Used throughout the day; towels and laundry are maintained as part of normal chores.",
             "resources": "Sink, toilet, bath-shower, mirror, towels, first-aid basics and linen cupboard.",
             "obstacles": "Only one mapped bathroom serves the house, and winter freeze protection depends on normal heating and insulated plumbing."
+          },
+          "detail.design": {
+            "form": "Plain white tile, a compact bathtub with shower curtain, mirrored cabinet and small frosted window."
           }
         }
       },
@@ -1493,6 +1946,8 @@
         "description": "A cool interior storage room for staples, jars, bulk supplies and shelf-stable food prepared in season.",
         "visualDescription": "Wooden shelves hold labelled jars of jam and pickles, flour tins, dry beans and a calendar of canning dates. A small chest freezer sits against the insulated back wall.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Storing everyday food, preserved produce and household supplies.",
             "layout": "A single narrow doorway opens directly from the kitchen; shelves run along three walls, leaving a walkway to the freezer.",
@@ -1500,6 +1955,10 @@
             "routines": "Stock is checked and rotated. Jars are added after harvest and supplies are replenished during town trips.",
             "resources": "Dry goods, jars, labels, freezer, food-safe containers, shelving and a small step stool.",
             "obstacles": "Narrow aisles limit large movements; freezer contents depend on electricity or appropriate backup power."
+          },
+          "detail.design": {
+            "form": "Wooden shelves hold labelled jars of jam and pickles, flour tins, dry beans and a calendar of canning dates.",
+            "distinctive": "A small chest freezer sits against the insulated back wall."
           }
         }
       },
@@ -1511,6 +1970,8 @@
         "description": "A sheltered outdoor extension of the house, positioned to watch the yard and garden in changing light.",
         "visualDescription": "Unpainted boards and weathered green rocking chairs sit beneath a deep roof. A small brass bell hangs near the kitchen door, and boots collect beside a boot scraper.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Sitting outdoors, watching weather, conversation and a second house entry.",
             "layout": "The porch extends along the south face of the house. A glazed door connects directly to the kitchen; a short set of steps descends to the yard-side garden path.",
@@ -1518,6 +1979,10 @@
             "routines": "In summer it serves as a place for tea and breaks; in winter snow is brushed from the steps and stored wood may be brought near the door for immediate use.",
             "resources": "Rocking chairs, small table, brass bell, boot scraper and views of the garden and yard.",
             "obstacles": "Ice on steps and roof-shed snow require attention; outdoor seating may be unusable in severe weather."
+          },
+          "detail.design": {
+            "form": "Unpainted boards and weathered green rocking chairs sit beneath a deep roof.",
+            "distinctive": "A small brass bell hangs near the kitchen door, and boots collect beside a boot scraper."
           }
         }
       },
@@ -1525,10 +1990,12 @@
         "key": "workshop",
         "typeId": "core.place",
         "name": "Workshop and garage",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A combined one-bay garage and woodworking/repair shop for tools, vehicle maintenance and seasonal projects.",
         "visualDescription": "A barn-red sliding garage door fronts weathered timber siding. Inside are pegboard tools, a scarred workbench, hanging extension cords and a concrete floor swept around old stains.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Building, repairing, maintaining vehicles and preparing equipment for each season.",
             "layout": "Large doors open east onto the gravel yard; a person-door is on the south side. A covered equipment shelter attaches outside along the south wall, and the woodshed stands a few steps northwest.",
@@ -1536,6 +2003,10 @@
             "routines": "Summer repairs and winter preparations keep the bench busy. Tools are returned to marked storage and the floor is cleared for vehicle work.",
             "resources": "Workbench, vise, shelves, hand and power tools, jack, work lights, spare parts and small hardware bins.",
             "obstacles": "Vehicle projects take up the single bay. Noisy tools, sharp edges, flammables and stored equipment make casual exploration risky."
+          },
+          "detail.design": {
+            "form": "A barn-red sliding garage door fronts weathered timber siding.",
+            "distinctive": "Inside are pegboard tools, a scarred workbench, hanging extension cords and a concrete floor swept around old stains."
           }
         }
       },
@@ -1543,10 +2014,12 @@
         "key": "equipment_shelter",
         "typeId": "core.place",
         "name": "Equipment lean-to",
-        "parent": "workshop",
+        "parent": "homestead",
         "description": "A roofed, open-sided parking bay beside the shop for the homestead's small utility equipment and winter gear.",
         "visualDescription": "Corrugated roofing covers a utility ATV, tow sled, snow shovel rack and stacked tires. Packed earth is striped with muddy tracks.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Keeping portable equipment close to the yard without occupying the repair shop.",
             "layout": "Attached to the workshop's south exterior wall and open to a gravel spur circling from the main yard; a path continues northwest to the woodshed. There is no interior door into the workshop.",
@@ -1554,6 +2027,10 @@
             "routines": "The ATV may haul feed and supplies on suitable ground; winter gear is checked and snow-clearing implements are moved here between storms.",
             "resources": "Utility ATV, tow sled, shovels, spare tires, cargo straps and a secured outdoor-rated generator connection point.",
             "obstacles": "Sheltered equipment can still ice over; engines and exhaust are hazards, and the bay is cramped when everything is parked."
+          },
+          "detail.design": {
+            "form": "Corrugated roofing covers a utility ATV, tow sled, snow shovel rack and stacked tires.",
+            "distinctive": "Packed earth is striped with muddy tracks."
           }
         }
       },
@@ -1561,10 +2038,12 @@
         "key": "woodshed",
         "typeId": "core.place",
         "name": "Woodshed and chopping block",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A simple roofed storage area holding split firewood, kindling and tools needed for heating the house.",
         "visualDescription": "Neat rows of birch and spruce firewood rest on raised rails under a broad tin roof. A chopping block stands outside, its surface silvered with axe marks.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Drying, storing and splitting household firewood.",
             "layout": "Just northwest of the main house, between the workshop-side path and the yard, allowing wood to be taken to the mudroom without crossing animal pens.",
@@ -1572,6 +2051,10 @@
             "routines": "Wood is stacked through the warmer months and carried in small loads during cold weather.",
             "resources": "Stacked firewood, kindling box, chopping block, splitting maul and handcart.",
             "obstacles": "Splinters, swinging tools, uneven frozen ground and falling stacked logs require care."
+          },
+          "detail.design": {
+            "form": "Neat rows of birch and spruce firewood rest on raised rails under a broad tin roof.",
+            "distinctive": "A chopping block stands outside, its surface silvered with axe marks."
           }
         }
       },
@@ -1579,10 +2062,12 @@
         "key": "garden",
         "typeId": "core.place",
         "name": "Fenced kitchen garden",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A productive but modest set of vegetable beds that changes dramatically between the long summer growing season and winter snow.",
         "visualDescription": "Raised timber beds form an orderly patchwork behind wire fencing. A bright yellow gate latch and a hand-painted crop marker make the garden recognisable even when beds are bare.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Growing vegetables and herbs for household use.",
             "layout": "South of the house across a short path from the porch and yard. A gate faces north toward the yard; the high tunnel occupies the garden's sunnier eastern edge. The berry patch lies outside the west fence.",
@@ -1590,6 +2075,10 @@
             "routines": "Beds are planted after thaw, watered and weeded in the growing season, harvested in late summer and autumn, and covered or left dormant in winter.",
             "resources": "Raised beds, soil, watering hoses, compost bins with appropriate wildlife protection, hand tools, plant labels and a gate.",
             "obstacles": "Moose or smaller wildlife can damage crops if the gate is left open; season length, frost, wet ground and pests limit growth."
+          },
+          "detail.design": {
+            "form": "Raised timber beds form an orderly patchwork behind wire fencing.",
+            "distinctive": "A bright yellow gate latch and a hand-painted crop marker make the garden recognisable even when beds are bare."
           }
         }
       },
@@ -1601,6 +2090,8 @@
         "description": "An unheated, walk-in growing tunnel that extends the useful gardening season rather than producing tropical crops year-round.",
         "visualDescription": "Translucent plastic stretched over curved metal ribs holds long rows of greens and tomatoes in season. Rolled side vents and a repaired patch on one end panel show regular use.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Protecting seedlings and crops from chilly weather and extending the local growing season.",
             "layout": "Stands just inside the eastern garden fence. Its north door opens onto the main garden path between raised beds; rows and a narrow centre walkway run south from the door.",
@@ -1608,6 +2099,10 @@
             "routines": "Seedlings and soil preparation begin as the season allows; ventilation and watering are daily warm-season tasks. The covering and supports are secured or maintained for winter loads.",
             "resources": "In-ground beds, hose, thermometer, watering can, seed trays, trellis string and roll-up vents.",
             "obstacles": "Bright sun can overheat the interior even on cool days; frost, wind and snow can damage the structure if unmanaged."
+          },
+          "detail.design": {
+            "form": "Translucent plastic stretched over curved metal ribs holds long rows of greens and tomatoes in season.",
+            "distinctive": "Rolled side vents and a repaired patch on one end panel show regular use."
           }
         }
       },
@@ -1615,10 +2110,12 @@
         "key": "berries",
         "typeId": "core.place",
         "name": "Berry patch and rhubarb bed",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A small, established patch of currants, raspberries and rhubarb along the cultivated edge of the clearing.",
         "visualDescription": "Uneven berry canes grow beside a low split-rail border; broad rhubarb leaves spill toward a flat stone used as a picking stool.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Picking seasonal fruit, tending perennials and casual outdoor breaks.",
             "layout": "Outside the west fence of the kitchen garden, accessible along the same path from the yard. It does not provide a passage through the fenced vegetable beds.",
@@ -1626,6 +2123,9 @@
             "routines": "Canes are pruned and mulched, fruit is picked when ripe, and leaves and beds go dormant in colder months.",
             "resources": "Berry bushes, rhubarb, mulch, hand snips, baskets and a small sitting stone.",
             "obstacles": "Thorns, mosquitoes, damp soil and wildlife attracted by ripe fruit can complicate harvesting."
+          },
+          "detail.design": {
+            "form": "Uneven berry canes grow beside a low split-rail border; broad rhubarb leaves spill toward a flat stone used as a picking stool."
           }
         }
       },
@@ -1633,10 +2133,12 @@
         "key": "coop",
         "typeId": "core.place",
         "name": "Chicken coop and enclosed run",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A compact poultry house with a fenced exercise run for a small flock, close enough for daily care but away from the kitchen door.",
         "visualDescription": "The little red coop has a silver metal roof, nest-box access flap and a fenced run with wire mesh overhead. A chalkboard by the latch lists ordinary feeding notes.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Housing poultry and collecting eggs for household use.",
             "layout": "Southeast of the garden, reached along a gravel footpath from the yard. A latched gate opens to the enclosed run; a smaller door leads into the coop. Neither connects to the goat paddock.",
@@ -1644,6 +2146,10 @@
             "routines": "Feeding, watering, bedding care and egg collection recur daily. Cold and shorter daylight affect the routine and egg production.",
             "resources": "Nest boxes, roosts, feed and water equipment, bedding, latches and egg basket.",
             "obstacles": "Slippery ground, predator pressure and the need for daily water and feeding limit how long animals can be left unattended."
+          },
+          "detail.design": {
+            "form": "The little red coop has a silver metal roof, nest-box access flap and a fenced run with wire mesh overhead.",
+            "distinctive": "A chalkboard by the latch lists ordinary feeding notes."
           }
         }
       },
@@ -1651,10 +2157,12 @@
         "key": "barn",
         "typeId": "core.place",
         "name": "Small animal barn",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "A simple, well-maintained timber barn for a few small livestock animals, feed storage and grooming rather than a commercial stable.",
         "visualDescription": "Faded red doors open onto a central aisle, with two low stalls, hanging halters, hay bales on a raised rack and winter light through a narrow window.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Sheltering and tending a few goats or similarly sized domestic animals.",
             "layout": "On the east edge of the main yard. Double doors face west into the yard; an east stock gate opens directly into the adjacent fenced paddock. A feed corner occupies the north wall.",
@@ -1662,6 +2170,9 @@
             "routines": "Feeding, watering, bedding changes and checks happen every day, with extra attention during severe winter weather.",
             "resources": "Stalls, hay rack, feed bin, grooming brushes, buckets, water supply and basic animal-handling equipment.",
             "obstacles": "Animals can block passages; hay dust, manure, icy thresholds and secure latches require routine attention."
+          },
+          "detail.design": {
+            "form": "Faded red doors open onto a central aisle, with two low stalls, hanging halters, hay bales on a raised rack and winter light through a narrow window."
           }
         }
       },
@@ -1669,10 +2180,12 @@
         "key": "paddock",
         "typeId": "core.place",
         "name": "Fenced paddock",
-        "parent": "barn",
+        "parent": "homestead",
         "description": "A modest outdoor enclosure where small livestock can graze, browse and spend time outside their shelter.",
         "visualDescription": "Wire-and-post fencing surrounds rough grass, a scuffed wooden gate and a sheltered water trough. Spruce trees stand beyond the east fence.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Safe outdoor space and exercise for the small livestock kept at the barn.",
             "layout": "Directly east of the barn, connected through its stock gate; a second latched pedestrian gate opens to the eastern yard path for caretakers. It is not a through-route into the woods.",
@@ -1680,6 +2193,10 @@
             "routines": "Water is checked, ground is cleaned as needed and fencing inspected, especially after storms and winter thaw.",
             "resources": "Fenced turnout, trough, hay feeder, shelter edge and gate latches.",
             "obstacles": "Icy or muddy ground, damaged fencing and curious animals can make handling difficult."
+          },
+          "detail.design": {
+            "form": "Wire-and-post fencing surrounds rough grass, a scuffed wooden gate and a sheltered water trough.",
+            "distinctive": "Spruce trees stand beyond the east fence."
           }
         }
       },
@@ -1687,10 +2204,12 @@
         "key": "processing",
         "typeId": "core.place",
         "name": "Covered wash and processing shelter",
-        "parent": "yard",
+        "parent": "homestead",
         "description": "An outdoor work area for washing vegetables, cleaning fish obtained elsewhere and preparing harvests before they enter the home.",
         "visualDescription": "A galvanized worktop stands beneath a simple roof, with a wash basin, outdoor tap, hoses on hooks, a large draining board and a lidded, wildlife-resistant waste container.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Messy seasonal food-preparation jobs kept separate from the household kitchen.",
             "layout": "Southwest of the yard behind the workshop, with an open side facing the path to the garden. The return path to the kitchen crosses the yard; it does not open into the workshop.",
@@ -1698,6 +2217,11 @@
             "routines": "Busy during harvest and occasional fish-processing days, but quiet much of the year. Equipment is cleaned, drained and winterised as conditions require.",
             "resources": "Wash basin, hose, sturdy worktable, cleaning tools, drying racks and secure waste storage.",
             "obstacles": "Outdoor water lines must be drained or protected before freezing; wildlife and insects make exposed food and scraps a concern."
+          },
+          "detail.design": {
+            "form": "A galvanized worktop stands beneath a simple roof, with a wash basin, outdoor tap, hoses on hooks, a large draining board and a lidded, wildlife-resistant waste container.",
+            "materials": "Galvanized work surface and simple overhead shelter",
+            "distinctive": "Outdoor tap, hoses and wash basin"
           }
         }
       },
@@ -1709,6 +2233,8 @@
         "description": "A small open-air gathering place for evenings, stories and warming up after outdoor work.",
         "visualDescription": "A ring of fieldstones surrounds a shallow ash bed, with rough log benches and a battered metal kettle hook. The trees are set back from the cleared gravel around it.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Outdoor conversation, simple cooking and recreation when conditions allow.",
             "layout": "On the southeastern edge of the main yard, between the garden path and the start of the eastern footpath. The clearing is separate from buildings, stacked wood and animal fences.",
@@ -1716,6 +2242,11 @@
             "routines": "Used for occasional evening gatherings, particularly in milder weather; snow may cover the benches for much of winter.",
             "resources": "Stone fire ring, benches, a covered bucket of water or appropriate extinguisher and a small cooking grate.",
             "obstacles": "Smoke, sparks, wind, mosquitoes and changing fire restrictions can limit use."
+          },
+          "detail.design": {
+            "form": "A ring of fieldstones surrounds a shallow ash bed, with rough log benches and a battered metal kettle hook.",
+            "materials": "Fieldstone fire ring and rough log seating",
+            "distinctive": "Metal ash bucket beside the ring"
           }
         }
       },
@@ -1727,6 +2258,8 @@
         "description": "A separate one-room cabin for visiting family, friends or temporary helpers, offering privacy without inventing any permanent occupant.",
         "visualDescription": "A squat cedar cabin under the same rust-red roof style has a small porch, two glowing windowpanes and an old enamel number 2 fixed beside the door.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Temporary sleeping space, quiet work and retreat from the busy main house.",
             "layout": "Reached by a short, signposted path east of the main yard, before the woodland trail fork. Inside, the door opens to one room with sleeping bunks, a small sitting table and storage; a compact enclosed stove stands against the far wall. The cabin has no separate road or direct barn entrance.",
@@ -1734,6 +2267,12 @@
             "routines": "Prepared and aired before visits; in cold months it must be heated before use and the short path cleared.",
             "resources": "Two bunks, bedding, small table, shelves, electric lamps, safe room heat and a porch bench.",
             "obstacles": "Cold interiors after disuse, icy path sections and the lack of indoor plumbing make it less convenient than the house."
+          },
+          "detail.design": {
+            "form": "A squat cedar cabin under the same rust-red roof style has a small porch, two glowing windowpanes and an old enamel number 2 fixed beside the door.",
+            "materials": "Cedar cabin and rust-red roof",
+            "colours": "Weathered cedar and rust red",
+            "distinctive": "Small porch and two windows"
           }
         }
       },
@@ -1745,6 +2284,8 @@
         "description": "A lightly maintained walking path through the woods immediately beyond the working yard, useful for short walks and small chores.",
         "visualDescription": "A narrow earth track winds between black spruce and paper birch. Three simple wooden direction markers have painted alder leaves, and the undergrowth opens in patches of moss.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Walking, exploring the property and reaching the creek and overlook.",
             "layout": "Begins east of the yard near the wind-bent birch and passes the guest cabin. At a marked fork, the south path reaches the creek bank; the north path rises gently to the ridge overlook. Neither branch is a vehicle road.",
@@ -1752,6 +2293,12 @@
             "routines": "Used for walks, checking fallen branches and visiting the creek. Conditions shift with thaw, vegetation, snow depth and animal activity.",
             "resources": "Foot-worn trail, simple waymarkers, short corduroy planks over one damp spot and views of common boreal woodland. Three wooden direction markers painted with alder leaves distinguish the trail branches.",
             "obstacles": "Roots, mosquitoes, slick logs, deep snow and limited winter daylight make travel slower. Wild animals should be given space."
+          },
+          "detail.design": {
+            "form": "A narrow earth track winds between black spruce and paper birch.",
+            "materials": "Narrow earth track with spruce, birch and moss",
+            "colours": "Dark spruce and pale birch bark",
+            "distinctive": "Three alder-leaf direction markers"
           }
         }
       },
@@ -1759,10 +2306,12 @@
         "key": "creek",
         "typeId": "core.place",
         "name": "Creek bank",
-        "parent": "woodland_path",
+        "parent": "homestead",
         "description": "A narrow stream along the lower part of the property, bordered by willows and mossy banks, visited more for quiet than for utility.",
         "visualDescription": "Cold brown-green water slips over gravel beneath overhanging willows. An old alder leans downstream beside a weathered timber footbridge.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Quiet walks, watching the water and an outdoor landmark.",
             "layout": "The south branch of the woodland path reaches a small gravel bank above the creek. A wooden footbridge spans this same crossing, leading to the far bank; it is the only maintained crossing in the mapped property.",
@@ -1770,6 +2319,12 @@
             "routines": "Water level changes with rain and melt; the bank is more often visited in summer than in icy periods.",
             "resources": "Gravel bank, creek views, driftwood and access to the timber footbridge.",
             "obstacles": "Cold water, muddy footing, spring runoff and unstable ice make entering or crossing the stream hazardous. The sound of moving water can obscure quiet speech close to the bank, especially during spring runoff."
+          },
+          "detail.design": {
+            "form": "Cold brown-green water slips over gravel beneath overhanging willows.",
+            "materials": "Gravel streambed and willow-lined bank",
+            "colours": "Brown-green water",
+            "distinctive": "Alder tree and visible timber footbridge"
           }
         }
       },
@@ -1777,10 +2332,12 @@
         "key": "footbridge",
         "typeId": "core.place",
         "name": "Timber footbridge",
-        "parent": "creek",
+        "parent": "homestead",
         "description": "A short pedestrian bridge that makes the creek crossing feel like a genuine part of the property.",
         "visualDescription": "Silvered wooden planks and low timber rails span the water; one rail bears a simple hand-carved alder-leaf motif.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Crossing the creek on foot and pausing to watch the water below.",
             "layout": "The near end joins the creek bank reached from the southern woodland path; the far end reaches a short patch of woods on the opposite bank. No named interior or road is reached directly from the bridge.",
@@ -1788,6 +2345,12 @@
             "routines": "Mostly used in mild weather; rails and boards are checked after thaw and high water.",
             "resources": "Planked deck, handrails and a view upstream and downstream.",
             "obstacles": "Frost, wet boards, high water and seasonal wear reduce traction and safety."
+          },
+          "detail.design": {
+            "form": "Silvered wooden planks and low timber rails span the water; one rail bears a simple hand-carved alder-leaf motif.",
+            "materials": "Timber planks and low wooden rails",
+            "colours": "Weathered silver-grey wood",
+            "distinctive": "Carved alder-leaf mark on a rail"
           }
         }
       },
@@ -1795,10 +2358,12 @@
         "key": "overlook",
         "typeId": "core.place",
         "name": "Low ridge overlook",
-        "parent": "woodland_path",
+        "parent": "homestead",
         "description": "A quiet spot on a modest rise, high enough to see the homestead clearing and distant hills on a clear day.",
         "visualDescription": "The trees part around a broad, lichen-speckled rock and an unpainted plank bench. A bend in the treeline frames the red roofs below; distant mountains appear only in clear weather.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Walking destination, reflection and looking out over the property.",
             "layout": "Reached from the north fork of the woodland path by a short uphill trail. The route ends here and returns to the same path; it does not connect to the public road.",
@@ -1806,6 +2371,12 @@
             "routines": "Used for brief stops, quiet talks and occasional views of weather moving across the valley.",
             "resources": "Bench, exposed rock, tree-framed panorama and an unobstructed view back toward the homestead.",
             "obstacles": "Wind exposure, snow, slippery rock and poor visibility can make the site uncomfortable or unsafe."
+          },
+          "detail.design": {
+            "form": "The trees part around a broad, lichen-speckled rock and an unpainted plank bench.",
+            "materials": "Open rock outcrop and unpainted bench",
+            "colours": "Lichen-speckled rock",
+            "distinctive": "View of rust-red roofs below through treeline"
           }
         }
       },
@@ -1824,6 +2395,12 @@
           "detail.item": {
             "function": "Unlocks the three named entrances when their locks are secured; it does not open unrelated storage or gates.",
             "constraints": "Fits the house, workshop and guest cabin locks; it does not grant access to unrelated storage or gates."
+          },
+          "detail.design": {
+            "form": "Three ordinary metal keys hang from a green fabric loop beside a small painted alder-leaf tag.",
+            "materials": "Three metal keys on fabric loop",
+            "colours": "Metal and green fabric",
+            "distinctive": "Small painted alder-leaf tag"
           }
         }
       },
@@ -1842,6 +2419,12 @@
           "detail.item": {
             "function": "Records everyday homestead work and planned tasks so the setting can sustain continuity over time.",
             "constraints": "Entries are routine household records, not proof of offscreen work that the story has not established."
+          },
+          "detail.design": {
+            "form": "A dog-eared yellow notebook sits beside the kitchen wall calendar, with ruled pages and pencilled dates.",
+            "materials": "Dog-eared notebook with ruled pages",
+            "colours": "Yellow covers",
+            "distinctive": "Pencilled dates beside the kitchen calendar"
           }
         }
       },
@@ -1860,6 +2443,12 @@
           "detail.item": {
             "function": "Receives available weather and emergency broadcasts when batteries and signal are adequate.",
             "constraints": "Requires battery power and reception; broadcasts do not guarantee accurate future conditions."
+          },
+          "detail.design": {
+            "form": "A dark green radio with a stubby antenna, rubber tuning buttons and a scratched battery cover.",
+            "materials": "Portable radio with antenna and rubber buttons",
+            "colours": "Dark green",
+            "distinctive": "Scratched battery cover"
           }
         }
       },
@@ -1878,6 +2467,12 @@
           "detail.item": {
             "function": "Shows the mapped property routes and landmarks, including the creek crossing and ridge overlook.",
             "constraints": "Covers established property paths only; it does not prove an unmarked route is safe or passable."
+          },
+          "detail.design": {
+            "form": "A folded waterproof paper map in a clear sleeve, marked with an alder leaf at the gate and blue ink for the creek.",
+            "materials": "Folded waterproof map in protective sleeve",
+            "colours": "Blue ink",
+            "distinctive": "Alder-leaf gate symbol and creek marks"
           }
         }
       },
@@ -1897,6 +2492,12 @@
           "detail.item": {
             "function": "Stores and organises portable hand tools used for household and equipment repairs.",
             "constraints": "Heavy and normally kept in the workshop; specific tools depend on what the story establishes."
+          },
+          "detail.design": {
+            "form": "A faded red steel tool chest with black drawer pulls and hand-labelled dividers.",
+            "materials": "Steel drawer tool chest",
+            "colours": "Faded red and black",
+            "distinctive": "Hand-labelled dividers"
           }
         }
       },
@@ -1916,6 +2517,12 @@
           "detail.item": {
             "function": "Stores crop seeds and notes for routine planting; availability changes through the growing season.",
             "constraints": "Seed availability is seasonal; no particular harvest or planting outcome is guaranteed."
+          },
+          "detail.design": {
+            "form": "A biscuit tin painted sunflower yellow, filled with small envelopes tied in bundles.",
+            "materials": "Painted biscuit tin",
+            "colours": "Sunflower yellow",
+            "distinctive": "Seed envelopes bundled inside"
           }
         }
       },
@@ -1935,6 +2542,12 @@
           "detail.item": {
             "function": "Keeps feed together and limits access by pests when properly closed.",
             "constraints": "Must be closed to discourage pests; feed is finite and requires replenishment."
+          },
+          "detail.design": {
+            "form": "A galvanized bin with a clasped lid and a blue scoop hanging from its side handle.",
+            "materials": "Galvanized lidded feed storage bin",
+            "colours": "Silver-grey metal and blue scoop",
+            "distinctive": "Clasp lid and hanging scoop"
           }
         }
       },
@@ -1953,6 +2566,12 @@
           "detail.item": {
             "function": "Help walkers move over some soft snow; they do not make deep winter terrain or creek ice automatically safe.",
             "constraints": "Two pairs; require snow and appropriate bindings and do not make ice crossings safe."
+          },
+          "detail.design": {
+            "form": "Wood-and-synthetic frames with dark bindings hang in a pair of wall hooks above the sled.",
+            "materials": "Wood-and-synthetic snowshoe frames",
+            "colours": "Dark bindings",
+            "distinctive": "Two pairs hung by the equipment shelter"
           }
         }
       },
@@ -1971,6 +2590,12 @@
           "detail.item": {
             "function": "Can supply limited backup electricity when operated outside in a suitably ventilated position and connected through the installed transfer switch, subject to fuel and maintenance.",
             "constraints": "Requires fuel, maintenance, outdoor ventilation and safe connection to the house transfer switch; not an automatic infinite power supply."
+          },
+          "detail.design": {
+            "form": "A compact yellow-and-black generator sits on a wheeled base behind a locking guard; a heavy-duty cable hangs nearby.",
+            "materials": "Wheeled portable generator and guard",
+            "colours": "Yellow and black",
+            "distinctive": "Heavy-duty cable stored nearby"
           }
         }
       },
@@ -1989,6 +2614,12 @@
           "detail.item": {
             "function": "Moves people and light supplies on accessible ground when fuelled, maintained and operated appropriately.",
             "constraints": "Requires fuel, a capable driver and traversable ground; not suitable for the narrow footbridge or unmaintained trail."
+          },
+          "detail.design": {
+            "form": "A mud-splashed dark-green ATV with a rear cargo rack and a small tow hitch.",
+            "materials": "ATV with rack and tow hitch",
+            "colours": "Dark green and mud splashes",
+            "distinctive": "Utility cargo rack"
           }
         }
       },
@@ -2076,9 +2707,7 @@
         "components": {
           "detail.organization": {
             "purpose": "Operate and maintain the homestead, including domestic life, garden work and care of facilities and animals when present.",
-            "resources": "Road access, a timber house, outbuildings, garden spaces, stored tools, utilities and a guest cabin.",
-            "history": null,
-            "tensions": null
+            "resources": "Road access, a timber house, outbuildings, garden spaces, stored tools, utilities and a guest cabin."
           }
         },
         "visualDescription": ""
@@ -2565,6 +3194,44 @@
         "properties": {
           "scope": "Exposed outdoor portions of this place; tree shade and local footing vary as described. Does not establish conditions inside adjacent buildings."
         }
+      },
+      {
+        "key": "view_mudroom_yard",
+        "typeId": "story.view-of",
+        "sourceKey": "mudroom",
+        "targetKey": "yard",
+        "properties": {
+          "view": "Workshop across the yard from the west-facing window."
+        }
+      },
+      {
+        "key": "view_kitchen_garden",
+        "typeId": "story.view-of",
+        "sourceKey": "kitchen",
+        "targetKey": "garden",
+        "properties": {
+          "view": "Garden through the south-facing kitchen windows.",
+          "limitations": "Only the porch door provides direct outdoor access."
+        }
+      },
+      {
+        "key": "view_overlook_homestead",
+        "typeId": "story.view-of",
+        "sourceKey": "overlook",
+        "targetKey": "homestead",
+        "properties": {
+          "view": "Rust-red property roofs through a bend in the treeline.",
+          "limitations": "Distant mountains are visible only in clear weather."
+        }
+      },
+      {
+        "key": "view_creek_footbridge",
+        "typeId": "story.view-of",
+        "sourceKey": "creek",
+        "targetKey": "footbridge",
+        "properties": {
+          "view": "Weathered timber bridge at the mapped stream crossing."
+        }
       }
     ]
   },
@@ -2580,6 +3247,8 @@
         "description": "A compact survey vessel organized into three pressurized decks, with cargo handling and a shuttle berth aft. Its design supports small crews on extended survey expeditions.",
         "visualDescription": "A practical white-and-slate hull with sensor booms, recessed viewports and amber exterior work lights.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Crewed exploration, surveying, sample analysis and modest cargo transport.",
             "layout": "A central ladderwell and lift link the upper command deck, middle habitation deck and lower engineering deck. The aft engineering passage opens to a pressurized cargo bay; off the bay are a sample-analysis room, the aft airlock and a sealed service connection to the shuttle berth. No viewport or service hatch is an unprotected shortcut to the exterior.",
@@ -2587,6 +3256,12 @@
             "routines": "When staffed, navigation checks, survey observations, meals, equipment inspections and watch changes structure shipboard life; no crew or mission is assigned by this template.",
             "resources": "Bridge navigation, communications, observation gallery, berths, galley, infirmary, life support, engineering workshop, specimen analysis, cargo stowage and docking connections.",
             "obstacles": "Limited storage and work space, controlled pressure boundaries and dependence on operating ship systems shape movement and daily tasks. The vessel has no presumed damage or emergency."
+          },
+          "detail.design": {
+            "form": "Compact, practical three-deck survey vessel with pressurized workspaces and an exterior shuttle berth.",
+            "materials": "Three-deck working survey vessel with external shuttle berth",
+            "colours": "White-and-slate hull finishes",
+            "distinctive": "Sensor booms, recessed viewports and amber exterior work lights"
           }
         }
       },
@@ -2598,6 +3273,8 @@
         "description": "The forward upper deck connects the bridge, communications room and observation gallery.",
         "visualDescription": "Dark floor panels, recessed strip lighting and numbered pressure doors.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Navigation, communications and direct observation from the upper deck.",
             "layout": "The bridge is forward, the communications room is off the port-side passage and the observation gallery is starboard. The central ladderwell and lift reach habitation below, and each room opens to the command corridor.",
@@ -2605,6 +3282,12 @@
             "routines": "When occupied, the upper deck is used for watch handovers, navigation review, transmission checks and survey observations.",
             "resources": "Bridge consoles, communications workstation, observation gallery, internal communications and status panels.",
             "obstacles": "The narrow corridor is easily crowded during equipment movement; closed doors separate quiet observation from active communications."
+          },
+          "detail.design": {
+            "form": "Dark floor panels, recessed strip lighting and numbered pressure doors.",
+            "materials": "Command corridor with pressure doors",
+            "colours": "Dark floor panels",
+            "distinctive": "Recessed strip lighting and numbered doors"
           }
         }
       },
@@ -2616,6 +3299,8 @@
         "description": "The ship's control room, with separate helm, navigation and systems stations.",
         "visualDescription": "A shallow arc of consoles, restrained blue status displays and a wide forward viewport.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Helm control, navigation, sensor overview and command coordination.",
             "layout": "One pressure door opens from the forward command corridor. Helm and navigation face the forward viewport; the systems station sits behind them with a view of the primary consoles.",
@@ -2623,6 +3308,12 @@
             "routines": "Position, route, sensor and system status are checked during active watches, with handovers recorded as needed.",
             "resources": "Helm, navigation displays, sensor overview, internal communications, forward exterior view and systems-status consoles.",
             "obstacles": "The viewport permits observation but not exterior access. Console visibility and communications can be impaired by ordinary workload or system limitations."
+          },
+          "detail.design": {
+            "form": "A shallow arc of consoles, restrained blue status displays and a wide forward viewport.",
+            "materials": "Arc of working consoles with forward viewport",
+            "colours": "Blue status displays",
+            "distinctive": "Wide bridge viewport"
           }
         }
       },
@@ -2634,6 +3325,8 @@
         "description": "A quiet compartment for external transmissions, signal logging and detailed sensor review.",
         "visualDescription": "Headset sockets, spectrum displays, a narrow workstation and insulated wall panels.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "External communication, signal logging and detailed sensor review.",
             "layout": "A single door opens from the port side of the command corridor. A seated workstation faces the receiver displays, with a signal archive and headset station along the inner wall.",
@@ -2641,6 +3334,11 @@
             "routines": "Incoming transmissions are logged and important messages or sensor anomalies are reviewed during survey operations.",
             "resources": "Radio and data links, log archive, headsets, spectrum displays and detailed sensor analysis.",
             "obstacles": "Transmission quality depends on distance, shielding, interference and relay coverage. The room is quiet enough for calls but not fully isolated from the corridor."
+          },
+          "detail.design": {
+            "form": "Headset sockets, spectrum displays, a narrow workstation and insulated wall panels.",
+            "materials": "Narrow communications workstation and insulated panels",
+            "distinctive": "Headset sockets and spectrum displays"
           }
         }
       },
@@ -2652,6 +3350,8 @@
         "description": "A small off-duty viewing area with a shielded viewport and a manual blackout shutter.",
         "visualDescription": "A curved observation window, dimmable lamps and padded benches bolted to the deck.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Direct exterior observation, quiet discussion and off-duty rest.",
             "layout": "A door opens from the starboard command corridor into a small room with benches facing a shielded viewport and chart table beside the inner wall.",
@@ -2659,6 +3359,11 @@
             "routines": "Available for short breaks, chart consultation and supervised visual observation when not reserved for survey work.",
             "resources": "Padded seating, a direct exterior view through the shielded window, dimmable lights, chart table and manual blackout shutter.",
             "obstacles": "The shutter can block the view, and the small room offers little room for several people or bulky equipment."
+          },
+          "detail.design": {
+            "form": "A curved observation window, dimmable lamps and padded benches bolted to the deck.",
+            "materials": "Curved viewport and bolted bench seating",
+            "distinctive": "Dimmable lamps and shielded observation window"
           }
         }
       },
@@ -2670,6 +3375,8 @@
         "description": "The central living deck, connecting crew quarters, the galley and infirmary.",
         "visualDescription": "Warm wall lights, cream bulkhead panels and a handrail along the main passage.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Daily living, meals, personal care and basic medical support for the ship.",
             "layout": "The central passage has crew cabins along one side and the galley and infirmary opposite. Shared washrooms and a drinking-water point are in the passage but are not separate mapped rooms. The lift and ladderwell connect to command above and engineering below.",
@@ -2677,6 +3384,12 @@
             "routines": "During ordinary operations, crew rotate through meals, rest, cleaning and medical checks without fixed inhabitants or schedules being prescribed.",
             "resources": "Sleeping cabins, shared washrooms, drinking water, food preparation, infirmary and personal storage lockers.",
             "obstacles": "Private and communal functions share one compact passage; voices and movement can disturb off-duty crew."
+          },
+          "detail.design": {
+            "form": "Warm wall lights, cream bulkhead panels and a handrail along the main passage.",
+            "materials": "Compact passage with handrail and bulkhead panels",
+            "colours": "Cream panels and warm lighting",
+            "distinctive": "Shared living-deck circulation"
           }
         }
       },
@@ -2688,6 +3401,8 @@
         "description": "A bank of compact sleeping cabins with bunks, folding desks and individual lockers.",
         "visualDescription": "Sliding cabin doors, recessed bunks, fabric privacy panels and small reading lights.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Sleep, privacy and personal storage between duties.",
             "layout": "A short row of compact cabins opens directly to the habitation passage; each cabin contains a sleeping berth, fold-down desk and individual storage locker.",
@@ -2695,6 +3410,11 @@
             "routines": "Berths are used for rest, reading and small personal tasks; belongings are normally stowed before ship maneuvers.",
             "resources": "Bunks, reading lamps, fold-down desks, lockers and privacy curtains.",
             "obstacles": "Thin partitions transmit some passage noise, and floor area is limited when desks are open."
+          },
+          "detail.design": {
+            "form": "Sliding cabin doors, recessed bunks, fabric privacy panels and small reading lights.",
+            "materials": "Sliding cabin doors and recessed sleeping bunks",
+            "distinctive": "Fabric privacy panels and reading lights"
           }
         }
       },
@@ -2706,6 +3426,8 @@
         "description": "A compact food-preparation area opening onto the crew's shared dining table.",
         "visualDescription": "Secured cabinets, an induction hob, retaining rails and a folding communal table.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Food preparation, shared meals and informal gatherings.",
             "layout": "A doorway from the habitation passage opens onto a compact cooking wall and the adjoining folding mess table, with secured food storage opposite.",
@@ -2713,6 +3435,11 @@
             "routines": "Meals are prepared and cleared during normal duty cycles. Loose utensils and supplies are secured before maneuvers.",
             "resources": "Food storage, induction hob, water dispenser, cleaning sink, cooking equipment and communal seating.",
             "obstacles": "Narrow counters, hot cookware and limited table space constrain simultaneous cooking and conversation."
+          },
+          "detail.design": {
+            "form": "Secured cabinets, an induction hob, retaining rails and a folding communal table.",
+            "materials": "Secured cabinets and compact cooking wall",
+            "distinctive": "Induction hob and folding communal table"
           }
         }
       },
@@ -2724,6 +3451,8 @@
         "description": "A basic medical compartment with an examination berth, diagnostic console and lockable supply cupboards.",
         "visualDescription": "White panels, a fold-out examination light, labelled drawers and a blue privacy curtain.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Examination, basic treatment, monitoring and first-response care.",
             "layout": "A door from the habitation passage opens to the examination berth and diagnostic console; the privacy curtain and secured supply cupboards are set along the inner wall.",
@@ -2731,6 +3460,12 @@
             "routines": "Equipment is checked and supplies replenished during ordinary maintenance; a patient is not presumed to be present.",
             "resources": "Examination berth, diagnostic monitor, privacy curtain, portable medical kit and basic emergency supplies.",
             "obstacles": "Limited space for multiple patients and finite supplies restrict the room to basic care."
+          },
+          "detail.design": {
+            "form": "White panels, a fold-out examination light, labelled drawers and a blue privacy curtain.",
+            "materials": "Medical work area with drawers and examination light",
+            "colours": "White with blue privacy curtain",
+            "distinctive": "Fold-out examination light"
           }
         }
       },
@@ -2742,6 +3477,8 @@
         "description": "The lower service deck connects propulsion, life support and the workshop through a central maintenance passage.",
         "visualDescription": "Exposed conduits, anti-slip decking, utility lighting and clearly marked isolation panels.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Inspection, repair and management of the ship's supporting systems.",
             "layout": "The workshop is near the ladderwell, the life-support room is midships and the engine room is aft. A pressure door at the back of the central maintenance passage leads into the cargo bay.",
@@ -2749,6 +3486,11 @@
             "routines": "Routine rounds check machinery, air, water and repair supplies, with maintenance performed when systems can safely be serviced.",
             "resources": "Service diagnostics, repair workbench, spare parts, life-support controls, propulsion access and cargo-bay connection.",
             "obstacles": "A narrow maintenance passage, machinery vibration and restricted service areas complicate carrying large loads."
+          },
+          "detail.design": {
+            "form": "Exposed conduits, anti-slip decking, utility lighting and clearly marked isolation panels.",
+            "materials": "Conduits, antislip decks and service panels",
+            "distinctive": "Visible isolation labels and practical utility lighting"
           }
         }
       },
@@ -2760,6 +3502,8 @@
         "description": "A guarded machinery compartment for the propulsion assemblies and their cooling and power systems.",
         "visualDescription": "Heavy housings, insulated pipes, grated walkways and amber service lamps.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Propulsion, cooling and local power-system inspection and servicing.",
             "layout": "A pressure door at the aft end of the engineering passage opens to guarded propulsion machinery with walkways between major housings and local isolation controls.",
@@ -2767,6 +3511,12 @@
             "routines": "Diagnostics and routine inspections occur between maneuvers; no failure or repair is presumed to have happened.",
             "resources": "Propulsion diagnostics, cooling interfaces, isolation controls and service access.",
             "obstacles": "Heat, noise and operating machinery restrict movement; some of the vibration and hum carry into the adjacent engineering passage."
+          },
+          "detail.design": {
+            "form": "Heavy housings, insulated pipes, grated walkways and amber service lamps.",
+            "materials": "Machinery housings, insulated pipes and grated walkways",
+            "colours": "Amber service lighting",
+            "distinctive": "Guarded propulsion machinery"
           }
         }
       },
@@ -2778,6 +3528,8 @@
         "description": "A service compartment for air circulation, filtration and water-recovery equipment.",
         "visualDescription": "Labelled filter housings, blue water pipes, green status lamps and a narrow service aisle.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Support breathing air, water reclamation and environmental monitoring.",
             "layout": "A service door opens midway down the engineering passage into a narrow aisle between filtration racks, monitoring displays and water-recovery equipment.",
@@ -2785,6 +3537,12 @@
             "routines": "Filter condition, air composition and water systems are inspected during regular engineering rounds.",
             "resources": "Air monitors, filter cartridges, water-recovery controls and spare-filter storage.",
             "obstacles": "Narrow service clearance and operating systems limit how much equipment can be opened or shut down at once."
+          },
+          "detail.design": {
+            "form": "Labelled filter housings, blue water pipes, green status lamps and a narrow service aisle.",
+            "materials": "Filtration racks and narrow service aisle",
+            "colours": "Blue water pipes and green status lights",
+            "distinctive": "Labelled filter housings"
           }
         }
       },
@@ -2796,6 +3554,8 @@
         "description": "A repair bench and secured parts store for routine shipboard maintenance.",
         "visualDescription": "A scarred metal bench, magnetic tool strips, a vise and labelled component drawers.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Routine fabrication, maintenance and small equipment repairs.",
             "layout": "A door near the engineering ladderwell opens into a compact bench area; tools and labelled spare-part drawers line the wall opposite the vise.",
@@ -2803,6 +3563,11 @@
             "routines": "Tools and loose parts are checked and secured before maneuvers; ongoing projects are not predetermined.",
             "resources": "Hand tools, diagnostic scanner, vise, testing leads, bench space and organized spare parts.",
             "obstacles": "Workbench space is limited, and incomplete repairs or loose parts can interfere with other work."
+          },
+          "detail.design": {
+            "form": "A scarred metal bench, magnetic tool strips, a vise and labelled component drawers.",
+            "materials": "Metal workbench and organized parts storage",
+            "distinctive": "Magnetic tool strips and vise"
           }
         }
       },
@@ -2814,6 +3579,8 @@
         "description": "A pressurized hold with tie-down points, loading rails and a marked clear route to the airlock.",
         "visualDescription": "Ribbed metal walls, yellow floor markings, webbing restraints and an overhead cargo rail.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Secure transport and handling of supplies, equipment and survey specimens.",
             "layout": "The cargo bay opens from the aft engineering passage through a pressure door. Its central aisle reaches the inner aft airlock; an interior hatch off one side opens into the sample-analysis room, while a separately sealed service hatch connects to the shuttle berth when docked.",
@@ -2821,6 +3588,12 @@
             "routines": "Cargo is inventoried and tied down before maneuvers; incoming survey samples may be transferred to analysis once properly handled.",
             "resources": "Tie-down rails, loading equipment, sample-transfer counter, pressure doors and open stowage bays.",
             "obstacles": "Stowed loads and handling gear constrain the clear aisle; hatches and pressure boundaries must remain unobstructed."
+          },
+          "detail.design": {
+            "form": "Ribbed metal walls, yellow floor markings, webbing restraints and an overhead cargo rail.",
+            "materials": "Ribbed metal bay with overhead cargo rail",
+            "colours": "Yellow floor markings",
+            "distinctive": "Webbing cargo restraints"
           }
         }
       },
@@ -2832,6 +3605,8 @@
         "description": "A compact clean workroom off the cargo hold for logging, photographing and examining specimens brought aboard. No collection or discovery is predetermined.",
         "visualDescription": "A pale, wipe-clean lab with a central bench, compact imaging screen, instrument drawers and a row of empty labelled sample shelves behind a sealed hatch.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Receive, catalogue and examine ordinary survey samples before long-term storage or transport.",
             "layout": "A sealed interior hatch off the cargo bay opens into a small laboratory with a central examination bench, instrument rack and secure specimen shelves. There is no independent exterior exit.",
@@ -2839,6 +3614,12 @@
             "routines": "Samples can be logged, labeled and examined as missions require; the starter establishes neither collected specimens nor experimental results.",
             "resources": "Sealable specimen containers, magnifier, imaging station, cataloguing console and clean work surface.",
             "obstacles": "The room has little free bench area, and uncontained specimens may require isolation before examination."
+          },
+          "detail.design": {
+            "form": "A pale, wipe-clean lab with a central bench, compact imaging screen, instrument drawers and a row of empty labelled sample shelves behind a sealed hatch.",
+            "materials": "Wipe-clean lab with central workbench",
+            "colours": "Pale surfaces",
+            "distinctive": "Empty labelled sample shelves and imaging screen"
           }
         }
       },
@@ -2850,6 +3631,8 @@
         "description": "A two-door pressure chamber for boarding, docking and suited exterior access.",
         "visualDescription": "A circular outer hatch, pressure gauge, handholds and a recessed suit locker.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Boarding, docking and controlled suited access to the exterior.",
             "layout": "The inner pressure hatch opens from the cargo-bay aisle; an outer hatch opens to a compatible dock or the exterior, with pressure controls between them.",
@@ -2857,6 +3640,11 @@
             "routines": "Hatch seals, pressure readings and suit provisions are checked when preparing for a transfer or external work.",
             "resources": "Pressure controls, gauge, handholds, tether points and a recessed suit locker.",
             "obstacles": "Door interlocks and pressure changes restrict passage; opening the exterior hatch is not a normal corridor shortcut."
+          },
+          "detail.design": {
+            "form": "A circular outer hatch, pressure gauge, handholds and a recessed suit locker.",
+            "materials": "Pressure compartment with circular outer hatch",
+            "distinctive": "Pressure gauge, handholds and recessed suit locker"
           }
         }
       },
@@ -2868,6 +3656,8 @@
         "description": "An unoccupied docking recess and service platform sized for a small shuttle.",
         "visualDescription": "Docking guides, folded access steps, service umbilicals and striped hazard markings.",
         "components": {
+          "core.place": {},
+          "core.holder": {},
           "detail.place": {
             "purpose": "Docking, limited exterior servicing and transfer between a small compatible shuttle and the ship.",
             "layout": "The aft external berth includes alignment guides, docking clamps and a service platform. Its connection to the cargo bay passes through a sealable service hatch and becomes a boarding passage only when a shuttle is secured and the connection is pressure-tight.",
@@ -2875,6 +3665,12 @@
             "routines": "Connections and clamps are checked during arrival, departure and planned servicing; the berth remains unused when no craft is docked.",
             "resources": "Docking clamps, service umbilicals, alignment marks and a maintenance platform.",
             "obstacles": "An undocked berth is exposed to space; a hatch alone does not provide a safe route outside."
+          },
+          "detail.design": {
+            "form": "Docking guides, folded access steps, service umbilicals and striped hazard markings.",
+            "materials": "External docking guides, platform and service umbilicals",
+            "colours": "Striped hazard markings",
+            "distinctive": "Folded access steps; no shuttle docked by default"
           }
         }
       },
@@ -2893,6 +3689,12 @@
           "detail.item": {
             "function": "Displays saved charts and survey notes; it does not control the helm.",
             "constraints": "Handheld read-only chart and note display, not a ship-control station; data depend on saved records or an available link."
+          },
+          "detail.design": {
+            "form": "A rugged grey tablet with a lanyard loop and a recessed touch screen.",
+            "materials": "Rugged tablet with recessed touch screen",
+            "colours": "Grey casing",
+            "distinctive": "Lanyard loop"
           }
         }
       },
@@ -2911,6 +3713,12 @@
           "detail.item": {
             "function": "Reads compatible service ports and checks electrical continuity.",
             "constraints": "Works with compatible service ports and probes; readings do not repair equipment automatically."
+          },
+          "detail.design": {
+            "form": "A yellow protective casing, clipped test probes and a small backlit display.",
+            "materials": "Handheld tester with clipped probes",
+            "colours": "Yellow protective casing",
+            "distinctive": "Backlit diagnostic screen"
           }
         }
       },
@@ -2929,6 +3737,12 @@
           "detail.item": {
             "function": "Replaces the matching life-support air-filter cartridges during maintenance.",
             "constraints": "Four sealed cartridges of the correct type; only suitable housings can accept them."
+          },
+          "detail.design": {
+            "form": "Rectangular white cartridges in foil sleeves with batch labels.",
+            "materials": "Sealed rectangular filter cartridges",
+            "colours": "White foil packaging",
+            "distinctive": "Batch labels on sleeves"
           }
         }
       },
@@ -2948,6 +3762,12 @@
           "detail.item": {
             "function": "Keeps emergency medical supplies together for transport between compartments.",
             "constraints": "Portable container of basic emergency supplies; it is not a replacement for the infirmary."
+          },
+          "detail.design": {
+            "form": "A white hard case with red corner guards and a recessed handle.",
+            "materials": "Portable hard medical case",
+            "colours": "White with red corner guards",
+            "distinctive": "Recessed carrying handle"
           }
         }
       },
@@ -2967,6 +3787,12 @@
           "detail.item": {
             "function": "Carries and separates small collected specimens for logging or transfer.",
             "constraints": "Must be closed and secured before transport; no specimens or results are included by default."
+          },
+          "detail.design": {
+            "form": "A grey case with a rubber gasket, six padded compartments, a snap closure and empty white identification tags.",
+            "materials": "Gasketed case with six padded compartments",
+            "colours": "Grey casing and white tags",
+            "distinctive": "Empty specimen ID tags"
           }
         }
       },
@@ -2985,6 +3811,12 @@
           "detail.item": {
             "function": "Transmits a locator or distress signal when activated within suitable communications range.",
             "constraints": "Requires stored power and a receivable signal; activation does not guarantee immediate contact or rescue."
+          },
+          "detail.design": {
+            "form": "A compact safety-orange beacon with a folding antenna, sealed battery compartment and guarded activation switch.",
+            "materials": "Compact locator beacon with folding antenna",
+            "colours": "Safety orange",
+            "distinctive": "Guarded activation switch"
           }
         }
       },
@@ -3009,8 +3841,6 @@
         "description": "Suggested normal conditions inside the ship’s pressurized habitable compartments; not a claim about the undocked shuttle berth or exterior space.",
         "components": {
           "detail.environment": {
-            "season": null,
-            "weather": null,
             "temperature": "Comfortable cabin temperature maintained by functioning life support.",
             "light": "Normal shipboard ceiling and work lights; viewports show the exterior when shutters are open.",
             "surfaces": "Clean, dry interior decks and secured loose equipment under ordinary operations."
@@ -3072,9 +3902,7 @@
         "components": {
           "detail.organization": {
             "purpose": "Operate the ship, maintain systems, conduct surveys and coordinate onboard tasks.",
-            "resources": "Bridge, navigation and communications systems, quarters, galley, medical space, workshop, survey lab, cargo facilities and docking equipment.",
-            "history": null,
-            "tensions": null
+            "resources": "Bridge, navigation and communications systems, quarters, galley, medical space, workshop, survey lab, cargo facilities and docking equipment."
           }
         },
         "visualDescription": ""
@@ -3428,6 +4256,26 @@
         "targetKey": "airlock",
         "properties": {
           "scope": "Only while the chamber is pressurized and connected to the ship interior; excludes the exterior and pressure-cycling conditions."
+        }
+      },
+      {
+        "key": "hear_quarters_habitation",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "quarters",
+        "targetKey": "habitation",
+        "properties": {
+          "sounds": "Movement and some voices from the habitation passage reach cabins.",
+          "limitations": "Thin partitions carry some sound; intelligibility is not guaranteed."
+        }
+      },
+      {
+        "key": "hear_engineering_engines",
+        "typeId": "story.can-hear-from",
+        "sourceKey": "engineering",
+        "targetKey": "engines",
+        "properties": {
+          "sounds": "Engine vibration and machinery hum can carry into the engineering passage.",
+          "limitations": "This describes possible sound under normal operation, not an active malfunction."
         }
       }
     ]

@@ -2,3 +2,5 @@ Revise the supplied originalProse according to the author's direction. Return on
 Preserve situated knowledge and disclosure boundaries. Character stance, author assessment and reader disclosure are distinct; do not turn doubts or false beliefs into world truth or give characters another person's knowledge.
 
 Preserve the original narrative person and tense throughout the revised scene. Do not switch current action to present tense while keeping backstory in past tense, or change person to follow an inconsistent style example.
+
+When draftRevision is supplied, use draftRevision.prose as the current working draft and apply draftRevision.direction. Return the complete revised passage, preserving all events in originalProse and acceptedEffects. Keep prior wording improvements where possible; do not revert to the accepted wording or continue beyond the passage.

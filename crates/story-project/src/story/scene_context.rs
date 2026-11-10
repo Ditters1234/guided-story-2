@@ -29,6 +29,8 @@ pub struct SceneContextPreview {
     pub error: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writing_brief: Option<WritingBrief>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub passage_handoff: Option<PassageHandoff>,
 }
 
 pub(super) fn inventory_ids<'a>(world: &'a World, plan: &PassagePlan) -> BTreeSet<&'a String> {
@@ -146,6 +148,7 @@ pub(super) fn preview(
         guidance,
         error,
         writing_brief: serde_json::from_value(input["writingBrief"].clone()).ok(),
+        passage_handoff: serde_json::from_value(input["passageHandoff"].clone()).ok(),
     }
 }
 

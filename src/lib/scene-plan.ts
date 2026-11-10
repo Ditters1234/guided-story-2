@@ -1,6 +1,42 @@
 import type {PassagePlan} from './bindings';
 import type {World} from './model';
 
+/** Local suggestions only. Nothing enters model context until explicitly added. */
+export function sceneReferenceSuggestions(world:World,plan:PassagePlan,scopeIds:readonly string[]=[],prose='') {
+  const nodes=new Map(world.nodes.map(n=>[n.id,n]));
+  const selected=new Set([plan.locationId,plan.viewpointId,...plan.participantIds,...plan.referenceIds,...scopeIds].filter((id):id is string=>!!id));
+  const actors=new Set([...selected].filter(id=>nodes.get(id)?.components['core.character']));
+  for(const edge of world.edges)if((edge.typeId==='core.worn-by'||edge.typeId==='core.stored-in')&&actors.has(edge.targetId))selected.add(edge.sourceId);
+  const physical=new Set(world.relationTypes.filter(r=>r.physicalPlacement).map(r=>r.id));
+  const children=new Map<string,string[]>();
+  for(const edge of world.edges)if(physical.has(edge.typeId)&&nodes.get(edge.sourceId)?.components['core.item']){
+    const list=children.get(edge.targetId)??[];list.push(edge.sourceId);children.set(edge.targetId,list);
+  }
+  const candidates=new Map<string,{id:string;name:string;reason:string;rank:number}>();
+  const offer=(id:string,reason:string,rank:number)=>{const node=nodes.get(id);if(node&&!selected.has(id)&&!candidates.has(id))candidates.set(id,{id,name:node.name,reason,rank});};
+  let frontier=[...selected].filter(id=>id===plan.locationId||nodes.get(id)?.components['core.container']);
+  const seen=new Set(frontier);
+  for(let depth=0;depth<2;depth++){
+    const next:string[]=[];
+    for(const holder of frontier)for(const id of children.get(holder)??[]){
+      if(seen.has(id))continue;seen.add(id);
+      offer(id,`In ${nodes.get(holder)?.name??'selected container'}`,holder===plan.locationId?1:0);
+      if(nodes.get(id)?.components['core.container'])next.push(id);
+    }
+    frontier=next;
+  }
+  for(const edge of world.edges){
+    if(physical.has(edge.typeId))continue;
+    for(const [from,to]of [[edge.sourceId,edge.targetId],[edge.targetId,edge.sourceId]]){
+      const node=nodes.get(to);
+      if(selected.has(from)&&(node?.components['core.thread']||node?.components['detail.thread']))offer(to,`Thread linked to ${nodes.get(from)?.name??'scene resource'}`,2);
+    }
+  }
+  const text=prose.toLocaleLowerCase();
+  const all=[...candidates.values()].sort((a,b)=>Number(text.includes(b.name.toLocaleLowerCase()))-Number(text.includes(a.name.toLocaleLowerCase()))||a.rank-b.rank||a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
+  return {suggestions:all.slice(0,12),omitted:Math.max(0,all.length-12)};
+}
+
 /** Only direct, explicitly authored coverage of the selected focus. No inheritance. */
 export function sceneConditionChoices(world:World,plan:PassagePlan):{id:string;name:string;scope:string}[] {
   if(!world.nodes.some(n=>n.id===plan.locationId&&n.components['core.place'])||!world.relationTypes.some(r=>r.id==='story.conditions-at'&&!r.physicalPlacement))return [];
