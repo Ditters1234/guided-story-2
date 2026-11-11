@@ -1,0 +1,115 @@
+import { describe,it,expect } from 'vitest';
+import { exampleWorld,emptyWorld,makeNode } from './model';
+import { addCandidateNode,editableFields,newAuthoringRequest,parseCandidateForEditor,changeCreationType,addCandidateWornItem,addCandidateCapability,creationChoice,candidateNodeTypes,foundationCreationTypes,toggleCreationType,unsupportedCandidateFields,removeUnsupportedCandidateField } from './authoring-ui';
+import { candidatePlacementConflicts,repairCandidatePlacement } from './authoring-ui';
+describe('shared AI node editor',()=>{
+  it('exposes unsupported generated fields for explicit removal while protecting declared fields and source data',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Elias Thorne','new:elias');person.components['detail.profile'].background='A retired engineer.';person.components['detail.profile'].background2='';person.components['unknown.capability']={note:'Keep this text for review.'};const candidate={nodes:[person],edges:[]},before=structuredClone(candidate);
+    expect(unsupportedCandidateFields(world,person).map(f=>f.label)).toEqual(['Profile / background2','unknown.capability']);
+    const fixed=removeUnsupportedCandidateField(world,candidate,person.id,'detail.profile','background2');expect(fixed.nodes[0].components['detail.profile'].background).toBe('A retired engineer.');expect(fixed.nodes[0].components['detail.profile'].background2).toBeUndefined();expect(fixed.nodes[0].components['unknown.capability']).toEqual(person.components['unknown.capability']);expect(candidate).toEqual(before);
+    expect(()=>removeUnsupportedCandidateField(world,candidate,person.id,'detail.profile','background')).toThrow();expect(unsupportedCandidateFields(world,removeUnsupportedCandidateField(world,fixed,person.id,'unknown.capability',null).nodes[0])).toEqual([]);
+  });
+  it('offers narration creation explicitly for a new world and clears it for groups/typed nodes',()=>{
+    const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.includeNarration).toBe(true);
+    const group=changeCreationType(world,request,'@group');expect(group.includeNarration).toBeUndefined();expect(group.creationScope).toBe('group');
+    expect(changeCreationType(world,request,'core.place').includeNarration).toBeUndefined();
+    world.nodes.push(makeNode(world,'core.narration-style','Existing style'));
+    expect(changeCreationType(world,group,'@world').includeNarration).toBe(false);expect(newAuthoringRequest(world).includeNarration).toBeUndefined();
+  });
+  it('starts a new group with the current node as a full-detail reference without changing revision scope',()=>{
+    const world=exampleWorld(),focus=world.nodes[3].id,before=structuredClone(world);
+    expect(newAuthoringRequest(world,undefined,focus)).toMatchObject({creationScope:'group',contextIds:[focus]});
+    expect(newAuthoringRequest(world,undefined,'missing').contextIds).toEqual([]);
+    expect(newAuthoringRequest(world,focus,world.nodes[0].id)).toMatchObject({mode:'revise',targetIds:[focus],contextIds:[]});expect(world).toEqual(before);
+  });
+  it('offers empty descriptions and missing optional custom text fields without requiring placeholder content',()=>{
+    const world=emptyWorld();world.componentTypes.push({id:'custom.voice',name:'Voice',description:'',fields:[{key:'voice',label:'Voice',kind:'text',required:false,defaultValue:''}]});
+    const node=makeNode(world,'core.note','Narration style');node.components['custom.voice']={};world.nodes.push(node);
+    const request=newAuthoringRequest(world,node.id);expect(request.direction).toBe('');expect(request.fields).toEqual(expect.arrayContaining([{nodeId:node.id,componentId:null,key:'description'},{nodeId:node.id,componentId:null,key:'visualDescription'},{nodeId:node.id,componentId:'custom.voice',key:'voice'}]));expect(request.fields.some(f=>f.componentId===null&&f.key==='name')).toBe(false);expect(node.description).toBe('');expect(node.components['custom.voice']).toEqual({});
+  });
+  it('defaults empty stories to world building and populated stories to groups, with distinct typed-node controls',()=>{
+    const world=emptyWorld(),request=newAuthoringRequest(world);expect(request.typeId).toBeNull();expect(request.bundle).toBe(true);expect(creationChoice(request)).toBe('@world');
+    const populated=exampleWorld(),group=newAuthoringRequest(populated);expect(group.bundle).toBe(true);expect(group.typeId).toBeNull();expect(creationChoice(group)).toBe('@group');
+    world.nodeTypes.push({id:'custom.person',name:'Settler',description:'',components:['core.character','core.holder']});
+    for(const type of ['core.character','custom.person'])expect(changeCreationType(world,group,type)).toMatchObject({bundle:true,creationScope:null,groupTypeId:null});
+    expect(changeCreationType(world,group,'core.item')).toMatchObject({bundle:false,creationScope:null,typeId:'core.item'});
+    expect(changeCreationType(world,group,null).creationScope).toBe('world');expect(request.direction).toBe('');
+  });
+  it('preserves direction and explicit references while resetting scope-specific choices on mode changes',()=>{
+    const world=exampleWorld(),group={...newAuthoringRequest(world),groupTypeId:'core.item',direction:'A travel kit.',contextIds:[world.nodes[0].id]},before=structuredClone(group);
+    const building=changeCreationType(world,group,'@world');expect(building).toMatchObject({creationScope:'world',groupTypeId:null,typeId:null,bundle:true,direction:group.direction,contextIds:group.contextIds});
+    const typed=changeCreationType(world,building,'core.place');expect(typed).toMatchObject({creationScope:null,groupTypeId:null,bundle:false});
+    expect(changeCreationType(world,typed,'@group')).toMatchObject({creationScope:'group',groupTypeId:null,typeId:null,bundle:true});expect(group).toEqual(before);
+    const legacy={...group,creationScope:undefined,groupTypeId:undefined};expect(creationChoice(legacy)).toBe('@world');expect(legacy.creationScope).toBeUndefined();
+  });
+  it('limits candidate additions by any saved group preset without hiding existing references',()=>{
+    const world=exampleWorld();world.nodeTypes.push({id:'custom.supply',name:'Supply',description:'',components:['core.item']});
+    const request={...newAuthoringRequest(world),groupTypeId:'custom.supply'};expect(candidateNodeTypes(world,request).map(t=>t.id)).toEqual(['custom.supply']);
+    expect(candidateNodeTypes(world,{...request,groupTypeId:null}).map(t=>t.id)).toEqual(foundationCreationTypes(world));expect(candidateNodeTypes(world,{...request,groupTypeId:null,creationTypeIds:undefined})).toEqual(world.nodeTypes);expect(world.nodes).toHaveLength(8);
+  });
+  it('selects creation presets by capabilities, permits other custom types and keeps one selected type',()=>{
+    const world=emptyWorld();world.nodeTypes.push({id:'custom.person',name:'Settler',description:'',components:['core.character']},{id:'custom.weather',name:'Weather',description:'',components:[]});
+    const request=newAuthoringRequest(world),before=structuredClone(request);expect(request.creationTypeIds).toContain('custom.person');expect(request.creationTypeIds).not.toContain('custom.weather');
+    const expanded=toggleCreationType(world,request,'custom.weather');expect(candidateNodeTypes(world,expanded).map(t=>t.id)).toContain('custom.weather');expect(request).toEqual(before);
+    const noStyle=toggleCreationType(world,request,'core.narration-style');expect(noStyle.includeNarration).toBe(false);
+    const last={...request,creationTypeIds:['core.item']};expect(toggleCreationType(world,last,'core.item')).toBe(last);
+    expect(changeCreationType(world,expanded,'core.place').creationTypeIds).toBeUndefined();
+  });
+  it('adds a separate wearable item with one wear placement without changing the world',()=>{
+    const world=emptyWorld(),before=structuredClone(world),person=makeNode(world,'core.character','Nora Hale','new:person');const input={nodes:[person],edges:[]};
+    const next=addCandidateWornItem(world,input,person.id),item=next.nodes[1];expect(item.components['core.item'].quantity).toBe(1);expect(item.components['core.wearable']).toEqual({regions:'torso',layer:1});expect(next.edges.map(e=>[e.typeId,e.sourceId,e.targetId])).toEqual([['core.worn-by',item.id,person.id]]);expect(item.id.slice(4).length).toBeLessThanOrEqual(40);expect(new Set(next.edges.map(e=>e.id)).size).toBe(1);expect(input.nodes).toHaveLength(1);expect(world).toEqual(before);
+  });
+  it('uses custom item presets and schema-defined capability defaults when repairing a candidate',()=>{
+    const world=emptyWorld();world.nodeTypes=world.nodeTypes.map(t=>t.id==='core.item'?{...t,id:'custom.possession'}:t);world.componentTypes.push({id:'custom.condition',name:'Condition',description:'',fields:[{key:'condition',label:'Condition',kind:'text',required:true,defaultValue:'sound'}]});
+    const person=makeNode(world,'core.character','Nora Hale','new:person');const candidate=addCandidateWornItem(world,{nodes:[person],edges:[]},person.id);expect(candidate.nodes[1].typeId).toBe('custom.possession');const repaired=addCandidateCapability(world,candidate,candidate.nodes[1].id,'custom.condition');expect(repaired.nodes[1].components['custom.condition']).toEqual({condition:'sound'});expect(candidate.nodes[1].components['custom.condition']).toBeUndefined();
+  });
+  it('uses a permitted clothing preset when the generic item preset is outside creation scope',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Nora Hale','new:person');const allowed=world.nodeTypes.filter(t=>t.components.includes('core.item')&&t.id!=='core.item').map(t=>t.id);expect(allowed.length).toBeGreaterThan(0);
+    const candidate=addCandidateWornItem(world,{nodes:[person],edges:[]},person.id,allowed);expect(allowed).toContain(candidate.nodes[1].typeId);expect(candidate.edges).toHaveLength(1);
+    expect(()=>addCandidateWornItem(world,{nodes:[person],edges:[]},person.id,['core.character'])).toThrow();
+  });
+  it('discovers fields from attached custom capabilities and protects the base name by default',()=>{
+    const world=exampleWorld();world.componentTypes.push({id:'custom.details',name:'Extra details',description:'',fields:[{key:'name',label:'Alias',kind:'text',required:false,defaultValue:''}]});
+    world.nodes[0].components['custom.details']={name:'Alias'};
+    const fields=editableFields(world,[world.nodes[0].id]);expect(fields.some((f)=>f.componentId==='custom.details'&&f.key==='name')).toBe(true);
+    const request=newAuthoringRequest(world,world.nodes[0].id);expect(request.fields.some((f)=>f.componentId===null&&f.key==='name')).toBe(false);expect(request.fields.some((f)=>f.componentId==='custom.details'&&f.key==='name')).toBe(true);
+  });
+  it('adds proposal nodes with temporary aliases and preserves canonical data',()=>{
+    const world=exampleWorld(),before=structuredClone(world);const candidate=addCandidateNode(world,{nodes:[],edges:[]},'core.item');expect(candidate.nodes[0].id).toMatch(/^new:/);expect(candidate.nodes[0].components['core.item'].quantity).toBe(1);expect(world).toEqual(before);
+  });
+  it('keeps malformed candidate JSON out of structured controls without throwing',()=>{
+    const world=exampleWorld();const node=makeNode(world,'core.item','Coat','new:root');expect(parseCandidateForEditor(JSON.stringify({nodes:[node],edges:[]}))?.nodes[0].name).toBe('Coat');
+    for(const value of ['{unfinished',JSON.stringify({nodes:[{...node,components:{'core.item':null}}],edges:[]}),JSON.stringify({nodes:[{...node,name:{bad:'value'}}],edges:[]}),JSON.stringify({nodes:[],edges:[{}]})])expect(parseCandidateForEditor(value)).toBeNull();
+  });
+});
+
+describe('candidate placement repair',()=>{
+  const link=(typeId:string,sourceId:string,targetId:string)=>({id:crypto.randomUUID(),typeId,sourceId,targetId,description:''});
+
+  it('reverses a reviewed containment fan-out and leaves other links alone',()=>{
+    const world=emptyWorld();
+    const [homestead,house,barn,yard]=['Homestead','House','Barn','Yard'].map(name=>makeNode(world,'core.place',name));
+    const unrelated=link('core.related',house.id,barn.id);
+    const candidate={nodes:[homestead,house,barn,yard],edges:[...([house,barn,yard].map(place=>link('core.inside',homestead.id,place.id))),unrelated]};
+    const [conflict]=candidatePlacementConflicts(world,candidate);
+    expect(conflict).toEqual({sourceId:homestead.id,indexes:[0,1,2],canReverse:true});
+    const repaired=repairCandidatePlacement(candidate,conflict.indexes);
+    expect(candidatePlacementConflicts(world,repaired)).toEqual([]);
+    expect(repaired.edges.slice(0,3).map(edge=>[edge.sourceId,edge.targetId])).toEqual([house,barn,yard].map(place=>[place.id,homestead.id]));
+    expect(repaired.edges[3]).toEqual(unrelated);
+    expect(candidate.edges[0].sourceId).toBe(homestead.id);
+    expect(candidatePlacementConflicts(world,{...candidate,edges:[...candidate.edges,link('core.inside',house.id,yard.id)]})[0].canReverse).toBe(false);
+    expect(candidatePlacementConflicts(world,{...candidate,edges:candidate.edges.map((edge,index)=>index===0?{...edge,description:'Keep these notes'}:edge)})[0].canReverse).toBe(false);
+  });
+
+  it('lets the author keep a worn link without deleting the garment or unrelated clothing',()=>{
+    const world=emptyWorld(),person=makeNode(world,'core.character','Mara');
+    const coat=makeNode(world,'core.wearable-item','Coat'),boots=makeNode(world,'core.wearable-item','Boots');
+    const wear=link('core.worn-by',coat.id,person.id),carry=link('core.stored-in',coat.id,person.id);
+    const bootsLink=link('core.worn-by',boots.id,person.id);
+    const candidate={nodes:[person,coat,boots],edges:[carry,wear,bootsLink]};
+    const [conflict]=candidatePlacementConflicts(world,candidate);
+    expect(conflict).toEqual({sourceId:coat.id,indexes:[0,1],canReverse:false});
+    expect(repairCandidatePlacement(candidate,conflict.indexes,1)).toEqual({nodes:candidate.nodes,edges:[wear,bootsLink]});
+  });
+});

@@ -1,0 +1,72 @@
+# World editing foundation
+
+Pinning means a saved relationship between world nodes. Dragging a node changes only the map layout. Nodes remain generic: presets supply initial capabilities, and capabilities constrain typed connections.
+
+The initial [composable-node revision](WORLD_NODE_DESIGN.md) adds richer bundles, field metadata and expandable sections in the shared inspector. Connections also have typed, schema-driven properties. These changes use story format 2 and require fresh prototype stories.
+
+**Manage extensions** lists attached capabilities, including behavioral markers. Adding/removing an extension or changing a preset uses native Review changes / Apply changes. A preset change adds its missing extensions while preserving existing IDs, values and connections; removing old capabilities is separate and may be blocked by dependent links or filtered references. Empty optional fields stay unspecified. **Define extension** attaches a new project-local definition; **Define a custom node type** combines chosen extensions and optional new typed fields into a preset and one unplaced node. Both validate natively before publication. Defining a preset does not update existing instances.
+
+## Controls
+
+- Select a node and use **Connections → Attach / link**, or drag between node handles to open a new connection form.
+- Use **Edit / move** on an incoming or outgoing connection, or click its canvas line. Change its source, relationship, target, notes or typed details. The saved connection keeps its ID. Changing type resets details to the new definition’s defaults; Review changes lists cleared values.
+- To remove a connection, click its canvas line and choose **Remove connection…** to preview the removal. The inspector also offers **Remove** for relationships and **Detach** for physical placements. Nodes and capabilities have their own removal controls.
+- Choose **Review changes**, inspect the native-validated consequences, then **Apply changes**. Cancel leaves the world unchanged. An edited form invalidates its previous preview; applying also checks that the source world still matches.
+- Add project-local relationship definitions through **Add node → Define a relationship…**. Choose source/target capability requirements, physical placement, one-target behavior and typed detail fields. The same field builder used for node extensions supports text, choices, numbers, yes/no and filtered node references, with task-use hints. Review/Apply validates the saved definition natively.
+
+The inspector lists incoming and outgoing connections even when endpoints are hidden by map collapse/search. Following a connection reveals its ancestor path. Canvas links retain canonical IDs and direction. Wearing is a physical placement, so a garment has one Worn by line and still appears in its wearer's inventory. Other narrative relationships can share endpoints.
+
+Routes with an explicit **two-way** travel direction show arrows at both ends on the map and **↔ two-way** in the inspector. **One-way** routes and other relationships follow their stored source → target orientation. Routes with no saved direction remain valid and are labeled **direction unspecified**; displaying a connection does not create a reverse edge or imply travel. In particular, **Can hear from** points from listening place to sound origin, not along the propagation of sound.
+
+**Owned by** remains separate from physical possession. The shared connection editor and inspector advise when its source lacks Item/Place or its owner lacks Character/Organization capabilities. These are warnings, not new endpoint restrictions. An owned item can be carried by someone else or stored elsewhere; changing ownership does not move it, create inventory membership or grant knowledge.
+
+When the Story composer’s selected scene focus has a direct **Conditions at** connection from an environment node, **Add conditions to scene context** offers that node as an ordinary scene reference. Nothing is selected until clicked. The normal reference list removes it again and the normal context preview shows what will be sent. Coverage/exception notes appear beside the action. There is no ancestor lookup, automatic inclusion, subplace inheritance, weather simulation or clock advancement.
+
+Bundled location templates use optional `edges` entries (`key`, `typeId`, `sourceKey`, `targetKey`, optional `description` and `properties`) alongside the existing nodes/physical-parent format. Keys resolve only within that template; imported connections get fresh IDs and normal native validation. Template routes require an explicit valid `properties.direction`; supported saved worlds may still omit it. Templates author local conditions coverage directly, leave every AI binding off until reviewed, and do not imply routes from containment or ownership from storage. Existing story folders are not rewritten when the catalogue changes.
+
+## Structural rules
+
+| Action | Result |
+| --- | --- |
+| Move physical placement | Replace the source's previous physical placement atomically. Nested contents stay with their holder. |
+| Move a worn item to another holder | Replace Worn by with Stored in / carried by in the same operation. |
+| Wear an item | Set one Worn by physical placement; replace any earlier holder, require quantity one and the relevant capabilities. |
+| Take an item off but keep it | Edit its existing connection to Stored in / carried by with the same character. |
+| Detach physical placement, including Worn by | Leave the source unplaced. |
+| Remove a holder/node | Remove only that node. Keep direct contents unplaced, with their own nested contents intact. Remove incident links and clear typed references/default references. Leave matching free text untouched. |
+| Remove a capability | Remove its field values only if the complete resulting world is valid. Resolve dependent links first. |
+| Invalid/self/duplicate/cyclic connection | Reject the entire operation without altering the source. |
+
+One physical parent applies across built-in and custom physical relations, including Worn by. Physical containment cycles are invalid; ordinary narrative relationships can form cycles. A custom one-target relation replaces that type's prior target without changing unrelated links. Built-in definitions cannot be weakened by extensions.
+
+## Persistence boundary
+
+Rust computes a complete preview from the supplied source world and validates the result. Apply changes feeds that complete world into the existing draft/autosave pipeline. Canonical saving validates again and uses revision checks, request deduplication and atomic head publication. Old world records remain immutable. The compatibility reader recognizes the original nonphysical Worn by definition and collapses its validated matching placement pair in memory, retaining the wear connection ID and merging both descriptions. Custom placement meanings are retained in the surviving notes. It rejects damaged pairs or notes too large to combine. Invalid property drafts remain editable. Opening does not publish a revision or rewrite old files/checksums; later saves write the simplified representation. Historical snapshots, forks and backups use the same reader. Completion receipts are checked against the original stored fields, preserving replay after an upgrade. New worlds reject dual physical placements.
+
+Invalid ordinary property inputs remain recoverable editor drafts. Structural review forms are temporary until applied; they are not durable AI proposals. Passage snapshots, reader navigation and **Fork after this passage** are described in [story authoring](STORY_AUTHORING.md). Stock splitting/merging and existing-definition editing/removal are outside this pass.
+
+Workspace state is independent of world revisions. Deleted node positions/selection are pruned, and saved layouts are validated on both read and write. A malformed layout is reported and preserved rather than silently overwritten. Opening a project refits the map; subsequent field edits do not continually reset the viewport.
+
+## Map actions
+
+The map action bar and right-click controls work on individual nodes or the visible multi-selection. Ctrl+click adds/removes nodes; Shift+drag draws a selection box. **Selection** offers Select all visible (Ctrl+A), Clear selection (Esc), Expand/Collapse selected and Fit selection. Collapsed children are not implicitly selected, copied or deleted.
+
+**Revise with AI…** opens a protected, field-selectable revision for the visible selected nodes and their internal links. Select garment/tool nodes when their contents should change. Optional related additions can create new linked tools or garments; review and Apply is explicit. Hidden children and outside references remain read-only. See [AI world authoring](AI_AUTHORING.md#revise-a-map-selection).
+
+**Copy** (Ctrl+C) captures a frozen, app-local group for the current project session. **Paste** (Ctrl+V) and **Duplicate** (Ctrl+D) open native review before Apply. Each copy gets new node/link identities, independent field values and offset positions. Only links within the copied group are included; typed references within it are remapped, while outside references are cleared. A missing required reference blocks paste. Project-local custom fields use the same validation. Source citations, AI context inclusion, images and pending work are not duplicated. Switching physical projects or historical boundaries clears the clipboard; cross-project/system clipboard paste is not supported.
+
+**Delete** (Delete or Backspace while the map has focus) reviews the entire selected set as one operation. Incident connections and typed references are cleaned up through the native editor; unselected contents remain unplaced with their own contents intact. Select a relationship and choose **Unlink**, or right-click it for **Unlink connections** and **Edit connection**. Double-clicking a relationship also opens its editor. Unlinking preserves its endpoint nodes; removing physical placement makes the source unplaced. All changes require Review changes and Apply, publish through the existing atomic world-save pipeline and leave historical worlds intact. Historical maps remain read-only.
+
+## Relationship details
+
+For reusable groups across stories, the map's **Library** browser reads a folder of JSON files at runtime. **Selection → Save selection to library…** and the selection's right-click menu export a standalone group with its internal links and schema dependencies. Drag an entry to the map or use Add, then review and Apply its independent new instances. Library data never replaces existing definitions/facts; conflicting schema IDs block import. See [node library](NODE_LIBRARY.md) for the portable format, optional examples and reference/provenance boundaries.
+
+Relationships are directed records, not another node collection. **Feels toward** records attitude, reasons and tension from one person toward another; the reverse direction is independent. **Member of** records role and obligations. **Owes** records obligation, terms and status. **Route to** records access, obstacles and travel notes. These descriptions do not simulate payment, movement or offscreen events.
+
+**Worn by → Wearing details** records current configuration, such as an open coat or raised hood. Garment design/condition belongs on the item. Wearing still uses one physical link and implies inventory membership. Wearing details marked for Images enter both native image preparation and optional image-prompt assistance.
+
+The connection’s **AI…** button develops empty checked fields or rerolls selected values. ID, type and endpoints are protected; changing placement is a separate manual Edit / move action or a reviewed passage effect. Proposals require Apply. Node removal clears typed relationship references/defaults, and capability removal checks reference filters as well as endpoint requirements. Past snapshots remain immutable.
+
+## Events and provenance
+
+Event is a shared-node preset describing an established occurrence/backstory. Participant/place/cause/consequence links remain descriptive, and creating an Event never replays physical effects. The shared inspector’s **Sources** action manages typed author notes and exact accepted-passage citations through native review. Historical source views are read-only. Node removal cleans current citation bindings without altering past snapshots. See [Events and sources](SOURCES.md).

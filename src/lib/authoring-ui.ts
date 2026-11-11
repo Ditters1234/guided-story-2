@@ -1,0 +1,142 @@
+import type { AuthoringRequest,EditableField,EditableLinkField,NodeCandidate,WorldNode } from './bindings';
+import type { World } from './model';
+import { makeNode } from './model';
+import {defaultProperties,hasCapability,type FieldTarget} from './node-fields';
+export const fieldId=(field:EditableField)=>JSON.stringify([field.nodeId,field.componentId,field.key]);
+export function editableFields(world:World,ids:string[]):(EditableField&{label:string})[]{
+  return world.nodes.filter((n)=>ids.includes(n.id)).flatMap((node)=>[
+    ...[['name','Name'],['description','Story notes'],['visualDescription','Visible description']].map(([key,label])=>({nodeId:node.id,componentId:null,key,label})),
+    ...Object.keys(node.components).flatMap((id)=>{const definition=world.componentTypes.find((d)=>d.id===id);return (definition?.fields??[]).map((field)=>({nodeId:node.id,componentId:id,key:field.key,label:(definition?.name??id)+' / '+field.label}));}),
+  ]);
+}
+export function newAuthoringRequest(world:World,targetId?:string,focusId?:string|null):AuthoringRequest{
+  return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
+    {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,creationTypeIds:foundationCreationTypes(world),...(!world.nodes.length?{includeNarration:narrationDefault(world)}:{}),targetIds:[],contextIds:focusId&&world.nodes.some(n=>n.id===focusId)?[focusId]:[],fields:[]};
+}
+export function foundationCreationTypes(world:World){return world.nodeTypes.filter(t=>t.components.some(c=>['core.place','core.character','core.item','core.narration-style','detail.rule','detail.brief'].includes(c))).map(t=>t.id);}
+export function toggleCreationType(world:World,request:AuthoringRequest,id:string):AuthoringRequest{
+  const before=request.creationTypeIds?.length?request.creationTypeIds:world.nodeTypes.map(t=>t.id),next=before.includes(id)?before.filter(v=>v!==id):[...before,id];
+  if(!next.length)return request;
+  return {...request,creationTypeIds:next,...(request.includeNarration&&!world.nodeTypes.some(t=>next.includes(t.id)&&t.components.includes('core.narration-style'))?{includeNarration:false}:{})};
+}
+function narrationDefault(world:World){return world.nodeTypes.some(t=>t.components.includes('core.narration-style'))&&!world.nodes.some(n=>n.components['core.narration-style']);}
+export function creationChoice(request:AuthoringRequest):string{return request.typeId??(request.creationScope==='group'?'@group':'@world');}
+export function changeCreationType(world:World,request:AuthoringRequest,choice:string|null):AuthoringRequest{
+  if(!choice||choice==='@world'||choice==='@group')return {...request,typeId:null,bundle:true,creationScope:choice==='@group'?'group':'world',groupTypeId:null,creationTypeIds:foundationCreationTypes(world),includeNarration:choice==='@group'?undefined:narrationDefault(world)};
+  return {...request,typeId:choice,bundle:!!world.nodeTypes.find(d=>d.id===choice)?.components.includes('core.character'),creationScope:null,groupTypeId:null,creationTypeIds:undefined,includeNarration:undefined};
+}
+export function candidateNodeTypes(world:World,request:AuthoringRequest){return request.creationScope==='group'&&request.groupTypeId?world.nodeTypes.filter(t=>t.id===request.groupTypeId):request.creationTypeIds?.length?world.nodeTypes.filter(t=>request.creationTypeIds!.includes(t.id)):world.nodeTypes;}
+export function addCandidateCapability(world:World,candidate:NodeCandidate,nodeId:string,componentId:string):NodeCandidate{
+  const definition=world.componentTypes.find(d=>d.id===componentId);
+  if(!definition)throw Error('Choose a capability from this project.');
+  return editCandidateNode(candidate,nodeId,node=>node.components[componentId]?node:{...node,components:{...node.components,[componentId]:defaultProperties(definition)}});
+}
+export function wornItemType(world:World,allowedTypeIds?:string[]):string|null{
+  return world.componentTypes.some(d=>d.id==='core.wearable')&&world.relationTypes.some(r=>r.id==='core.worn-by'&&r.physicalPlacement)?world.nodeTypes.find(d=>d.components.includes('core.item')&&(!allowedTypeIds||allowedTypeIds.includes(d.id)))?.id??null:null;
+}
+export function addCandidateWornItem(world:World,candidate:NodeCandidate,wearerId:string,allowedTypeIds?:string[]):NodeCandidate{
+  const typeId=wornItemType(world,allowedTypeIds),wearer=candidate.nodes.find(n=>n.id===wearerId);
+  if(!typeId||!wearer?.components['core.character'])throw Error('Choose a proposed character and a schema supporting wearable items.');
+  const item=makeNode(world,typeId,'New worn item','new:garment-'+crypto.randomUUID().replaceAll('-',''));
+  let next=addCandidateCapability(world,{...candidate,nodes:[...candidate.nodes,item]},item.id,'core.wearable');
+  next={...next,edges:[...next.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId:'core.worn-by',sourceId:item.id,targetId:wearerId,description:''}]};
+  return next;
+}
+export function addCandidateNode(world:World,candidate:NodeCandidate,typeId:string):NodeCandidate{
+  const name=world.nodeTypes.find((d)=>d.id===typeId)?.name??'node';
+  const node=makeNode(world,typeId,'New '+name.toLowerCase(),'new:'+crypto.randomUUID().replaceAll('-',''));
+  return {...candidate,nodes:[...candidate.nodes,node]};
+}
+export function editCandidateNode(candidate:NodeCandidate,id:string,change:(node:WorldNode)=>WorldNode):NodeCandidate{return {...candidate,nodes:candidate.nodes.map((node)=>node.id===id?change(node):node)};}
+
+export function candidatePlacementConflicts(world:World,candidate:NodeCandidate){
+  const physical=new Set(world.relationTypes.filter(type=>type.physicalPlacement).map(type=>type.id));
+  const places=new Set(candidate.nodes.filter(node=>node.components['core.place']).map(node=>node.id));
+  const bySource=new Map<string,number[]>();
+  candidate.edges.forEach((edge,index)=>{
+    if(!physical.has(edge.typeId))return;
+    const indexes=bySource.get(edge.sourceId)??[];
+    indexes.push(index);
+    bySource.set(edge.sourceId,indexes);
+  });
+  return [...bySource].filter(([,indexes])=>indexes.length>1).map(([sourceId,indexes])=>{
+    const links=indexes.map(index=>candidate.edges[index]);
+    const targets=new Set(links.map(link=>link.targetId));
+    const canReverse=places.has(sourceId)&&targets.size===links.length&&links.every(link=>
+      link.typeId==='core.inside'&&places.has(link.targetId)&&!bySource.has(link.targetId)
+      &&!link.description.trim()&&!Object.keys(link.properties??{}).length);
+    return {sourceId,indexes,canReverse};
+  });
+}
+
+export function repairCandidatePlacement(candidate:NodeCandidate,indexes:number[],keep?:number):NodeCandidate{
+  const conflicts=new Set(indexes);
+  const edges=keep===undefined
+    ?candidate.edges.map((edge,index)=>conflicts.has(index)?{...edge,sourceId:edge.targetId,targetId:edge.sourceId}:edge)
+    :candidate.edges.filter((_,index)=>!conflicts.has(index)||index===keep);
+  return {...candidate,edges};
+}
+
+export function unsupportedCandidateFields(world:World,node:WorldNode){
+  return Object.entries(node.components).flatMap(([componentId,values])=>{
+    const definition=world.componentTypes.find(d=>d.id===componentId);
+    if(!definition)return [{componentId,key:null as string|null,label:componentId,value:JSON.stringify(values,null,2)}];
+    return Object.entries(values).filter(([key])=>!definition.fields.some(f=>f.key===key)).map(([key,value])=>({componentId,key:key as string|null,label:definition.name+' / '+key,value:JSON.stringify(value,null,2)}));
+  });
+}
+export function removeUnsupportedCandidateField(world:World,candidate:NodeCandidate,nodeId:string,componentId:string,key:string|null):NodeCandidate{
+  const node=candidate.nodes.find(n=>n.id===nodeId);
+  if(!node||!unsupportedCandidateFields(world,node).some(f=>f.componentId===componentId&&f.key===key))throw Error('Choose an unsupported proposed field.');
+  return editCandidateNode(candidate,nodeId,n=>{const components={...n.components};if(key===null)delete components[componentId];else{components[componentId]={...components[componentId]};delete components[componentId][key];}return {...n,components};});
+}
+export function parseCandidateForEditor(text:string):NodeCandidate|null{
+  const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
+  const property=(value:unknown)=>value===null||['string','number','boolean'].includes(typeof value)||(Array.isArray(value)&&value.every((v)=>typeof v==='string'));
+  try{const value:unknown=JSON.parse(text);if(!record(value)||!Array.isArray(value.nodes)||!Array.isArray(value.edges)||value.nodes.length>20||value.edges.length>80)return null;
+    if(!value.nodes.every((n)=>record(n)&&['id','typeId','name','description','visualDescription'].every((key)=>typeof n[key]==='string')&&record(n.components)&&Object.values(n.components).every((values)=>record(values)&&Object.values(values).every(property))))return null;
+    if(!value.edges.every((e)=>record(e)&&['id','typeId','sourceId','targetId','description'].every((key)=>typeof e[key]==='string')&&(e.properties===undefined||(record(e.properties)&&Object.values(e.properties).every(property)))))return null;
+    return value as unknown as NodeCandidate;
+  }catch{return null;}
+}
+
+export const linkFieldId=(field:EditableLinkField)=>JSON.stringify([field.linkId,field.property]);
+export function editableLinkFields(world:World,ids:string[]):(EditableLinkField&{label:string})[]{
+  return world.edges.filter(e=>ids.includes(e.id)).flatMap(e=>{
+    const relation=world.relationTypes.find(d=>d.id===e.typeId),label=(world.nodes.find(n=>n.id===e.sourceId)?.name??'Source')+' → '+(relation?.label??e.typeId)+' → '+(world.nodes.find(n=>n.id===e.targetId)?.name??'Target');
+    return [{linkId:e.id,property:null,label:label+' / Connection notes'},...(relation?.fields??[]).map(f=>({linkId:e.id,property:f.key,label:label+' / '+f.label}))];
+  });
+}
+export function newLinkAuthoringRequest(world:World,id:string):AuthoringRequest{
+  return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:[],contextIds:[],fields:[],linkTargetIds:[id],linkFields:editableLinkFields(world,[id]).map(({label:_,...field})=>field)};
+}
+
+export function newSelectionAuthoringRequest(world:World,ids:string[]):AuthoringRequest {
+  const selected=[...new Set(ids)];
+  if(!selected.length||selected.length>12||selected.some(id=>!world.nodes.some(n=>n.id===id)))throw Error('Select between 1 and 12 current world nodes for AI revision.');
+  const links=world.edges.filter(edge=>selected.includes(edge.sourceId)&&selected.includes(edge.targetId)).map(edge=>edge.id);
+  if(links.length>24)throw Error('Narrow the selection to at most 24 internal relationships.');
+  const physical=new Set(world.relationTypes.filter(type=>type.physicalPlacement).map(type=>type.id));
+  const neighbors=new Set(world.edges.filter(edge=>physical.has(edge.typeId)&&(selected.includes(edge.sourceId)||selected.includes(edge.targetId))).flatMap(edge=>[edge.sourceId,edge.targetId]));
+  const fields=editableFields(world,selected).filter(field=>field.componentId!==null||field.key!=='name').slice(0,200).map(({label:_,...field})=>field);
+  return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:selected,contextIds:world.nodes.filter(node=>neighbors.has(node.id)&&!selected.includes(node.id)).slice(0,12).map(node=>node.id),fields,
+    linkTargetIds:links,linkFields:editableLinkFields(world,links).slice(0,200-fields.length).map(({label:_,...field})=>field)};
+}
+
+export function revisionAdditionTypes(world:World):string[]{return world.nodeTypes.filter(type=>type.components.includes('core.item')).map(type=>type.id);}
+export function allowRevisionAdditions(world:World,request:AuthoringRequest,enabled:boolean):AuthoringRequest {
+  return {...request,bundle:enabled,creationTypeIds:enabled?revisionAdditionTypes(world):undefined};
+}
+
+export function unplacedCandidateGarments(world:World,candidate:NodeCandidate){
+  const physical=new Set(world.relationTypes.filter(r=>r.physicalPlacement).map(r=>r.id));
+  return candidate.nodes.filter(n=>hasCapability(n,'core.wearable')&&!candidate.edges.some(e=>e.sourceId===n.id&&physical.has(e.typeId)));
+}
+export function garmentPlacementTargets(world:World,garment:WorldNode,references:FieldTarget[]){
+  return world.relationTypes.filter(r=>r.physicalPlacement&&['core.worn-by','core.stored-in'].includes(r.id)&&(!r.sourceCapability||hasCapability(garment,r.sourceCapability))).flatMap(relation=>references.filter(n=>n.id!==garment.id&&(!relation.targetCapability||hasCapability(n,relation.targetCapability))).map(target=>({typeId:relation.id,targetId:target.id,label:relation.label+' → '+target.name})));
+}
+export function placeCandidateGarment(world:World,candidate:NodeCandidate,garmentId:string,typeId:string,targetId:string,references:FieldTarget[]):NodeCandidate {
+  const garment=unplacedCandidateGarments(world,candidate).find(n=>n.id===garmentId&&n.id.startsWith('new:'));
+  if(!garment||!garmentPlacementTargets(world,garment,references).some(t=>t.typeId===typeId&&t.targetId===targetId))throw Error('Choose an unplaced proposed garment and a supplied wearer or holder.');
+  const relation=world.relationTypes.find(r=>r.id===typeId)!;
+  return {...candidate,edges:[...candidate.edges,{id:'new:link-'+crypto.randomUUID().replaceAll('-',''),typeId,sourceId:garmentId,targetId,description:'',properties:defaultProperties({fields:relation.fields??[]})}]};
+}

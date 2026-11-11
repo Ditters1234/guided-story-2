@@ -8,3 +8,10 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.bat text eol=crlf
+*.mjs text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.lock text eol=lf
+src/lib/bindings.ts whitespace=-blank-at-eof

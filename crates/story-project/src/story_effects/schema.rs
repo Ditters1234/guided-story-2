@@ -1,0 +1,332 @@
+//! Concrete provider contracts over the captured scene. Canonical validation and
+//! evidence/approval rules stay in the native effects pipeline.
+use super::*;
+
+/// Descriptive help is already in the field catalogue/default extraction prompt.
+/// The provider grammar retains all semantic constraints and field names.
+fn compact_schema(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            if object.get("description").is_some_and(Value::is_string) {
+                object.remove("description");
+            }
+            for child in object.values_mut() {
+                compact_schema(child);
+            }
+            if object.len() == 1 {
+                if let Some(options) = object.get("anyOf").and_then(Value::as_array) {
+                    if options.len() == 2
+                        && options[1] == json!({"type":"null"})
+                        && options[0]
+                            .get("type")
+                            .is_some_and(|v| v.is_string() || v.is_array())
+                    {
+                        let mut simple = options[0].clone();
+                        let mut types = match &simple["type"] {
+                            Value::String(t) => vec![json!(t)],
+                            Value::Array(types) => types.clone(),
+                            _ => vec![],
+                        };
+                        if !types.contains(&Value::String("null".into())) {
+                            types.push(json!("null"));
+                        }
+                        simple["type"] = json!(types);
+                        if let Some(choices) = simple.get_mut("enum").and_then(Value::as_array_mut)
+                        {
+                            if !choices.contains(&Value::Null) {
+                                choices.push(Value::Null);
+                            }
+                        }
+                        *value = simple;
+                    }
+                }
+            }
+        }
+        Value::Array(values) => {
+            for child in values {
+                compact_schema(child);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn reference(ids: impl IntoIterator<Item = String>, new_alias: bool) -> Option<Value> {
+    let ids: BTreeSet<_> = ids.into_iter().collect();
+    let mut choices = vec![];
+    if !ids.is_empty() {
+        choices.push(json!({"type":"string","enum":ids}));
+    }
+    if new_alias {
+        choices.push(json!({"type":"string","pattern":"^new:[A-Za-z0-9_-]{1,60}$"}));
+    }
+    match choices.len() {
+        0 => None,
+        1 => choices.pop(),
+        _ => Some(json!({"anyOf":choices})),
+    }
+}
+
+fn endpoint_reference(world: &World, required: Option<&str>) -> Value {
+    reference(
+        world
+            .nodes
+            .iter()
+            .filter(|node| required.is_none_or(|id| crate::model::capability(node, id)))
+            .map(|node| node.id.clone()),
+        true,
+    )
+    .unwrap()
+}
+
+fn components(world: &World, required: &[String], old: Option<&WorldNode>) -> Value {
+    let mut allowed: BTreeSet<_> = required.iter().cloned().collect();
+    if old.is_none() {
+        if allowed.contains("core.item") {
+            allowed.extend([
+                "core.container".into(),
+                "core.wearable".into(),
+                "detail.wearable".into(),
+            ]);
+        }
+        if allowed.contains("core.character") {
+            allowed.insert("detail.anatomy".into());
+        }
+    }
+    let properties: serde_json::Map<_, _> = world.component_types.iter().filter(|d| allowed.contains(&d.id)).map(|d| {
+        let mut required_fields = vec![];
+        let fields: serde_json::Map<_, _> = d.fields.iter().filter_map(|f| {
+            let previous = old.and_then(|n| n.components.get(&d.id)).and_then(|values| values.get(&f.key));
+            let schema = if planning_only(f) {
+                if old.is_some() && previous.is_none() { return None; }
+                json!({"const":previous.unwrap_or(&f.default_value)})
+            } else { crate::authoring::field_schema(f) };
+            if old.is_none() && f.required { required_fields.push(f.key.clone()); }
+            Some((f.key.clone(), schema))
+        }).collect();
+        (d.id.clone(), json!({"type":"object","properties":fields,"required":required_fields,"additionalProperties":false}))
+    }).collect();
+    json!({"type":"object","properties":properties,"required":if old.is_some(){&[] as &[String]}else{required},"additionalProperties":false})
+}
+
+fn node(
+    world: &World,
+    type_id: &str,
+    id: Value,
+    required: &[String],
+    old: Option<&WorldNode>,
+) -> Value {
+    let mut schema = json!({"type":"object","properties":{
+        "id":id,"typeId":{"const":type_id},"name":{"type":"string","minLength":1,"maxLength":200},
+        "description":{"type":"string","maxLength":16000},"visualDescription":{"type":"string","maxLength":16000},
+        "components":components(world,required,old)
+    },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
+    if old.is_some() {
+        schema["required"] = json!(["id"]);
+        schema["minProperties"] = json!(2);
+    }
+    schema
+}
+
+fn nodes(world: &World) -> Vec<Value> {
+    // Sparse existing records share capabilities and protected planning values;
+    // share a branch so several same-preset participants do not duplicate their
+    // whole field schema. Their ID enum still permits only captured records.
+    let mut groups: BTreeMap<String, (&WorldNode, Vec<String>)> = BTreeMap::new();
+    for old in world
+        .nodes
+        .iter()
+        .filter(|n| !authoring_only_components(world, n.components.keys()))
+    {
+        let planning: Vec<_> = world
+            .component_types
+            .iter()
+            .filter(|d| old.components.contains_key(&d.id))
+            .flat_map(|d| {
+                d.fields
+                    .iter()
+                    .filter(|f| planning_only(f))
+                    .map(|f| (&d.id, &f.key, old.components[&d.id].get(&f.key)))
+            })
+            .collect();
+        let key = json!([
+            old.type_id,
+            old.components.keys().collect::<Vec<_>>(),
+            planning
+        ])
+        .to_string();
+        groups
+            .entry(key)
+            .or_insert_with(|| (old, vec![]))
+            .1
+            .push(old.id.clone());
+    }
+    let mut choices: Vec<_> = groups
+        .into_values()
+        .map(|(old, ids)| {
+            node(
+                world,
+                &old.type_id,
+                reference(ids, false).unwrap(),
+                &old.components.keys().cloned().collect::<Vec<_>>(),
+                Some(old),
+            )
+        })
+        .collect();
+    for preset in world
+        .node_types
+        .iter()
+        .filter(|t| !authoring_only_components(world, t.components.iter()))
+    {
+        choices.push(node(
+            world,
+            &preset.id,
+            reference([], true).unwrap(),
+            &preset.components,
+            None,
+        ));
+    }
+    choices
+}
+
+fn link_properties(definition: &RelationDefinition, old: Option<&WorldEdge>) -> Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = vec![];
+    for field in &definition.fields {
+        let previous = old.and_then(|e| e.properties.get(&field.key));
+        let schema = if planning_only(field) {
+            if old.is_some() {
+                json!({"const":previous.unwrap_or(&PropertyValue::Null)})
+            } else if !field.required && field.default_value != PropertyValue::Null {
+                json!({"anyOf":[{"const":field.default_value},{"type":"null"}]})
+            } else {
+                json!({"const":field.default_value})
+            }
+        } else {
+            crate::authoring::field_schema(field)
+        };
+        if field.required
+            || previous.is_some_and(populated)
+            || (planning_only(field) && previous.is_some_and(|v| v != &PropertyValue::Null))
+        {
+            required.push(field.key.clone());
+        }
+        properties.insert(field.key.clone(), schema);
+    }
+    json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
+}
+
+fn links(world: &World, scoped: &BTreeSet<&str>) -> Vec<Value> {
+    let catalogue = crate::authoring::relationship_schema(world);
+    let mut choices = vec![];
+    for template in catalogue["anyOf"].as_array().into_iter().flatten() {
+        let definition = world
+            .relation_types
+            .iter()
+            .find(|r| template["properties"]["typeId"]["const"] == r.id)
+            .unwrap();
+        // Share exact protected-property contracts, keeping saved targets and
+        // new connections distinct only when their planning values differ.
+        let fresh = link_properties(definition, None);
+        let mut groups = BTreeMap::from([(fresh.to_string(), (fresh, vec![], true))]);
+        for edge in world.edges.iter().filter(|e| {
+            scoped.contains(e.source_id.as_str()) && scoped.contains(e.target_id.as_str())
+        }) {
+            if edge.type_id != definition.id && has_planning_link_values(world, edge) {
+                continue;
+            }
+            let fields =
+                link_properties(definition, (edge.type_id == definition.id).then_some(edge));
+            groups
+                .entry(fields.to_string())
+                .or_insert_with(|| (fields, vec![], false))
+                .1
+                .push(edge.id.clone());
+        }
+        for (_, (properties, ids, new_alias)) in groups {
+            let mut variant = template.clone();
+            variant["properties"]["id"] = reference(ids, new_alias).unwrap();
+            variant["properties"]["sourceId"] =
+                endpoint_reference(world, definition.source_capability.as_deref());
+            variant["properties"]["targetId"] =
+                endpoint_reference(world, definition.target_capability.as_deref());
+            if properties["required"]
+                .as_array()
+                .is_some_and(|p| !p.is_empty())
+            {
+                variant["required"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!("properties"));
+            }
+            variant["properties"]["properties"] = properties;
+            choices.push(variant);
+        }
+    }
+    choices
+}
+
+pub(super) fn effects_schema(world: &World) -> Value {
+    let quote = json!({"type":"string","minLength":8,"maxLength":600,"description":"Copy one continuous excerpt verbatim from the current supplied prose. Preserve words, capitalization and punctuation; no inserted ellipses, joined excerpts or earlier-passage quotes."});
+    let excerpts =
+        json!({"type":"array","minItems":1,"maxItems":4,"uniqueItems":true,"items":quote});
+    let nodes = nodes(world);
+    let put_nodes = (!nodes.is_empty()).then(|| json!({"type":"object","properties":{"kind":{"const":"putNode"},"node":{"anyOf":nodes},"evidence":excerpts},"required":["kind","node","evidence"],"additionalProperties":false}));
+    let node_ids = reference(world.nodes.iter().map(|n| n.id.clone()), true).unwrap();
+    let scoped: BTreeSet<_> = world.nodes.iter().map(|n| n.id.as_str()).collect();
+    let link_ids: Vec<_> = world
+        .edges
+        .iter()
+        .filter(|e| scoped.contains(e.source_id.as_str()) && scoped.contains(e.target_id.as_str()))
+        .map(|e| e.id.clone())
+        .collect();
+    let links = links(world, &scoped);
+    let put_links = (!links.is_empty()).then(|| json!({"type":"object","properties":{"kind":{"const":"putLink"},"link":{"anyOf":links},"evidence":excerpts},"required":["kind","link","evidence"],"additionalProperties":false}));
+    let remove_links = reference(link_ids, false).map(|ids|json!({"type":"object","properties":{"kind":{"const":"removeLink"},"id":ids,"evidence":excerpts},"required":["kind","id","evidence"],"additionalProperties":false}));
+    let mut schema = json!({"type":"object","properties":{
+        "changes":{"type":"object","properties":{
+            "putNodes":operation_array(put_nodes),
+            "putLinks":operation_array(put_links),
+            "removeLinks":operation_array(remove_links)
+        },"required":["putNodes","putLinks","removeLinks"],"additionalProperties":false},
+        "notes":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"text":{"type":"string","maxLength":2000},"evidence":quote,"nodeIds":{"type":"array","maxItems":20,"items":node_ids}},"required":["text","evidence","nodeIds"],"additionalProperties":false}},
+        "suggestChapterEnd":{"type":"boolean"}
+    },"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false});
+    let mut new_model = world.clone();
+    new_model
+        .node_types
+        .retain(|t| !authoring_only_components(world, t.components.iter()));
+    let references = crate::prompt_context::ReferenceScope::new(
+        world,
+        world.nodes.iter().map(|n| n.id.clone()).collect(),
+        Some(&new_model),
+        json!({"type":"string","pattern":"^new:[A-Za-z0-9_-]{1,60}$"}),
+    );
+    let mut used = BTreeSet::new();
+    if let Some(nodes) = schema
+        .pointer_mut("/properties/changes/properties/putNodes/items/properties/node/anyOf")
+        .and_then(Value::as_array_mut)
+    {
+        for node in nodes {
+            references.node(node, world, &mut used);
+        }
+    }
+    if let Some(links) = schema
+        .pointer_mut("/properties/changes/properties/putLinks/items/properties/link/anyOf")
+        .and_then(Value::as_array_mut)
+    {
+        for link in links {
+            references.link(link, world, &mut used);
+        }
+    }
+    compact_schema(&mut schema);
+    crate::prompt_context::share_component_schemas(&mut schema);
+    schema
+}
+
+fn operation_array(items: Option<Value>) -> Value {
+    json!({"type":"array","maxItems":if items.is_some(){80}else{0},"items":items.unwrap_or_else(||json!({"type":"object","properties":{},"additionalProperties":false}))})
+}
+
+#[cfg(test)]
+mod tests;

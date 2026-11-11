@@ -1,0 +1,38 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "light",
+    "name": "Linen",
+    "mode": "light",
+    "colors": {
+      "background": "#f4f3ed", "surface": "#fffef9", "surfaceAlt": "#f3f5ed",
+      "text": "#243b34", "muted": "#647268", "border": "#d5dccf",
+      "accent": "#234f42", "accentText": "#ffffff", "selection": "#e3ebda",
+      "canvas": "#eff3e9", "canvasDots": "#c7d1c0", "connection": "#71896e"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "dark",
+    "name": "Dark",
+    "mode": "dark",
+    "colors": {
+      "background": "#171c20", "surface": "#21272c", "surfaceAlt": "#292f35",
+      "text": "#e3e8e4", "muted": "#a8b5ad", "border": "#424d49",
+      "accent": "#a5d3b5", "accentText": "#142b20", "selection": "#354c40",
+      "canvas": "#1b2125", "canvasDots": "#39443e", "connection": "#91ae9b"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "sepia",
+    "name": "Sepia",
+    "mode": "light",
+    "colors": {
+      "background": "#e9dfcc", "surface": "#f6efdf", "surfaceAlt": "#eee4d1",
+      "text": "#443627", "muted": "#76634e", "border": "#cbb99c",
+      "accent": "#765033", "accentText": "#fff9ef", "selection": "#e5d4b5",
+      "canvas": "#eee5d4", "canvasDots": "#cfc0a6", "connection": "#967854"
+    }
+  }
+]

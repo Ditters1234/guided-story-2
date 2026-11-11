@@ -1,0 +1,470 @@
+{
+  "schemaVersion": 1,
+  "name": "Workshop corner",
+  "description": "A place, repair bench, portable toolbox and wrench stored inside it.",
+  "world": {
+    "nodes": [
+      {
+        "id": "b1000000-0000-4000-8000-000000000011",
+        "typeId": "core.place",
+        "name": "Workshop corner",
+        "description": "A small repair space with a bench beside a north-facing window.",
+        "visualDescription": "Timber walls, a side window and a clear standing area.",
+        "components": {
+          "core.place": {},
+          "core.holder": {},
+          "detail.place": {},
+          "detail.design": {},
+          "detail.condition": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000012",
+        "typeId": "core.item",
+        "name": "Repair bench",
+        "description": "A sturdy bench with a vise and a free working surface.",
+        "visualDescription": "A scarred beech worktop on heavy wooden legs.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.condition": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000013",
+        "typeId": "core.item",
+        "name": "Toolbox",
+        "description": "A portable box for hand tools.",
+        "visualDescription": "A red steel toolbox with a hinged lid.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.condition": {},
+          "core.container": {}
+        }
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000014",
+        "typeId": "core.item",
+        "name": "Adjustable wrench",
+        "description": "A functioning medium adjustable wrench.",
+        "visualDescription": "Brushed steel with a worn knurled adjustment wheel.",
+        "components": {
+          "core.item": {
+            "quantity": 1,
+            "unit": "item"
+          },
+          "detail.item": {},
+          "detail.design": {},
+          "detail.condition": {}
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "b1000000-0000-4000-8000-000000000111",
+        "typeId": "core.stored-in",
+        "sourceId": "b1000000-0000-4000-8000-000000000012",
+        "targetId": "b1000000-0000-4000-8000-000000000011",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000112",
+        "typeId": "core.stored-in",
+        "sourceId": "b1000000-0000-4000-8000-000000000013",
+        "targetId": "b1000000-0000-4000-8000-000000000011",
+        "description": ""
+      },
+      {
+        "id": "b1000000-0000-4000-8000-000000000113",
+        "typeId": "core.stored-in",
+        "sourceId": "b1000000-0000-4000-8000-000000000014",
+        "targetId": "b1000000-0000-4000-8000-000000000013",
+        "description": ""
+      }
+    ],
+    "nodeTypes": [
+      {
+        "id": "core.place",
+        "name": "Place",
+        "description": "A usable scene location.",
+        "components": [
+          "core.place",
+          "core.holder",
+          "detail.place",
+          "detail.design",
+          "detail.condition"
+        ]
+      },
+      {
+        "id": "core.item",
+        "name": "Item",
+        "description": "A counted object, with function and visible design.",
+        "components": [
+          "core.item",
+          "detail.item",
+          "detail.design",
+          "detail.condition"
+        ]
+      }
+    ],
+    "componentTypes": [
+      {
+        "id": "core.place",
+        "name": "Place",
+        "description": "Can be a scene location.",
+        "fields": []
+      },
+      {
+        "id": "core.character",
+        "name": "Character",
+        "description": "Can participate in a scene.",
+        "fields": []
+      },
+      {
+        "id": "core.holder",
+        "name": "Holds possessions",
+        "description": "Can hold items directly.",
+        "fields": []
+      },
+      {
+        "id": "core.item",
+        "name": "Inventory item",
+        "description": "Tracks explicit units.",
+        "fields": [
+          {
+            "key": "quantity",
+            "label": "Quantity",
+            "kind": "number",
+            "required": true,
+            "defaultValue": 1
+          },
+          {
+            "key": "unit",
+            "label": "Unit",
+            "kind": "text",
+            "required": true,
+            "defaultValue": "item"
+          }
+        ]
+      },
+      {
+        "id": "core.container",
+        "name": "Container",
+        "description": "Can store items; add to an item or a custom node.",
+        "fields": []
+      },
+      {
+        "id": "core.wearable",
+        "name": "Wearable",
+        "description": "Describes clothing coverage and layer.",
+        "fields": [
+          {
+            "key": "regions",
+            "label": "Coverage",
+            "kind": "text",
+            "required": true,
+            "defaultValue": "torso"
+          },
+          {
+            "key": "layer",
+            "label": "Layer",
+            "kind": "number",
+            "required": true,
+            "defaultValue": 1
+          }
+        ]
+      },
+      {
+        "id": "core.thread",
+        "name": "Story thread",
+        "description": "Tracks a development.",
+        "fields": []
+      },
+      {
+        "id": "detail.condition",
+        "name": "Current condition",
+        "description": "Changing physical or visible condition of any node.",
+        "fields": [
+          {
+            "key": "condition",
+            "label": "Condition",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Current injuries, wear, damage or other physical state.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "state"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.place",
+        "name": "Use and surroundings",
+        "description": "Information that helps characters interact with a place.",
+        "fields": [
+          {
+            "key": "purpose",
+            "label": "Purpose / use",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What happens here and why people use it.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "layout",
+            "label": "Layout",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Useful spatial relationships, rather than exhaustive dimensions.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "access",
+            "label": "Entrances / access",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Ways in and out, restrictions and barriers.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "resources",
+            "label": "Resources / opportunities",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Useful tools, shelter, supplies or activities.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "obstacles",
+            "label": "Obstacles / hazards",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Relevant difficulties; do not invent danger for every place.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "routines",
+            "label": "Routines / customs",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Usual patterns, never proof of completed offscreen activity.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.design",
+        "name": "Design",
+        "description": "Visible construction and design of places or objects.",
+        "fields": [
+          {
+            "key": "form",
+            "label": "Form / construction",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Shape, layout or construction details.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "materials",
+            "label": "Materials",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Established materials and finish.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "colours",
+            "label": "Colours / pattern",
+            "kind": "text",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Visible colours and patterns.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "distinctive",
+            "label": "Distinctive details",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Recognisable design details.",
+              "uses": [
+                "story",
+                "visual"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      },
+      {
+        "id": "detail.item",
+        "name": "Function and history",
+        "description": "How an object can be used and why it matters.",
+        "fields": [
+          {
+            "key": "function",
+            "label": "Function",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "What the item enables someone to do.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "constraints",
+            "label": "Requirements / limitations",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Fuel, access, compatibility or other relevant limits.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          },
+          {
+            "key": "provenance",
+            "label": "Provenance / significance",
+            "kind": "longText",
+            "required": false,
+            "defaultValue": null,
+            "metadata": {
+              "help": "Relevant origin or meaning, when known.",
+              "uses": [
+                "story"
+              ],
+              "stability": "stable"
+            }
+          }
+        ]
+      }
+    ],
+    "relationTypes": [
+      {
+        "id": "core.inside",
+        "name": "Inside",
+        "label": "inside",
+        "sourceCapability": "core.place",
+        "targetCapability": "core.place",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.present-at",
+        "name": "Present at",
+        "label": "present at",
+        "sourceCapability": "core.character",
+        "targetCapability": "core.place",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.stored-in",
+        "name": "Stored in / carried by",
+        "label": "stored in",
+        "sourceCapability": "core.item",
+        "targetCapability": "core.holder",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.worn-by",
+        "name": "Worn by",
+        "label": "worn by",
+        "sourceCapability": "core.wearable",
+        "targetCapability": "core.character",
+        "physicalPlacement": true,
+        "singleTarget": true
+      },
+      {
+        "id": "core.related",
+        "name": "Related to",
+        "label": "related to",
+        "sourceCapability": null,
+        "targetCapability": null,
+        "physicalPlacement": false,
+        "singleTarget": false
+      }
+    ]
+  }
+}

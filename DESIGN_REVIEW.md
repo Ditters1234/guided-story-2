@@ -1,6 +1,6 @@
 # Guided Story 2 — review and proposed design
 
-Design pass: October 25, 2026. This document proposes a fresh application, using Guided Story as a behavioral reference. No application has been implemented or runtime-tested in this workspace.
+Initial design pass: October 25, 2026; composable-node revision: October 28. This document records the target design for a fresh application, using Guided Story as a behavioral reference. Current implementation and verification are tracked separately in [FOUNDATION_STATUS.md](FOUNDATION_STATUS.md); planned behavior below is not a claim that every feature exists.
 
 ## Confirmed direction
 
@@ -8,12 +8,15 @@ Design pass: October 25, 2026. This document proposes a fresh application, using
 - Make expandable location nodes the main authoring surface, connecting places, characters, items and story threads.
 - Generate one scene/passage at a time, grouped into chapters.
 - Use the same text and image APIs as Guided Story.
-- Provide deeper character customization; clothing consists of inventory items.
+- Prioritize local LLMs around 30B parameters, including Qwen-class models. Target Krea 2, Z-Image and MOSS-Image families through ComfyUI, with Guided Story's existing workflow as the initial Krea 2 profile. Preserve model-specific workflows and sampling rather than assuming checkpoint interchangeability. See [model targets](MODEL_TARGETS.md).
+- Provide deeper character customization; clothing consists of inventory items. Each item has one physical relationship: worn by, carried by, or stored inside. Wearing implies inventory membership without a second possession link.
 - Unify story creation, the first passage and later chapter creation.
 - Keep the world and story editable as writing progresses.
 - Let the user submit a story idea and have the LLM fill in initial story settings and world records, followed by user revision before prose generation.
 - Keep both manual edits and AI authoring tools available throughout the story, including creation of individual records and related groups such as a place populated with items.
 - Connected creation is general, not limited to locations: a single character can be created together with their worn outfit, carried possessions and nested container contents.
+- Separate Build a world from an idea from Create a connected group. Groups can request a small mixed bundle or restrict additions to a saved node type, such as items, while linking to existing records supplied as read-only context. Both use the same proposal review/Apply flow.
+- Group creation checks a compact existing-world index and relevant records/belongings automatically. The current selection starts as a full-detail reference; additional explicit references require complete facts. Show coverage and omissions, reuse supplied existing identities as read-only targets, and keep existing-record edits separate from creating additions.
 - Support explicit anatomical descriptions for adult characters, including breasts and genital anatomy, as optional persistent appearance details available to image preparation.
 - Provide AI reroll options for existing characters, items, locations and other supported records, including targeted fields and connected groups.
 - Retain a world-state record for every accepted scene/passage, with chapter-based table of contents and backward/forward navigation through written material.
@@ -26,10 +29,19 @@ Design pass: October 25, 2026. This document proposes a fresh application, using
 - Use a single **Fork after this passage** action for recovery from accepted world edits/rerolls/group additions, rather than operation-level undo or separate chapter/before/after fork variants. Ordinary text-edit undo remains available.
 - Let AI suggest chapter endings, allow the user to keep a chapter open or close it, and offer an editable next-chapter plan before writing its first passage.
 - Support character portraits and story illustrations. Characters live in the world map and shared entity inspector, without a separate cast-panel system or alternate character-management screen.
+- Model the world as an extensible node toolkit: places, characters, items and threads are presets over shared nodes, with reusable capabilities and typed relationships. Support custom types and fields; container behavior is an addable item/node capability, not a separate fixed entity class.
+- Keep basic behavioral capabilities small. Standard presets bundle reusable descriptive extensions so a normal character immediately offers profile, appearance, personality, motivation, voice and current-state sections. Custom presets use the same tools and contracts.
+- The next node revision may require fresh stories. Compatibility/import/migration for older prototype story formats is not required. Immutable history and safe publication remain required within the new format; existing project folders are not deleted automatically.
 
 All choices below are recommendations unless explicitly included above.
 
 Pre-implementation review: [REVIEW_AND_BUILD_PLAN.md](REVIEW_AND_BUILD_PLAN.md) records resolved gaps, implementation contracts, delivery gates and deferred work. It refines technical details without changing the confirmed product decisions above. No implementation or test results are implied by that review.
+
+## Composable-node revision
+
+[WORLD_NODE_DESIGN.md](WORLD_NODE_DESIGN.md) specifies richer bundled presets, field semantics and single ownership of facts, useful places/items/threads, typed relationship properties, knowledge/source boundaries, compact capability-driven editing and shared task projections. Its capability/default-preset, typed-relationship, Event/source, Visual style/direct-image and initial situated-claim slices are implemented in story format 2; the checkpoint and remaining slices distinguish actual behavior from target design.
+
+Additional core presets cover Organization, Lore, World rule, Event, Story brief and Visual style alongside Narration style. They are available creation bundles, not mandatory instances or separate collections. Events reference established history; future plans remain plans. More specialised presets can follow without changing the base-node model. A preset catalogue update must never silently rewrite existing instances or saved historical schemas.
 
 ## What the reference actually does
 
@@ -200,13 +212,13 @@ Recommended later additions: geographic coordinates, route travel durations and 
 
 ## Deeper character customization
 
-Use one inspector with compact overview cards and expandable details:
+Use one capability-driven inspector with a compact overview and expandable details. The standard Character preset bundles these reusable extensions; the character participation capability itself remains small. Descriptive fields are optional and minor characters need not have complete biographies. See the [node revision](WORLD_NODE_DESIGN.md) for field ownership and composition:
 
 - **Identity and appearance:** actual/apparent age, pronouns, species, build, complexion, face, hair, eyes, markings and optional author-defined traits. Unknown values remain unspecified.
 - **Adult anatomical detail:** optional explicit descriptions of breasts, nipples, genital anatomy, body hair and other physical features relevant to accurate adult character imagery. Provide structured regions plus freeform detail, allowing precise author wording rather than forcing euphemisms or a preset body type.
 - **Persona:** voice, mannerisms, values, habits, strengths, flaws, fears, wants, long-term motives and background. No mandatory numerical personality meters.
-- **Relationships:** directional descriptions, obligations, trust/conflict in prose, secrets and unresolved tensions.
-- **Current state:** feelings, immediate intention, injuries, visible condition and location.
+- **Relationships:** typed links with directional descriptions, obligations and unresolved tensions. Knowledge/secrets use explicit perspective records rather than becoming shared facts in a copied biography.
+- **Current state:** feelings, immediate intention, injuries and visible condition. Location is derived from physical links, not a second editable field.
 - **Knowledge:** facts known, beliefs and uncertainties, with sources; author secrets are visibly separate.
 - **Wardrobe and possessions:** worn items, carried items, storage and named outfit presets.
 - **Author controls:** protected fields, content preferences, targeted AI edits and reusable character templates.
@@ -233,17 +245,17 @@ Recommended fields and relationships:
 
 | Record | Minimum responsibility |
 | --- | --- |
-| Item | ID, name, description, visual description, quantity, immediate holder, container flag and kind. |
+| Item | Shared node identity, inventory quantity/unit and descriptive extensions. Immediate holder comes from its one physical link; container behavior is an addable capability. |
 | Garment details | Coverage regions, layer category, material/color/pattern, fit and mutable condition. |
 | Wear assignment | Character ID, item ID, occupied regions, layer/order and optional worn state such as open or hood up. |
 | Outfit preset | Named references to garment items; intention only until applied. |
 
 Rules:
 
-1. A worn item is directly held by its wearer and represents one tracked garment unit. Split a stack before wearing one unit. A pair of boots may be one explicitly named unit.
+1. A worn item uses one physical Worn by relationship and represents one tracked garment unit. Wearing implies inventory membership. Split a stack before wearing one unit. A pair of boots may be one explicitly named unit.
 2. Layering supports shirts under coats, dresses spanning regions and multiple accessories. Coverage regions are flexible enough for nonhuman characters. Avoid a rigid one-item-per-slot rule.
 3. Wearing a coat does not erase the shirt beneath it. A visible-outfit projection accounts for framing and covered layers without inventing unseen details.
-4. Removing an item clears its wear assignment while retaining it as carried, unless a destination is supplied. Transfers clear wear assignments atomically.
+4. Taking clothing off changes its relationship to carried, unless a storage destination is supplied. Transfers replace the physical relationship atomically. Detach leaves an item unplaced.
 5. Wearing a bag preserves its contained items and their storage paths.
 6. Applying a preset checks availability and compatibility; missing items are listed rather than created or teleported. Preview proposed removals and additions together.
 7. Protection can cover a garment's design or a wear assignment. Protecting appearance need not freeze all future outfit changes.
@@ -271,6 +283,8 @@ Preserve accepted image files and provenance when selecting newer portraits or r
 Tauri + Svelte is confirmed. Use a desktop window with a Svelte interface and native backend access to local JSON saves and configured model services. Proposed implementation choices are TypeScript/Vite for the interface, Svelte Flow for the map and Rust for backend persistence and generation jobs; these supporting choices remain recommendations. No browser-hosted server or SvelteKit server rendering is required for the desktop product.
 
 Recommended domain objects:
+
+Implementation refinement: `World` stores generic nodes, typed edges and project-local definitions for node presets, capabilities and relationship types. The named records below describe roles rather than separate hardcoded collections. Every node shares ID, name, supplementary story/visual notes and attached capability properties. Node presets bundle initial capabilities; instances can combine them. Small native behavioral contracts provide scene location, character participation, counted inventory, storage and clothing. Descriptive extensions supply profile, appearance, motivations, voice, condition and other fields. The native contract registry is separate from the optional preset catalogue. Custom capabilities define typed fields and declarative metadata without executing code. Saved schema definitions travel with snapshots/forks. Inventory and physical-placement validators remain mandatory for built-in semantics; custom display types do not bypass them.
 
 - `Story`: stable ID, premise, preferences, revision, current world, chapters and accepted passages; zero passages are valid.
 - `ChapterPlan`: title, dramatic intention, active threads, optional ending aim and draft/open/closed status.
@@ -332,7 +346,7 @@ JSON files need an explicit commit protocol because several independent writes a
 
 Record request IDs and committed outcomes in the revision manifest so retries after a lost response return the existing result. A crash before head publication leaves harmless unreferenced candidate files; a crash after publication is recognized as committed even if the job status was not updated. A failed head replacement preserves the previous save and the generated draft. The native backend owns project access: one writable application instance per resolved project folder, enforced with an operating-system lock, plus short commit serialization and expected-revision checks. Another instance can report the project is in use. Do not hold a commit lock through model calls or human review; the project ownership lock lasts while it is open. Test normal process interruption and write failures; hardware/power-loss durability still depends on filesystem and flush behavior and must not be advertised as unconditional.
 
-Retain a previous validated head and startup recovery checks. Malformed or missing referenced data must produce a recoverable error and an offered last-valid revision, never an automatic empty story. Every stored record has a schema version; migrations back up original files and validate the migrated result before publication. Independently mutable drafts/settings use temporary-write-and-replace with stale-write checks as appropriate. The library index and read-position/layout state are rebuildable or noncanonical; a failure there cannot undo an accepted passage. Test interrupted writes and Windows file replacement explicitly during implementation.
+Retain a previous validated head and startup recovery checks. Malformed or missing referenced data must produce a recoverable error and an offered last-valid revision, never an automatic empty story. Every stored record has a schema version. The next node revision can require a fresh project format; older prototype migration is outside its requirements. If a later migration is deliberately added, preserve original files and validate the converted result before publication. Independently mutable drafts/settings use temporary-write-and-replace with stale-write checks as appropriate. The library index and read-position/layout state are rebuildable or noncanonical; a failure there cannot undo an accepted passage. Test interrupted writes and Windows file replacement explicitly during implementation.
 
 Project export copies a consistent committed manifest and its referenced JSON/media records. Include enough historical snapshots to preserve scene state; exclude private connection settings. Restoring/importing validates IDs, schemas and references before making a story visible.
 
@@ -406,4 +420,4 @@ Verify reroll scope: reroll the herbalist's name without changing their ID, prof
 
 ## Remaining design details
 
-Platform, project storage, autosave/acceptance, historical editing, passage-based forking and chapter transitions are confirmed above. The next pass should validate screens through a complete workflow rather than reopening these decisions. Outfit presets are proposed as story-local initially, with reusable character templates. Additional platforms remain deferred.
+Platform, project storage, autosave/acceptance, historical editing, passage-based forking and chapter transitions are confirmed above. The next node-model revision follows [WORLD_NODE_DESIGN.md](WORLD_NODE_DESIGN.md), with end-to-end field authoring/context/media checks rather than schema-only completion. Outfit presets are proposed as story-local initially, with reusable character templates. Additional platforms remain deferred.
