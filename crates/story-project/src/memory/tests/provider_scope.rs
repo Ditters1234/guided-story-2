@@ -11,7 +11,6 @@ fn item(world: &World, id: &str, name: &str) -> WorldNode {
         type_id: preset.id.clone(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()

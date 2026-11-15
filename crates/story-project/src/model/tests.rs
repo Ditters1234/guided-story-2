@@ -4,6 +4,15 @@ use serde_json::{json, Value};
 #[test]
 fn bundled_world_data_matches_native_structures_and_every_preset_default() {
     crate::validate_bundled_world_data().unwrap();
+    let world = World::bundled().unwrap();
+    let brief = world.component_types.iter().find(|c| c.id == "detail.brief").unwrap();
+    for key in ["chapterDirection", "passageDirection", "stopAfter", "alreadyCovered"] {
+        let field = brief.fields.iter().find(|f| f.key == key).unwrap();
+        assert_eq!(field.kind, FieldKind::LongText);
+        assert!(!field.required);
+        assert_eq!(field.default_value, PropertyValue::Null);
+        assert_eq!(field.metadata.as_ref().unwrap().uses, [FieldUse::Planning]);
+    }
 }
 
 #[test]

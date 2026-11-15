@@ -9,6 +9,23 @@ pub struct DraftRevision {
     pub direction: String,
 }
 
+impl DraftRevision {
+    pub(super) fn from_saved_draft(source: &PassageDraft) -> Result<Self, String> {
+        if source.edits.prose.trim().is_empty() || source.edits.revision_direction.trim().is_empty()
+        {
+            return Err(
+                "Add draft prose and revision direction before requesting a revision.".into(),
+            );
+        }
+        Ok(Self {
+            source_id: source.id.clone(),
+            source_version: source.version,
+            prose: source.edits.prose.clone(),
+            direction: source.edits.revision_direction.clone(),
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum PassageRevisionKind {
@@ -135,36 +152,7 @@ impl Project {
         if self.list_passage_drafts()?.len() >= 200 {
             return Err("Passage draft limit reached.".into());
         }
-        Ok(PassageDraft {
-            draft_revision: None,
-            revision: None,
-            cloned_from: None,
-            narration_provider: String::new(),
-            effects_provider: String::new(),
-            schema_version: 1,
-            id: id.into(),
-            story_id: self.view()?.story_id,
-            version: 1,
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|_| "Clock unavailable.")?
-                .as_millis() as u64,
-            stage: if edits.prose.trim().is_empty() {
-                PassageStage::Draft
-            } else {
-                PassageStage::NeedsCheck
-            },
-            edits,
-            source: None,
-            narration_source: None,
-            checked: String::new(),
-            error: String::new(),
-            original_prose: String::new(),
-            original_effects: String::new(),
-            allocations: BTreeMap::new(),
-            attempt: None,
-            incomplete: false,
-        })
+        blank_passage_draft(self.view()?.story_id, id, edits, 1)
     }
 
     pub fn clone_passage_draft(
@@ -236,15 +224,7 @@ impl Project {
         {
             return Err("Save/finish the unaccepted source draft before revising it.".into());
         }
-        if source.edits.prose.trim().is_empty() || source.edits.revision_direction.trim().is_empty() {
-            return Err("Add draft prose and revision direction before requesting a revision.".into());
-        }
-        let revision = DraftRevision {
-            source_id: source_id.into(),
-            source_version: expected,
-            prose: source.edits.prose.clone(),
-            direction: source.edits.revision_direction.clone(),
-        };
+        let revision = DraftRevision::from_saved_draft(&source)?;
         let mut edits = source.edits;
         edits.revision_direction.clear();
         edits.approved_effects.clear();
@@ -309,6 +289,7 @@ impl Project {
         settings: &LlmConnection,
         memory_budget: u32,
     ) -> Result<(World, RecordRef, Value, String, Vec<String>), String> {
+        let resolved = self.resolved_writing_plan(draft)?;
         if let Some(revision) = &draft.revision {
             let base = self.revision_base(revision, true)?;
             if draft.edits.plan.start_new_chapter != base.plan.start_new_chapter {
@@ -328,16 +309,15 @@ impl Project {
             let world: World = self.read_record("worlds", &base.before_world)?;
             let history = self.history_before(&revision.passage_id)?;
             let (context, mut input, fingerprint, recent) =
-                self.story_input_at(&world, &draft.edits.plan, settings, &history, memory_budget)?;
+                self.story_input_at(&world, &resolved, settings, &history, memory_budget)?;
             if revision.kind == PassageRevisionKind::Wording {
                 input["originalProse"] = json!(base.prose);
                 input["acceptedEffects"] = json!(base.effects);
-                // Wording keeps canonical effects unchanged. Supplementary image
-                // notes are not narrative evidence and must not enter prose prompts.
+                // Project the evidence separately from its saved image extensions.
                 if let Some(changes) = input["acceptedEffects"]["changes"].as_array_mut() {
                     for change in changes {
-                        if let Some(node) = change.get_mut("node").and_then(Value::as_object_mut) {
-                            node.remove("visualDescription");
+                        if let Some(node) = change.get_mut("node") {
+                            crate::projection::strip_image_components(&world, node);
                         }
                     }
                 }
@@ -347,7 +327,7 @@ impl Project {
         } else {
             let current = self.view()?;
             let (context, input, fingerprint, recent) =
-                self.story_input(&current.world, &draft.edits.plan, settings, memory_budget)?;
+                self.story_input(&current.world, &resolved, settings, memory_budget)?;
             Ok((context, current.world_ref, input, fingerprint, recent))
         }
     }
@@ -441,10 +421,10 @@ impl Project {
                 let context = scene_world(&before, &draft.edits.plan)?;
                 let mut effects: PassageEffects =
                     serde_json::from_str(&draft.edits.effects_text).map_err(|e| e.to_string())?;
-                let (world, _) = preview_passage_effects(
+                let (world, _, note_ids) = continuity_nodes::preview_draft_effects(
                     &before,
                     &context,
-                    &draft.edits.prose,
+                    &draft.edits,
                     &effects,
                     &mut draft.allocations,
                 )?;
@@ -466,10 +446,11 @@ impl Project {
                     &draft.edits.prose,
                     &effects,
                 )?;
-                self.annotate_passage_events(
+                self.annotate_passage_sources(
                     &mut world,
                     &effects,
                     &draft.allocations,
+                    &note_ids,
                     &text_anchor,
                 )?;
                 let after = self.write_record("worlds", &world)?;

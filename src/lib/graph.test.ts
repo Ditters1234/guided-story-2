@@ -1,8 +1,48 @@
 import { describe, expect, it } from 'vitest';
 import { buildGraph, editRecord, orderedRecords, revealRecord, visibleRecords, worldRecords } from './graph';
-import { exampleWorld, makeNode } from './model';
+import {exampleWorld} from '../test-fixtures/world';
+import {makeNode} from './model';
+import {passageNodeChoice,withWritingFields,type DraftWorldContext} from './writing-inputs';
 
 describe('world projection', () => {
+  it('distinguishes a configured narration link from the active passage POV and focus', () => {
+    const base = exampleWorld();
+    const elias = makeNode(base, 'core.character', 'Elias');
+    const maya = makeNode(base, 'core.character', 'Maya');
+    const place = base.nodes[0];
+    const style = {...makeNode(base, 'core.narration-style', 'Narration'), components: {'core.narration-style': {}}};
+    base.nodes.push(elias, maya, style);
+    const world = withWritingFields(base, style.id);
+    world.edges = [
+      {id:'pov',typeId:'core.narration-pov',sourceId:style.id,targetId:maya.id,description:''},
+      {id:'focus',typeId:'core.narration-focus',sourceId:style.id,targetId:place.id,description:''},
+    ];
+    const draft: DraftWorldContext = {
+      id:'draft',title:'Draft',disabled:false,
+      plan:{chapterTitle:'Chapter',chapterPlan:'',title:'Draft',direction:'',stopAfter:'',viewpointId:null,locationId:place.id,participantIds:[elias.id,maya.id],referenceIds:[style.id]},
+      context:{error:'',guidance:[],resources:[
+        {nodeId:elias.id,name:elias.name,role:'participant'},
+        {nodeId:maya.id,name:maya.name,role:'participant'},
+        {nodeId:style.id,name:style.name,role:'reference'},
+      ]},
+    };
+    const graph = (context: DraftWorldContext | null) => buildGraph(world, {version:0,positions:{},selectedId:null,expandedIds:[]}, '', () => {}, context);
+    expect(graph(draft).edges.map(e=>e.label)).toEqual(['Narration POV · inactive','Narration focus · inactive']);
+    expect(graph(draft).edges[0]).toMatchObject({id:'pov',source:style.id,target:maya.id});
+    expect(passageNodeChoice(draft,elias.id,world).label).toBe('Participant');
+    expect(passageNodeChoice(draft,maya.id,world).label).toBe('Participant');
+    expect(passageNodeChoice(draft,style.id,world).label).toBe('In context');
+
+    const active: DraftWorldContext = {...draft,plan:{...draft.plan,narrationNodeId:style.id,viewpointId:maya.id,participantIds:[elias.id]},context:{
+      error:'',guidance:[],resources:[{nodeId:maya.id,name:maya.name,role:'viewpoint'},{nodeId:elias.id,name:elias.name,role:'participant'}],
+    }};
+    expect(graph(active).edges.map(e=>e.label)).toEqual(['Passage POV','Passage focus']);
+    expect(passageNodeChoice(active,maya.id,world).label).toBe('POV');
+    expect(passageNodeChoice(active,elias.id,world).label).toBe('Participant');
+    expect(passageNodeChoice(active,style.id,world).label).toBe('Narration source');
+    expect(graph({...active,updating:true}).edges.map(e=>e.label)).toEqual(['Narration POV','Narration focus']);
+    expect(graph(null).edges.map(e=>e.label)).toEqual(['Narration POV','Narration focus']);
+  });
   it('shows route direction and directed associations without reversing or adding canonical edges',()=>{
     const world=exampleWorld(),source=world.nodes[0],target=world.nodes.find(n=>n.components['core.place']&&n.id!==source.id)!;
     world.edges=[
@@ -33,6 +73,17 @@ describe('world projection', () => {
     const records = worldRecords(exampleWorld());
     const found = visibleRecords(records, [], 'Seed packets');
     expect(found.map((r) => r.name)).toEqual(['Brasswater House', 'The glasshouse', 'Mara Vale', 'Canvas satchel', 'Seed packets']);
+  });
+  it('shows related continuity notes beneath the Story brief in World', () => {
+    const world = exampleWorld();
+    const brief = {...makeNode(world, 'core.note', 'Story brief'), components: {'detail.brief': {}}};
+    const note = makeNode(world, 'core.note', 'The latch was inspected');
+    world.nodes.push(brief, note);
+    world.edges.push({id: crypto.randomUUID(), typeId: 'core.related', sourceId: note.id, targetId: brief.id, description: ''});
+    const records = worldRecords(world);
+    expect(records.find(record => record.id === note.id)?.parentId).toBe(brief.id);
+    expect(visibleRecords(records, []).some(record => record.id === note.id)).toBe(false);
+    expect(visibleRecords(records, [brief.id]).some(record => record.id === note.id)).toBe(true);
   });
   it('projects wear from explicit links rather than assuming all carried items are worn', () => {
     const world = exampleWorld(), records = worldRecords(world);

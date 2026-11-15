@@ -4,30 +4,33 @@ import type {PassageEffects,PassageSummary,PassageView_Serialize} from './bindin
 
 const empty:PassageEffects={changes:[],notes:[],suggestChapterEnd:false};
 function view(overrides:Partial<PassageView_Serialize>={}){
-  return {stage:'needsCheck',originalEffects:'',canAccept:false,effectsReview:{checked:false,entries:[]},...overrides} as PassageView_Serialize;
+  return {stage:'needsCheck',originalEffects:'',effectsProvider:'',canAccept:false,effectsReview:{checked:false,entries:[],recordIds:[],linkIds:[],removableLinkIds:[]},...overrides} as PassageView_Serialize;
 }
 describe('passage controls use native review state',()=>{
   it('distinguishes unchecked prose from an extracted or deliberately validated empty result',()=>{
-    expect(passageReviewState(view(),empty,false,false).action).toBe('generate');
-    expect(passageReviewState(view(),empty,true,false)).toMatchObject({hasReview:false,action:'extract'});
+    expect(passageReviewState(view(),empty,false,false)).toMatchObject({action:'generate',checkAction:null});
+    expect(passageReviewState(view(),empty,true,false)).toMatchObject({hasReview:false,action:'extract',checkAction:'check'});
     expect(passageReviewState(view({originalEffects:JSON.stringify(empty)}),empty,true,false)).toMatchObject({hasReview:true,action:'validate'});
-    expect(passageReviewState(view({stage:'ready',canAccept:true,effectsReview:{checked:true,entries:[]}}),empty,true,false)).toMatchObject({hasReview:true,checked:true,action:'accept'});
+    expect(passageReviewState(view({stage:'ready',canAccept:true,effectsReview:{checked:true,entries:[],recordIds:[],linkIds:[],removableLinkIds:[]}}),empty,true,false)).toMatchObject({hasReview:true,checked:true,action:'accept',checkAction:'rerun'});
   });
   it('keeps failed extraction distinct from a successful zero-change result and retains repair access',()=>{
-    expect(passageReviewState(view({stage:'failed',error:'Provider failed'}),empty,true,false)).toMatchObject({hasReview:false,action:'extract'});
-    expect(passageReviewState(view({originalEffects:'Invalid retained response'}),null,true,false)).toMatchObject({hasReview:true,checked:false,action:'validate'});
+    for(const stage of ['failed','cancelled','interrupted'] as const){
+      expect(passageReviewState(view({stage,effectsProvider:'Fixture provider'}),empty,true,false)).toMatchObject({hasReview:false,action:'extract',checkAction:'rerun'});
+    }
+    expect(passageReviewState(view({originalEffects:'Invalid retained response'}),null,true,false)).toMatchObject({hasReview:true,checked:false,action:'validate',checkAction:'rerun'});
     expect(passageReviewState(view(),null,true,false).hasReview).toBe(true);
   });
   it('makes approval review the next action and never enables acceptance from local approvals alone',()=>{
     const entries=[{kind:'note' as const,index:0,key:'one',approved:false,issues:[],displacedLinks:[]}];
-    const checked=view({stage:'ready',effectsReview:{checked:true,entries}});
+    const checked=view({stage:'ready',effectsReview:{checked:true,entries,recordIds:[],linkIds:[],removableLinkIds:[]}});
     expect(passageReviewState(checked,empty,true,false)).toMatchObject({pending:1,action:'review'});
     expect(passageReviewState(checked,empty,true,false,['one']).action).toBe('review');
     expect(passageReviewState({...checked,canAccept:true},empty,true,true,['one'])).toMatchObject({checked:false,action:'validate'});
     expect(passageReviewState({...checked,canAccept:true},empty,true,false,['one']).action).toBe('accept');
   });
   it('keeps wording validation separate from AI extraction',()=>{
-    expect(passageReviewState(view({revision:{kind:'wording'} as PassageView_Serialize['revision']}),empty,true,false).action).toBe('validate');
+    expect(passageReviewState(view({revision:{kind:'wording'} as PassageView_Serialize['revision']}),empty,true,false)).toMatchObject({action:'validate',checkAction:null});
+    expect(passageReviewState(view({stage:'accepted',effectsProvider:'Fixture provider'}),empty,true,false).checkAction).toBeNull();
   });
 });
 

@@ -60,14 +60,7 @@ pub(super) fn group_context(
     let mut scores = BTreeMap::new();
     for node in &world.nodes {
         let name = words(&node.name);
-        let text = format!(
-            "{} {}",
-            node.description.chars().take(1200).collect::<String>(),
-            node.visual_description
-                .chars()
-                .take(600)
-                .collect::<String>()
-        );
+        let text: String = node.description.chars().take(1200).collect();
         // Match bounded extension text locally; transmission/write scope stays unchanged.
         let mut content_words = words(&text);
         if !query.is_empty() {

@@ -655,7 +655,6 @@ fn proposed_node(world: &World, type_id: &str, node_id: &str, name: &str) -> Wor
         type_id: type_id.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components,
     }
 }

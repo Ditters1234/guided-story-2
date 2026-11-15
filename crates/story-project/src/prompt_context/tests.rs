@@ -74,12 +74,11 @@ fn reference_compaction_preserves_markers_required_values_unknown_data_zero_and_
             field("enabled", FieldKind::Boolean, false),
         ],
     });
-    let node = WorldNode {
+    let mut node = WorldNode {
         id: "new:reference".into(),
         type_id: "core.item".into(),
         name: "Supply case".into(),
         description: String::new(),
-        visual_description: String::new(),
         components: BTreeMap::from([
             ("core.container".into(), BTreeMap::new()),
             (
@@ -96,8 +95,10 @@ fn reference_compaction_preserves_markers_required_values_unknown_data_zero_and_
             ),
         ]),
     };
+    crate::projection::set_image_notes(&mut node, "Subject-only reference.");
     let original = json!(node);
     let compact = reference_node(&world, &node);
+    assert!(compact["components"].get("detail.image").is_none());
     let fields = &compact["components"]["custom.facts"];
     for key in ["optional", "unset", "refs"] {
         assert!(fields.get(key).is_none());

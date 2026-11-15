@@ -32,7 +32,6 @@ fn node(world: &mut World, preset: &str, name: &str) -> String {
         type_id: preset.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components,
     });
     id

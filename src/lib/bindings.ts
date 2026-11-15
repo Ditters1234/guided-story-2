@@ -4,8 +4,8 @@ import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	createProject: (parentPath: string, title: string, world: World_Deserialize, requestId: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("create_project", { parentPath, title, world, requestId })),
-	locationTemplateWorld: (templateId: string) => typedError<World_Serialize, string>(__TAURI_INVOKE("location_template_world", { templateId })),
+	createProject: (parentPath: string, title: string, world: World_Deserialize, requestId: string, initialPlan: PassagePlan_Deserialize | null) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("create_project", { parentPath, title, world, requestId, initialPlan })),
+	storyTemplate: (templateId: string) => typedError<StoryTemplate_Serialize, string>(__TAURI_INVOKE("story_template", { templateId })),
 	openProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("open_project", { folderPath })),
 	startupProject: () => typedError<ProjectView_Serialize | null, string>(__TAURI_INVOKE("startup_project")),
 	recoverProject: (folderPath: string) => typedError<ProjectView_Serialize, string>(__TAURI_INVOKE("recover_project", { folderPath })),
@@ -58,6 +58,7 @@ export const commands = {
 	getPassageDraft: (storyId: string, id: string) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("get_passage_draft", { storyId, id })),
 	savePassageDraft: (storyId: string, id: string, expectedVersion: number, edits: PassageEdits_Deserialize) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("save_passage_draft", { storyId, id, expectedVersion, edits })),
 	startPassageJob: (storyId: string, id: string, expectedVersion: number, expectedRevision: number, checking: boolean) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("start_passage_job", { storyId, id, expectedVersion, expectedRevision, checking })),
+	previewPassagePrompt: (storyId: string, id: string, expectedVersion: number, expectedRevision: number, action: PassagePromptAction) => typedError<PassagePromptPreview_Serialize, string>(__TAURI_INVOKE("preview_passage_prompt", { storyId, id, expectedVersion, expectedRevision, action })),
 	validatePassage: (storyId: string, id: string, expectedVersion: number) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("validate_passage", { storyId, id, expectedVersion })),
 	acceptPassage: (storyId: string, id: string, expectedVersion: number) => typedError<PassageAcceptance_Serialize, string>(__TAURI_INVOKE("accept_passage", { storyId, id, expectedVersion })),
 	beginPassageRevision: (storyId: string, id: string, passageId: string, source: RecordRef, kind: PassageRevisionKind) => typedError<PassageView_Serialize, string>(__TAURI_INVOKE("begin_passage_revision", { storyId, id, passageId, source, kind })),
@@ -177,7 +178,7 @@ export type AiContextBinding_Serialize = {
 	imagePreparation?: boolean,
 };
 
-export type AiContextField = "description" | "visualDescription" | "components";
+export type AiContextField = "description" | "components";
 
 export type AiContextPreview = {
 	sections: AiContextSection[],
@@ -553,11 +554,17 @@ export type EffectsReview = EffectsReview_Serialize | EffectsReview_Deserialize;
 export type EffectsReview_Deserialize = {
 	checked: boolean,
 	entries: EffectReviewEntry_Deserialize[],
+	recordIds: string[],
+	linkIds: string[],
+	removableLinkIds: string[],
 };
 
 export type EffectsReview_Serialize = {
 	checked: boolean,
 	entries: EffectReviewEntry_Serialize[],
+	recordIds: string[],
+	linkIds: string[],
+	removableLinkIds: string[],
 };
 
 export type ExistingAuthoringContext = ExistingAuthoringContext_Serialize | ExistingAuthoringContext_Deserialize;
@@ -650,7 +657,7 @@ export type FieldMetadata_Serialize = {
 
 export type FieldStability = "stable" | "state";
 
-export type FieldUse = "story" | "visual" | "planning";
+export type FieldUse = "story" | "visual" | "imageGuidance" | "planning";
 
 export type ImageConnection = ImageConnection_Serialize | ImageConnection_Deserialize;
 
@@ -1302,6 +1309,9 @@ export type PassageHandoff_Serialize = {
 export type PassagePlan = PassagePlan_Serialize | PassagePlan_Deserialize;
 
 export type PassagePlan_Deserialize = {
+	narrationNodeId?: string | null,
+	briefNodeId?: string | null,
+	consumedBriefPassage?: string | null,
 	chapterTitle: string,
 	chapterPlan: string,
 	chapterProgress?: string,
@@ -1313,11 +1323,14 @@ export type PassagePlan_Deserialize = {
 	locationId?: string | null,
 	participantIds: string[],
 	referenceIds: string[],
-	targetWords: number,
+	savedDraftDirection?: SavedDraftDirection | null,
 	knowledgePerspective?: KnowledgePerspective,
 };
 
 export type PassagePlan_Serialize = {
+	narrationNodeId?: string,
+	briefNodeId?: string,
+	consumedBriefPassage?: string,
 	chapterTitle: string,
 	chapterPlan: string,
 	chapterProgress?: string,
@@ -1329,8 +1342,26 @@ export type PassagePlan_Serialize = {
 	locationId: string | null,
 	participantIds: string[],
 	referenceIds: string[],
-	targetWords: number,
+	savedDraftDirection?: SavedDraftDirection,
 	knowledgePerspective?: KnowledgePerspective,
+};
+
+export type PassagePromptAction = "generate" | "revise" | "checkChanges";
+
+export type PassagePromptPreview = PassagePromptPreview_Serialize | PassagePromptPreview_Deserialize;
+
+export type PassagePromptPreview_Deserialize = {
+	system: string,
+	user: string,
+	responseSchema?: string | null,
+	offline: boolean,
+};
+
+export type PassagePromptPreview_Serialize = {
+	system: string,
+	user: string,
+	responseSchema: string | null,
+	offline: boolean,
 };
 
 export type PassageReading = PassageReading_Serialize | PassageReading_Deserialize;
@@ -1416,6 +1447,7 @@ export type PassageVersions_Serialize = {
 export type PassageView = PassageView_Serialize | PassageView_Deserialize;
 
 export type PassageView_Deserialize = {
+	resolvedPlan?: PassagePlan_Deserialize | null,
 	draftRevision?: DraftRevision | null,
 	repeatedPassages: string[],
 	effectsReview: EffectsReview_Deserialize,
@@ -1440,6 +1472,7 @@ export type PassageView_Deserialize = {
 };
 
 export type PassageView_Serialize = {
+	resolvedPlan?: PassagePlan_Serialize,
 	draftRevision?: DraftRevision,
 	repeatedPassages: string[],
 	effectsReview: EffectsReview_Serialize,
@@ -1570,6 +1603,13 @@ export type RememberedPoint_Serialize = {
 	reason: string,
 };
 
+export type SavedDraftDirection = {
+	chapterPlan: string,
+	chapterProgress: string,
+	direction: string,
+	stopAfter: string,
+};
+
 export type SceneContextPreview = SceneContextPreview_Serialize | SceneContextPreview_Deserialize;
 
 export type SceneContextPreview_Deserialize = {
@@ -1658,6 +1698,18 @@ export type StoryIndex_Serialize = {
 	memories?: { [key in string]: RecordRef },
 	media?: { [key in string]: RecordRef },
 	portraits?: { [key in string]: string },
+};
+
+export type StoryTemplate = StoryTemplate_Serialize | StoryTemplate_Deserialize;
+
+export type StoryTemplate_Deserialize = {
+	world: World_Deserialize,
+	initialPlan?: PassagePlan_Deserialize | null,
+};
+
+export type StoryTemplate_Serialize = {
+	world: World_Serialize,
+	initialPlan: PassagePlan_Serialize | null,
 };
 
 export type StructuredOutput = "json" | "schema" | "prompt";
@@ -1801,7 +1853,6 @@ export type WorldNode = {
 	typeId: string,
 	name: string,
 	description: string,
-	visualDescription: string,
 	components: { [key in string]: { [key in string]: PropertyValue } },
 };
 

@@ -4,15 +4,16 @@
   import LinkFields from './LinkFields.svelte';
   import {changeLinkType,setLinkProperty} from './link-fields';
   import NodeFields from './NodeFields.svelte';
-  import {defaultProperties} from './node-fields';
+  import {defaultProperties,imageOnlyExtension} from './node-fields';
   import {evidenceIssue,evidenceQuotes,passageQuotes,proposedNodes,reviewNodes,nodeDetails,effectTitle,linkLabel,nodeDiff,removalPlan,removeProposals,connectionIdentity,linkDiff} from './effects-ui';
-  let {world,effects,prose,scopeIds=world.nodes.map(n=>n.id),kind,index,entry,approvedKeys,disabled=false,canApprove=false,onChange,onApprove}:{world:World;effects:PassageEffects;prose:string;scopeIds?:string[];kind:'change'|'note';index:number;entry?:EffectReviewEntry;approvedKeys:string[];disabled?:boolean;canApprove?:boolean;onChange:(value:PassageEffects,invalidated:string[])=>void;onApprove:(keys:string[])=>void}=$props();
+  let {world,effects,prose,scopeIds=world.nodes.map(n=>n.id),linkIds,removableLinkIds,kind,index,entry,approvedKeys,disabled=false,canApprove=false,onChange,onApprove}:{world:World;effects:PassageEffects;prose:string;scopeIds?:string[];linkIds?:string[];removableLinkIds?:string[];kind:'change'|'note';index:number;entry?:EffectReviewEntry;approvedKeys:string[];disabled?:boolean;canApprove?:boolean;onChange:(value:PassageEffects,invalidated:string[])=>void;onApprove:(keys:string[])=>void}=$props();
   let editing=$state(false),confirmRemove=$state(false),choosingQuote=$state(false);
   const effect=$derived(kind==='change'?effects.changes[index]:null);
   const note=$derived(kind==='note'?effects.notes[index]:null);
   const nodes=$derived(proposedNodes(world,effects));
   const choiceNodes=$derived(reviewNodes(world,effects,scopeIds));
-  const scopedLinks=$derived(world.edges.filter(e=>scopeIds.includes(e.sourceId)&&scopeIds.includes(e.targetId)));
+  const scopedLinks=$derived(world.edges.filter(e=>linkIds?.includes(e.id)??(scopeIds.includes(e.sourceId)&&scopeIds.includes(e.targetId))));
+  const removableLinks=$derived(scopedLinks.filter(e=>removableLinkIds?.includes(e.id)??true));
   const quote=$derived(effect?.evidence??note?.evidence??'');
   const excerpts=$derived(evidenceQuotes(quote));
   const quoteError=$derived(evidenceIssue(prose,quote));
@@ -54,7 +55,7 @@
   {#if proposalNode}
     {#if proposalNode.components['detail.event']}<p class="field-help">On acceptance, this quote becomes an exact passage-version citation. Recording the event does not replay other effects.</p>{/if}
     {#if differences.length}<dl class="effect-diff">{#each differences as row}<dt>{row.label}</dt><dd><del>{@render fullValue(row.before)}</del><span aria-hidden="true"> → </span><ins>{@render fullValue(row.after)}</ins></dd>{/each}</dl>
-    {:else}<div>{@render fullValue(proposalNode.description||'No story notes.')}</div>{#if proposalNode.visualDescription}<div class="field-help">{@render fullValue(proposalNode.visualDescription)}</div>{/if}
+    {:else}<div>{@render fullValue(proposalNode.description||'No story notes.')}</div>
       {#if isNew}<dl class="effect-diff">{#each nodeDetails(world,nodes,proposalNode) as row}<dt>{row.label}</dt><dd>{@render fullValue(row.value)}</dd>{/each}</dl>{/if}
     {/if}
   {:else if effect?.kind==='putLink'}<div class="effect-diff">{#if priorLink}<p><strong>Before:</strong> {linkLabel(world,world.nodes,priorLink)}</p>{/if}<p><strong>After:</strong> {linkLabel(world,nodes,effect.link)}</p>{#each displacedLinks as link}<p><strong>Replaces:</strong> {linkLabel(world,world.nodes,link)} will be removed.</p>{/each}</div><dl class="effect-diff">{#each linkDiff(world,nodes,effect.link,priorLink) as row}<dt>{row.label}</dt><dd><del>{@render fullValue(row.before)}</del> → <ins>{@render fullValue(row.after)}</ins></dd>{/each}</dl>
@@ -73,9 +74,8 @@
       {#if proposalNode}
         <label class="field">Name<input value={proposalNode.name} maxlength={200} oninput={e=>editNode(n=>({...n,name:e.currentTarget.value}))}/></label>
         <label class="field">Story notes<textarea value={proposalNode.description} rows={3} maxlength={16000} oninput={e=>editNode(n=>({...n,description:e.currentTarget.value}))}></textarea></label>
-        <label class="field">Visible description<textarea value={proposalNode.visualDescription} rows={3} maxlength={16000} oninput={e=>editNode(n=>({...n,visualDescription:e.currentTarget.value}))}></textarea></label>
-        <NodeFields {world} node={proposalNode} nodes={choiceNodes} {disabled} canEdit={editableField} onChange={property}/>
-        {#if isNew}<select aria-label="Add capability to proposed record" value="" onchange={e=>{const id=e.currentTarget.value,definition=world.componentTypes.find(d=>d.id===id);if(definition)editNode(n=>({...n,components:{...n.components,[id]:defaultProperties(definition)}}));e.currentTarget.value='';}}><option value="">Add capability…</option>{#each world.componentTypes.filter(d=>!proposalNode!.components[d.id]) as d}<option value={d.id}>{d.name}</option>{/each}</select>{/if}
+        <NodeFields {world} node={proposalNode} nodes={choiceNodes} audience="story" {disabled} canEdit={editableField} onChange={property}/>
+        {#if isNew}<select aria-label="Add capability to proposed record" value="" onchange={e=>{const id=e.currentTarget.value,definition=world.componentTypes.find(d=>d.id===id);if(definition)editNode(n=>({...n,components:{...n.components,[id]:defaultProperties(definition)}}));e.currentTarget.value='';}}><option value="">Add capability…</option>{#each world.componentTypes.filter(d=>!proposalNode!.components[d.id]&&!imageOnlyExtension(d)) as d}<option value={d.id}>{d.name}</option>{/each}</select>{/if}
       {:else if proposalLink}
         <label class="field">Connection to update<select aria-label="Connection to update" value={connection} onchange={e=>selectConnection(e.currentTarget.value)}>{#if connection==='missing'}<option value="missing" disabled>Outside scene or missing — choose a connection</option>{/if}<option value="new">Create new connection</option>{#each scopedLinks as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
         <label class="field">Source<select aria-label="Source" value={proposalLink.sourceId} onchange={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,sourceId:e.currentTarget.value}}:v)}>{#if !choiceNodes.some(n=>n.id===proposalLink!.sourceId)}<option value={proposalLink.sourceId}>Missing source</option>{/if}{#each choiceNodes as n}<option value={n.id}>{n.name}</option>{/each}</select></label>
@@ -84,7 +84,7 @@
         <label class="field">Connection notes<textarea value={proposalLink.description} rows={2} maxlength={16000} oninput={e=>change(v=>v.kind==='putLink'?{...v,link:{...v.link,description:e.currentTarget.value}}:v)}></textarea></label>
         <LinkFields {world} link={proposalLink} nodes={choiceNodes} {disabled} canEdit={editableLinkField} onChange={(key,value)=>change(v=>v.kind==='putLink'?{...v,link:setLinkProperty(v.link,key,value)}:v)}/>
       {:else if effect?.kind==='removeLink'}
-        <label class="field">Connection to remove<select aria-label="Connection to remove" value={effect.id} onchange={e=>change(v=>v.kind==='removeLink'?{...v,id:e.currentTarget.value}:v)}>{#if !world.edges.some(e=>effect?.kind==='removeLink'&&e.id===effect.id)}<option value={effect.id}>Missing connection</option>{/if}{#each scopedLinks as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
+        <label class="field">Connection to remove<select aria-label="Connection to remove" value={effect.id} onchange={e=>change(v=>v.kind==='removeLink'?{...v,id:e.currentTarget.value}:v)}>{#if !removableLinks.some(e=>effect?.kind==='removeLink'&&e.id===effect.id)}<option value={effect.id} disabled>Unavailable connection</option>{/if}{#each removableLinks as edge}<option value={edge.id}>{linkLabel(world,nodes,edge)}</option>{/each}</select></label>
       {:else if note}
         <label class="field">Note<textarea value={note.text} rows={3} maxlength={2000} oninput={e=>changeNote(n=>({...n,text:e.currentTarget.value}))}></textarea></label>
         <label class="field">About<select multiple value={note.nodeIds} onchange={e=>changeNote(n=>({...n,nodeIds:Array.from(e.currentTarget.selectedOptions,o=>o.value)}))}>{#each choiceNodes as n}<option value={n.id}>{n.name}</option>{/each}</select></label>

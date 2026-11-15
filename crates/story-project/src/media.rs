@@ -228,7 +228,6 @@ fn shot_fact(world: &World, id: &str) -> Result<ShotFact, String> {
                     (
                         &n.id,
                         &n.name,
-                        &n.visual_description,
                         n.components.get("core.wearable"),
                         &e.description,
                     )

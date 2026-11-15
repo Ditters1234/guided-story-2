@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {exampleWorld,makeNode} from './model';
+import {exampleWorld} from '../test-fixtures/world';
+import {makeNode} from './model';
 import {newSelectionAuthoringRequest,allowRevisionAdditions,editableFields} from './authoring-ui';
 
 describe('AI revision from a map selection',()=>{

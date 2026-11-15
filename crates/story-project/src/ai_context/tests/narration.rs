@@ -15,7 +15,6 @@ fn profile(world: &mut World) -> String {
         type_id: "core.narration-style".into(),
         name: "Narration style".into(),
         description: "Use concrete sensory details.".into(),
-        visual_description: String::new(),
         components: BTreeMap::from([(
             "core.narration-style".into(),
             definition

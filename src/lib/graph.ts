@@ -1,3 +1,4 @@
+import {narrationRoles,type DraftWorldContext,type NodeContextChoice} from './writing-inputs';
 import type { MarkerType, Edge, Node } from '@xyflow/svelte';
 import type { World, Workspace } from './model';
 import {nodeSearchText} from './node-fields';
@@ -5,11 +6,11 @@ import {connectionDirection} from './link-fields';
 
 export type RecordKind = 'place' | 'character' | 'item' | 'thread' | 'custom';
 export type WorldRecord = {
-  id: string; name: string; description: string; visualDescription: string;
+  id: string; name: string; description: string;
   kind: RecordKind; parentId: string | null; relation: string; detail: string;
   searchText?:string;
 };
-export type WorldNodeData = WorldRecord & { count: number; expanded: boolean; onToggle: (id: string) => void; imageId?:string;imageStoryId?:string };
+export type WorldNodeData = WorldRecord & { count: number; expanded: boolean; onToggle: (id: string) => void; imageId?:string;imageStoryId?:string;contextChoice?:NodeContextChoice;onContextToggle?:(id:string)=>void };
 export type WorldNode = Node<WorldNodeData, 'world'>;
 
 export function worldRecords(world: World): WorldRecord[] {
@@ -17,9 +18,13 @@ export function worldRecords(world: World): WorldRecord[] {
   const relations = new Map(world.relationTypes.map((d) => [d.id, d]));
   const parents = new Map(world.edges.filter((e) => relations.get(e.typeId)?.physicalPlacement).map((e) => [e.sourceId, e]));
   const wornIds = new Set(world.edges.filter((e) => e.typeId === 'core.worn-by').map((e) => e.sourceId));
-  // A nonphysical thread grouping is only a view. It must never close a parent cycle.
+  // Nonphysical groupings are only a view and must never close a parent cycle.
   for (const edge of world.edges) {
-    if (edge.typeId !== 'core.related' || !nodes.get(edge.sourceId)?.components['core.thread'] || nodes.get(edge.targetId)?.components['core.thread'] || parents.has(edge.sourceId)) continue;
+    if (edge.typeId !== 'core.related' || parents.has(edge.sourceId)) continue;
+    const source = nodes.get(edge.sourceId), target = nodes.get(edge.targetId);
+    const linkedThread = source?.components['core.thread'] && !target?.components['core.thread'];
+    const briefNote = source?.typeId === 'core.note' && target?.components['detail.brief'];
+    if (!linkedThread && !briefNote) continue;
     let ancestor: string | undefined = edge.targetId;
     const seen = new Set([edge.sourceId]);
     while (ancestor && !seen.has(ancestor)) { seen.add(ancestor); ancestor = parents.get(ancestor)?.targetId; }
@@ -31,7 +36,7 @@ export function worldRecords(world: World): WorldRecord[] {
     const kind: RecordKind = node.components['core.character'] ? 'character' : node.components['core.place'] ? 'place' : node.components['core.item'] ? 'item' : node.components['core.thread'] ? 'thread' : 'custom';
     const preset=world.nodeTypes.find((d)=>d.id===node.typeId);
     const item=node.components['core.item'];
-    return {id:node.id,name:node.name,description:node.description,visualDescription:node.visualDescription,searchText:nodeSearchText(node),kind,parentId:parent?.targetId??null,
+    return {id:node.id,name:node.name,description:node.description,searchText:nodeSearchText(node),kind,parentId:parent?.targetId??null,
       relation:worn?'worn by':parent?.typeId==='core.stored-in'&&nodes.get(parent.targetId)?.components['core.character']?'carried by':relations.get(parent?.typeId ?? '')?.label??'related to',
       detail:node.components['core.container']?'Container':item ? String(item.quantity)+' '+String(item.unit)+(item.quantity!==1?'s':'') :preset?.name??'World node'};
   });
@@ -93,7 +98,7 @@ export function visibleRecords(records: WorldRecord[], expandedIds: string[], se
   });
 }
 
-export function buildGraph(world: World, workspace: Workspace, search: string, onToggle: (id: string) => void): { nodes: WorldNode[]; edges: Edge[] } {
+export function buildGraph(world: World, workspace: Workspace, search: string, onToggle: (id: string) => void, draftContext: DraftWorldContext | null = null): { nodes: WorldNode[]; edges: Edge[] } {
   const records = worldRecords(world);
   const visible = visibleRecords(records, workspace.expandedIds, search);
   const ids = new Set(visible.map((r) => r.id));
@@ -112,7 +117,7 @@ export function buildGraph(world: World, workspace: Workspace, search: string, o
       for (const child of [...nested].reverse()) stack.push({record: child, depth: depth + 1, done: false});
     } else {
       const ys = nested.map((r) => layout.get(r.id)?.y).filter((y): y is number => y !== undefined);
-      layout.set(record.id, {x: depth * 280, y: ys.length ? (ys[0] + ys.at(-1)!) / 2 : row++ * 120});
+      layout.set(record.id, {x: depth * 280, y: ys.length ? (ys[0] + ys.at(-1)!) / 2 : row++ * 148});
     }
   }
   const nodes: WorldNode[] = visible.map((record) => ({
@@ -125,15 +130,26 @@ export function buildGraph(world: World, workspace: Workspace, search: string, o
     if (!ids.has(edge.sourceId) || !ids.has(edge.targetId)) continue;
     const definition = world.relationTypes.find((r) => r.id === edge.typeId);
     const direction=connectionDirection(edge),twoWay=direction==='two-way';
-    edges.push({ id: edge.id, source: edge.sourceId, target: edge.targetId, label: (definition?.label ?? edge.typeId)+(direction==='unspecified'?' · direction unspecified':''),
+    const narration = narrationRoles.find(role => role.id === edge.typeId);
+    let label = definition?.label ?? edge.typeId;
+    if (narration) {
+      const role = narration.id === 'core.narration-pov' ? 'POV' : 'focus';
+      const target = role === 'POV' ? draftContext?.plan.viewpointId : draftContext?.plan.locationId;
+      label = `Narration ${role}`;
+      if (draftContext && !draftContext.updating) {
+        if (draftContext.plan.narrationNodeId !== edge.sourceId) label += ' · inactive';
+        else if (target === edge.targetId) label = `Passage ${role}`;
+      }
+    }
+    edges.push({ id: edge.id, source: edge.sourceId, target: edge.targetId, label: label+(direction==='unspecified'?' · direction unspecified':''),
       type: definition?.physicalPlacement ? 'smoothstep' : 'default',
       style: definition?.physicalPlacement ? 'stroke: var(--connection);' : 'stroke: var(--secondary-connection); stroke-dasharray: 5 5;',
-      ariaLabel: `${records.find((r) => r.id === edge.sourceId)?.name} ${twoWay?'↔':'→'} ${records.find((r) => r.id === edge.targetId)?.name}: ${definition?.label??edge.typeId}${direction==='directed'?'':', '+direction}`,
+      ariaLabel: `${records.find((r) => r.id === edge.sourceId)?.name} ${twoWay?'↔':'→'} ${records.find((r) => r.id === edge.targetId)?.name}: ${label}${direction==='directed'?'':', '+direction}`,
       interactionWidth: 24, ...(twoWay?{markerStart:{type:'arrowclosed' as MarkerType}}:{}), markerEnd: { type: 'arrowclosed' as MarkerType } });
   }
   return { nodes, edges };
 }
 
-export function editRecord(world: World, id: string, field: 'name' | 'description' | 'visualDescription', value: string): World {
+export function editRecord(world: World, id: string, field: 'name' | 'description', value: string): World {
   return {...world,nodes:world.nodes.map((node)=>node.id===id?{...node,[field]:value}:node)};
 }

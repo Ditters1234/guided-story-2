@@ -355,7 +355,7 @@ fn checked_reference_fields_can_point_to_scoped_new_nodes_without_leaking_hidden
 #[test]
 fn formalwear_revision_keeps_wearing_links_and_character_body_facts() {
     let entry: LibraryEntry = serde_json::from_slice(include_bytes!(
-        "../../../../../examples/node-library/surveyor-and-belongings.json"
+        "../../test_data/library-outfit.json"
     ))
     .unwrap();
     let source = preview_world_edit(&World::default(), WorldEdit::InsertLibrary { entry })
@@ -391,8 +391,8 @@ fn formalwear_revision_keeps_wearing_links_and_character_body_facts() {
         .iter()
         .map(|id| EditableField {
             node_id: id.clone(),
-            component_id: None,
-            key: "visualDescription".into(),
+            component_id: Some("detail.design".into()),
+            key: "form".into(),
         })
         .collect();
     let mut nodes = source
@@ -402,7 +402,7 @@ fn formalwear_revision_keeps_wearing_links_and_character_body_facts() {
         .cloned()
         .collect::<Vec<_>>();
     for node in &mut nodes {
-        node.visual_description = format!("Tailored formalwear version of {}", node.name);
+        node.components.get_mut("detail.design").unwrap().insert("form".into(), PropertyValue::Text(format!("Tailored formalwear version of {}", node.name)));
     }
     let edges = source
         .edges

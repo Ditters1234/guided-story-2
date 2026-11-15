@@ -1,0 +1,80 @@
+{
+  "detail.brief": [
+    {
+      "key": "chapterDirection",
+      "label": "Chapter direction",
+      "kind": "longText",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "uses": [
+          "planning"
+        ],
+        "stability": "stable",
+        "help": "Authored chapter arc, including beats already covered; at most 4,000 characters. Not established events."
+      }
+    },
+    {
+      "key": "passageDirection",
+      "label": "Current passage direction",
+      "kind": "longText",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "uses": [
+          "planning"
+        ],
+        "stability": "stable",
+        "help": "The next passage intention, at most 8,000 characters. After acceptance, unchanged direction is not reused by the next draft unless explicitly selected again."
+      }
+    },
+    {
+      "key": "stopAfter",
+      "label": "Stop after",
+      "kind": "longText",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "uses": [
+          "planning"
+        ],
+        "stability": "stable",
+        "help": "Final action, decision or reveal for this passage; at most 2,000 characters."
+      }
+    },
+    {
+      "key": "alreadyCovered",
+      "label": "Already covered / author recap",
+      "kind": "longText",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "uses": [
+          "planning"
+        ],
+        "stability": "stable",
+        "help": "Optional author reminder, at most 4,000 characters. Accepted history establishes what happened; this field does not."
+      }
+    }
+  ],
+  "core.narration-style": [
+    {
+      "key": "knowledgePerspective",
+      "label": "Narration perspective",
+      "kind": "choice",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "uses": [
+          "planning"
+        ],
+        "stability": "stable",
+        "choices": [
+          "Viewpoint / reader",
+          "Author / omniscient"
+        ],
+        "help": "Controls claim access for passages using this narration node; does not change character knowledge."
+      }
+    }
+  ]
+}

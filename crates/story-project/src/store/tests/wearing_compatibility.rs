@@ -117,8 +117,14 @@ fn legacy_custom_placement_keeps_its_meaning_in_the_surviving_wear_link() {
         .unwrap()
         .clone();
     custom["id"] = json!("custom.entrusted");
+    custom["fields"] = json!([
+        {"key":"tag","label":"Issue tag","kind":"text","required":true,"defaultValue":""},
+        {"key":"issuedTo","label":"Issued to","kind":"nodeRef","required":false,"defaultValue":null,
+          "metadata":{"referenceCapability":"core.character"}}
+    ]);
     old["relationTypes"].as_array_mut().unwrap().push(custom);
     old["edges"][1]["typeId"] = json!("custom.entrusted");
+    old["edges"][1]["properties"] = json!({"tag":"Tag 114","issuedTo":w.nodes[0].id});
     let upgraded: World = serde_json::from_value(old).unwrap();
     upgraded.validate().unwrap();
     assert_eq!(upgraded.edges.len(), 1);
@@ -126,6 +132,15 @@ fn legacy_custom_placement_keeps_its_meaning_in_the_surviving_wear_link() {
     assert!(upgraded.edges[0]
         .description
         .contains("Issued by the homestead."));
+    let fields = &upgraded.relation_types.iter().find(|r| r.id == "core.worn-by").unwrap().fields;
+    let tag = fields.iter().find(|f| f.label.ends_with("Issue tag")).unwrap();
+    let issued_to = fields.iter().find(|f| f.label.ends_with("Issued to")).unwrap();
+    assert_eq!(tag.kind, FieldKind::Text);
+    assert!(!tag.required);
+    assert_eq!(issued_to.kind, FieldKind::NodeRef);
+    assert_eq!(upgraded.edges[0].properties[&tag.key], PropertyValue::Text("Tag 114".into()));
+    assert_eq!(upgraded.edges[0].properties[&issued_to.key], PropertyValue::Text(w.nodes[0].id.clone()));
+    assert_eq!(serde_json::from_slice::<World>(&encode(&upgraded).unwrap()).unwrap(), upgraded);
 }
 
 #[test]

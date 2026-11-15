@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { copyMapNodes, mapShortcut, retainMapSelection } from './map-actions';
-import { exampleWorld } from './model';
+import {exampleWorld} from '../test-fixtures/world';
 
 describe('map actions', () => {
   it('copies only selected nodes and internal links, retaining frozen rich values', () => {

@@ -198,6 +198,22 @@ pub(crate) fn save_passage_draft(
 }
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn preview_passage_prompt(
+    story_id: String,
+    id: String,
+    expected_version: u32,
+    expected_revision: u32,
+    action: PassagePromptAction,
+    app: tauri::AppHandle,
+) -> Result<PassagePromptPreview, String> {
+    let settings = connection(&app)?;
+    with_project(&app.state::<AppState>(), |p| {
+        check_story(p, &story_id)?;
+        p.preview_passage_prompt(&id, expected_version, expected_revision, action, &settings)
+    })
+}
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn start_passage_job(
     story_id: String,
     id: String,

@@ -108,7 +108,7 @@ fn foundation_budget_preserves_schema_fields_required_defaults_and_string_constr
     let node = &schema["properties"]["nodes"]["properties"]["custom.foundation"]["items"];
     assert_eq!(node["properties"]["name"]["maxLength"], 120);
     assert_eq!(node["properties"]["description"]["maxLength"], 160);
-    assert_eq!(node["properties"]["visualDescription"]["maxLength"], 160);
+    assert!(node["properties"].get("visualDescription").is_none());
     let component = &node["properties"]["components"]["properties"]["custom.budget"];
     assert_eq!(component["maxProperties"], 4); // required + zero + false + one extra
     assert_eq!(component["required"], before["required"]);
@@ -214,7 +214,6 @@ fn manual_foundation_candidates_keep_full_native_lengths_and_all_optional_fields
     };
     let mut node = proposed_node(&world, "custom.foundation", "new:record", &"N".repeat(150));
     node.description = "d".repeat(300);
-    node.visual_description = "v".repeat(300);
     let values = node.components.get_mut("custom.budget").unwrap();
     for key in [
         "requiredText",
@@ -251,10 +250,6 @@ fn manual_foundation_candidates_keep_full_native_lengths_and_all_optional_fields
     assert_eq!(
         applied.commit.project.world.nodes[0].description,
         node.description
-    );
-    assert_eq!(
-        applied.commit.project.world.nodes[0].visual_description,
-        node.visual_description
     );
     assert_eq!(
         applied.commit.project.world.nodes[0].components,

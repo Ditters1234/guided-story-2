@@ -263,7 +263,6 @@ fn node(world: &World, preset: &str, name: &str) -> WorldNode {
         type_id: preset.into(),
         name: name.into(),
         description: "".into(),
-        visual_description: "".into(),
         components,
     }
 }
@@ -399,7 +398,7 @@ fn invalid_editor_drafts_are_preserved_without_changing_canon() {
     world.nodes.push(item);
     project
         .save_draft(EditorDraft {
-            schema_version: 2,
+            schema_version: SCHEMA,
             source_revision: 0,
             title: "Test story".into(),
             world: world.clone(),
@@ -429,7 +428,7 @@ fn replacing_an_older_draft_archives_it_instead_of_silently_erasing_it() {
     let (_dir, project) = create();
     project
         .save_draft(EditorDraft {
-            schema_version: 2,
+            schema_version: SCHEMA,
             source_revision: 0,
             title: "Unfinished".into(),
             world: World::default(),
@@ -442,7 +441,7 @@ fn replacing_an_older_draft_archives_it_instead_of_silently_erasing_it() {
     next.nodes.push(node(&next, "core.place", "New place"));
     project
         .save_draft(EditorDraft {
-            schema_version: 2,
+            schema_version: SCHEMA,
             source_revision: 1,
             title: "Accepted".into(),
             world: next,
@@ -512,4 +511,51 @@ fn immutable_publication_never_overwrites_existing_files_or_folders() {
     std::fs::create_dir(&target).unwrap();
     assert!(publish_new_path(&source, &target).is_err());
     assert!(source.exists());
+}
+
+#[test]
+fn initial_demo_draft_is_published_before_the_first_project_head() {
+    for phase in [
+        "before-initial-draft",
+        "after-initial-draft",
+        "before-head",
+        "after-head",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("story");
+        let seed = crate::story_template("lantern-demo").unwrap();
+        let result = Project::create_seeded_with_hook(
+            &root,
+            "Fictional seeded creation".into(),
+            seed.world,
+            request(),
+            seed.initial_plan,
+            |at| {
+                if at == phase {
+                    Err("Injected interruption".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(result.is_err());
+        if phase == "after-head" {
+            let opened = Project::open(&root).unwrap();
+            assert_eq!(opened.list_passage_drafts().unwrap().len(), 1);
+            assert!(opened.story_index().unwrap().passages.is_empty());
+        } else {
+            assert!(!root.join("head.json").exists());
+            assert!(Project::open(&root).is_err());
+        }
+        let files = fs::read_dir(root.join("worlds")).unwrap().count();
+        assert!(files > 0);
+        assert!(Project::create(
+            &root,
+            "Retry must not overwrite".into(),
+            World::default(),
+            request()
+        )
+        .is_err());
+        assert_eq!(fs::read_dir(root.join("worlds")).unwrap().count(), files);
+    }
 }

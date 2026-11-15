@@ -213,7 +213,6 @@ mod tests {
                 type_id: "custom.traveller".into(),
                 name: (*name).into(),
                 description: String::new(),
-                visual_description: String::new(),
                 components: BTreeMap::from([("core.character".into(), BTreeMap::new())]),
             })
             .collect();

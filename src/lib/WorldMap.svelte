@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {passageNodeChoice,type DraftWorldContext} from './writing-inputs';
   import {tick, untrack} from 'svelte';
   import {copyMapNodes, mapShortcut, retainMapSelection, type MapClipboard} from './map-actions';
   import {commands,unwrap} from './native';
@@ -11,8 +12,9 @@
   import NodeLibrary from './NodeLibrary.svelte';
   import SaveLibraryDialog from './SaveLibraryDialog.svelte';
   import { libraryDragType, readLibraryDrag, libraryPositions } from './node-library';
-  let { world, workspace, search, projectId, storyId,revision, active = true, colorMode, editable, aiEditable, onAiSelection, onSelect, onToggle, onPositions, onLink, onConnect, onEdit, onExpand }: {
+  let { world, workspace, search, projectId, storyId,revision,draftContext=null,contextVisible=true,contextDisabled=false,onContextToggle=()=>{}, active = true, colorMode, editable, aiEditable, onAiSelection, onSelect, onToggle, onPositions, onLink, onConnect, onEdit, onExpand }: {
     world: World; workspace: Workspace; search: string;
+    draftContext?:DraftWorldContext|null;contextVisible?:boolean;contextDisabled?:boolean;onContextToggle?:(id:string)=>void;
     projectId: string | null;
     storyId:string|null;revision:number;
     active?: boolean;
@@ -126,12 +128,12 @@
   function fitSelection() {void fitView({nodes:selectedNodes.length?selectedNodes:undefined,padding:0.2});context=null;focusCanvas();}
   function fitSettledPanes() { requestAnimationFrame(() => requestAnimationFrame(() => { void fitView({ padding: 0.12 }); })); }
   $effect(() => {
-    const graph = buildGraph(world, workspace, search, onToggle);
+    const graph = buildGraph(world, workspace, search, onToggle, contextVisible ? draftContext : null);
     const currentProject=projectId, anchor=workspace.selectedId;
     const previous=untrack(()=>({nodes:nodes.map(node=>({id:node.id,selected:node.selected})),edges:edges.map(edge=>({id:edge.id,selected:edge.selected}))}));
     const preserve=currentProject===lastProject && anchor===lastAnchor;
     const added=currentProject===lastProject?new Set(world.nodes.filter(node=>!lastWorldIds.has(node.id)).map(node=>node.id)):new Set<string>();
-    nodes = retainMapSelection(graph.nodes,previous.nodes,preserve).map(node=>{const image=portraits[node.id];return {...node,...(added.size?{selected:added.has(node.id)}:{}),data:{...node.data,imageId:image?.applicable&&!image.error?image.id:undefined,imageStoryId:storyId??undefined}};});
+    nodes = retainMapSelection(graph.nodes,previous.nodes,preserve).map(node=>{const image=portraits[node.id],choice=passageNodeChoice(draftContext,node.id,world);return {...node,...(added.size?{selected:added.has(node.id)}:{}),data:{...node.data,contextChoice:contextVisible?{...choice,disabled:contextDisabled||choice.disabled}:undefined,onContextToggle,imageId:image?.applicable&&!image.error?image.id:undefined,imageStoryId:storyId??undefined}};});
     const selected=new Set(preserve?previous.edges.filter(edge=>edge.selected).map(edge=>edge.id):[]);
     edges=graph.edges.map(edge=>({...edge,selected:selected.has(edge.id)}));
     if(currentProject!==lastProject){clipboard=null;notice='';context=null;}

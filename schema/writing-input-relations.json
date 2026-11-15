@@ -1,0 +1,22 @@
+[
+  {
+    "id": "core.narration-pov",
+    "name": "Narration POV",
+    "label": "POV",
+    "sourceCapability": "core.narration-style",
+    "targetCapability": "core.character",
+    "physicalPlacement": false,
+    "singleTarget": true,
+    "description": "Author planning: this narration follows the target character's viewpoint. Does not change character knowledge or physical placement."
+  },
+  {
+    "id": "core.narration-focus",
+    "name": "Narration scene focus",
+    "label": "scene focus",
+    "sourceCapability": "core.narration-style",
+    "targetCapability": "core.place",
+    "physicalPlacement": false,
+    "singleTarget": true,
+    "description": "Author planning: the target place is the intended scene focus for this narration. Does not move characters or establish events."
+  }
+]

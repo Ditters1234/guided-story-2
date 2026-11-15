@@ -28,12 +28,12 @@ describe('native relationship replacement review',()=>{
   it('shows note-only and untouched scene coverage without implying an empty result is complete',()=>{
     const world=emptyWorld(),person=makeNode(world,'core.character','Mara'),other=makeNode(world,'core.character','Jon'),outside=makeNode(world,'core.character','Outside scope');world.nodes=[person,other,outside];
     const effects:PassageEffects={changes:[],notes:[{text:'Mara waited.',evidence:'Mara waited.',nodeIds:[person.id]}],suggestChapterEnd:false};
-    const {body}=render(EffectsReviewEditor,{props:{world,effects,scopeIds:[person.id,other.id],prose:'Mara waited.',review:undefined,approvedKeys:[],onChange:()=>{},onApprove:()=>{}}});
-    expect(body).toContain('0 proposed changes');expect(body).toContain('No structured changes proposed');expect(body).toContain('Continuity note only');expect(body).toContain('No proposed update');expect(body).not.toContain('Outside scope');expect(body).toContain('Add missing change or note');
+    const {body}=render(EffectsReviewEditor,{props:{world,effects,prose:'Mara waited.',review:{checked:false,entries:[],recordIds:[person.id,other.id],linkIds:[],removableLinkIds:[]},approvedKeys:[],onChange:()=>{},onApprove:()=>{}}});
+    expect(body).toContain('0 proposed changes');expect(body).toContain('Review the prose for any missed changes');expect(body).toContain('Continuity note only');expect(body).toContain('No proposed update');expect(body).not.toContain('Outside scope');expect(body).toContain('Add missing change or note');
   });
   it('renders explicit reference suggestions and their coverage separately from captured resources',()=>{
     const world=emptyWorld(),room=makeNode(world,'core.place','Workshop'),item=makeNode(world,'core.item','Lantern');world.nodes=[room,item];world.edges=[{id:crypto.randomUUID(),typeId:'core.stored-in',sourceId:item.id,targetId:room.id,description:''}];
-    const plan={chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:room.id,participantIds:[],referenceIds:[],targetWords:450};
+    const plan={chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:room.id,participantIds:[],referenceIds:[]};
     const {body}=render(SceneResources,{props:{world,plan,updating:false,onToggle:()=>{}}});
     expect(body).toContain('Suggested references (1)');expect(body).toContain('Lantern');expect(body).toContain('not sent until added');expect(plan.referenceIds).toEqual([]);
   });

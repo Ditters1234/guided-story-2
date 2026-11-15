@@ -4,12 +4,11 @@ fn id() -> String {
 }
 fn node(world: &World, kind: &str, name: &str) -> WorldNode {
     let preset = world.node_types.iter().find(|t| t.id == kind).unwrap();
-    WorldNode {
+    let mut node = WorldNode {
         id: id(),
         type_id: kind.into(),
         name: name.into(),
         description: "Private planning notes must not become an image prompt.".into(),
-        visual_description: format!("Visible {name}"),
         components: preset
             .components
             .iter()
@@ -24,7 +23,9 @@ fn node(world: &World, kind: &str, name: &str) -> WorldNode {
                 )
             })
             .collect(),
-    }
+    };
+    crate::projection::set_image_notes(&mut node, format!("Visible {name}"));
+    node
 }
 pub(super) fn fixture() -> (tempfile::TempDir, Project) {
     let dir = tempfile::tempdir().unwrap();
@@ -213,7 +214,7 @@ fn capture_uses_historical_outfit_and_never_copies_private_notes() {
     assert!(last.draft.source.facts[0].outfit.is_empty());
     assert!(!first.draft.request.prompt.contains("Private planning"));
     let mut current = p.view().unwrap();
-    current.world.nodes[1].visual_description = "Future appearance".into();
+    crate::projection::set_image_notes(&mut current.world.nodes[1], "Future appearance");
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     let historical = p.create_media(&id(), shot(ImageMoment::Before)).unwrap();
@@ -240,7 +241,7 @@ fn only_visible_source_changes_stale_node_shots_and_historical_portraits_use_pla
     let accepted = ready(&p, selected.clone());
     p.accept_media(&accepted, 1).unwrap();
     let mut current = p.view().unwrap();
-    current.world.nodes[2].visual_description = "A red coat".into();
+    crate::projection::set_image_notes(&mut current.world.nodes[2], "A red coat");
     p.commit(current.revision, id(), current.title, current.world.clone())
         .unwrap();
     assert!(p.media_view(&key).unwrap().stale);
@@ -409,7 +410,7 @@ fn forks_copy_retained_media_without_future_outfits_or_source_folder_dependency(
     let illustration = ready(&p, first_target);
     p.accept_media(&illustration, 1).unwrap();
     let mut current = p.view().unwrap();
-    current.world.nodes[1].visual_description = "Future golden mask".into();
+    crate::projection::set_image_notes(&mut current.world.nodes[1], "Future golden mask");
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     let future = ready(&p, target(&p));
@@ -728,13 +729,13 @@ fn media_ui_fixture() {
 fn workflow_default_controls_and_bridge_numbers_are_bounded_before_submission() {
     let (_dir, p) = fixture();
     let mut current = p.view().unwrap();
-    current.world.nodes[1].visual_description = "a".repeat(16000);
+    crate::projection::set_image_notes(&mut current.world.nodes[1], "a".repeat(16000));
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     let key = id();
     let candidate = p.create_media(&key, target(&p)).unwrap();
     assert!(candidate.draft.request.prompt.is_empty());
-    assert_eq!(candidate.draft.source.facts[0].appearance.len(), 16000);
+    assert!(candidate.draft.source.facts[0].appearance.ends_with(&"a".repeat(16000)));
     assert!(!candidate.draft.error.is_empty());
     let repaired = p
         .save_media_request(

@@ -6,8 +6,11 @@ export function passageReviewState(view:PassageView_Serialize|null,effects:Passa
   const checked=!!view?.effectsReview.checked&&!unsaved;
   const pending=view?.effectsReview.entries.filter(e=>!approvedKeys.includes(e.key)).length??0;
   const wording=view?.revision?.kind==='wording';
+  const checkAction=!hasProse||wording||view?.stage==='accepted'||view?.stage==='discarded'
+    ?null
+    :hasReview||view?.effectsProvider?'rerun':'check';
   const action=!hasProse?'generate':view?.canAccept&&!unsaved?'accept':wording?'validate':!hasReview?'extract':!checked?'validate':'review';
-  return {hasReview,checked,pending,action} as const;
+  return {hasReview,checked,pending,action,checkAction} as const;
 }
 
 export function passageStageLabel(stage:PassageStage){

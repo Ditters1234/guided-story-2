@@ -1,16 +1,23 @@
 import type { AuthoringRequest,EditableField,EditableLinkField,NodeCandidate,WorldNode } from './bindings';
 import type { World } from './model';
 import { makeNode } from './model';
-import {defaultProperties,hasCapability,type FieldTarget} from './node-fields';
+import {defaultProperties,hasCapability,imageOnlyExtension,imageOnlyField,retiredWritingField,type FieldTarget} from './node-fields';
 export const fieldId=(field:EditableField)=>JSON.stringify([field.nodeId,field.componentId,field.key]);
 export function editableFields(world:World,ids:string[]):(EditableField&{label:string})[]{
   return world.nodes.filter((n)=>ids.includes(n.id)).flatMap((node)=>[
-    ...[['name','Name'],['description','Story notes'],['visualDescription','Visible description']].map(([key,label])=>({nodeId:node.id,componentId:null,key,label})),
-    ...Object.keys(node.components).flatMap((id)=>{const definition=world.componentTypes.find((d)=>d.id===id);return (definition?.fields??[]).map((field)=>({nodeId:node.id,componentId:id,key:field.key,label:(definition?.name??id)+' / '+field.label}));}),
+    ...[['name','Name'],['description','Story notes']].map(([key,label])=>({nodeId:node.id,componentId:null,key,label})),
+    ...Object.keys(node.components).flatMap((id)=>{const definition=world.componentTypes.find((d)=>d.id===id);return (definition?.fields??[]).filter(field=>!retiredWritingField(id,field.key)).map((field)=>({nodeId:node.id,componentId:id,key:field.key,label:(definition?.name??id)+' / '+field.label}));}),
   ]);
 }
+function defaultRevisionFields(world:World,ids:string[]):EditableField[]{
+  return editableFields(world,ids).filter(({componentId,key})=>{
+    if(componentId===null)return key!=='name';
+    const field=world.componentTypes.find(definition=>definition.id===componentId)?.fields.find(field=>field.key===key);
+    return !!field&&!imageOnlyField(field);
+  }).map(({label:_,...field})=>field);
+}
 export function newAuthoringRequest(world:World,targetId?:string,focusId?:string|null):AuthoringRequest{
-  return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:editableFields(world,[targetId]).filter((f)=>f.componentId!==null||f.key!=='name').map(({label:_,...field})=>field)}:
+  return targetId?{mode:'revise',direction:'',typeId:null,bundle:false,creationScope:null,groupTypeId:null,targetIds:[targetId],contextIds:[],fields:defaultRevisionFields(world,[targetId])}:
     {mode:'create',direction:'',typeId:null,bundle:true,creationScope:world.nodes.length?'group':'world',groupTypeId:null,creationTypeIds:foundationCreationTypes(world),...(!world.nodes.length?{includeNarration:narrationDefault(world)}:{}),targetIds:[],contextIds:focusId&&world.nodes.some(n=>n.id===focusId)?[focusId]:[],fields:[]};
 }
 export function foundationCreationTypes(world:World){return world.nodeTypes.filter(t=>t.components.some(c=>['core.place','core.character','core.item','core.narration-style','detail.rule','detail.brief'].includes(c))).map(t=>t.id);}
@@ -78,9 +85,13 @@ export function repairCandidatePlacement(candidate:NodeCandidate,indexes:number[
 }
 
 export function unsupportedCandidateFields(world:World,node:WorldNode){
+  const preset=world.nodeTypes.find(type=>type.id===node.typeId);
   return Object.entries(node.components).flatMap(([componentId,values])=>{
     const definition=world.componentTypes.find(d=>d.id===componentId);
     if(!definition)return [{componentId,key:null as string|null,label:componentId,value:JSON.stringify(values,null,2)}];
+    if(node.id.startsWith('new:')&&imageOnlyExtension(definition)&&!preset?.components.includes(componentId)){
+      return [{componentId,key:null,label:definition.name,value:JSON.stringify(values,null,2)}];
+    }
     return Object.entries(values).filter(([key])=>!definition.fields.some(f=>f.key===key)).map(([key,value])=>({componentId,key:key as string|null,label:definition.name+' / '+key,value:JSON.stringify(value,null,2)}));
   });
 }
@@ -93,7 +104,7 @@ export function parseCandidateForEditor(text:string):NodeCandidate|null{
   const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
   const property=(value:unknown)=>value===null||['string','number','boolean'].includes(typeof value)||(Array.isArray(value)&&value.every((v)=>typeof v==='string'));
   try{const value:unknown=JSON.parse(text);if(!record(value)||!Array.isArray(value.nodes)||!Array.isArray(value.edges)||value.nodes.length>20||value.edges.length>80)return null;
-    if(!value.nodes.every((n)=>record(n)&&['id','typeId','name','description','visualDescription'].every((key)=>typeof n[key]==='string')&&record(n.components)&&Object.values(n.components).every((values)=>record(values)&&Object.values(values).every(property))))return null;
+    if(!value.nodes.every((n)=>record(n)&&['id','typeId','name','description'].every((key)=>typeof n[key]==='string')&&record(n.components)&&Object.values(n.components).every((values)=>record(values)&&Object.values(values).every(property))))return null;
     if(!value.edges.every((e)=>record(e)&&['id','typeId','sourceId','targetId','description'].every((key)=>typeof e[key]==='string')&&(e.properties===undefined||(record(e.properties)&&Object.values(e.properties).every(property)))))return null;
     return value as unknown as NodeCandidate;
   }catch{return null;}
@@ -117,7 +128,7 @@ export function newSelectionAuthoringRequest(world:World,ids:string[]):Authoring
   if(links.length>24)throw Error('Narrow the selection to at most 24 internal relationships.');
   const physical=new Set(world.relationTypes.filter(type=>type.physicalPlacement).map(type=>type.id));
   const neighbors=new Set(world.edges.filter(edge=>physical.has(edge.typeId)&&(selected.includes(edge.sourceId)||selected.includes(edge.targetId))).flatMap(edge=>[edge.sourceId,edge.targetId]));
-  const fields=editableFields(world,selected).filter(field=>field.componentId!==null||field.key!=='name').slice(0,200).map(({label:_,...field})=>field);
+  const fields=defaultRevisionFields(world,selected).slice(0,200);
   return {mode:'revise',direction:'',typeId:null,bundle:false,targetIds:selected,contextIds:world.nodes.filter(node=>neighbors.has(node.id)&&!selected.includes(node.id)).slice(0,12).map(node=>node.id),fields,
     linkTargetIds:links,linkFields:editableLinkFields(world,links).slice(0,200-fields.length).map(({label:_,...field})=>field)};
 }

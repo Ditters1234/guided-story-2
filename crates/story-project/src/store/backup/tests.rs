@@ -59,8 +59,7 @@ fn fixture() -> (tempfile::TempDir, Project) {
         id: id(),
         type_id: preset.id,
         name: "Glasshouse".into(),
-        description: "Fictional planning note".into(),
-        visual_description: "A sunlit glasshouse".into(),
+        description: "Fictional planning note about a sunlit glasshouse".into(),
         components,
     });
     let p = Project::create(

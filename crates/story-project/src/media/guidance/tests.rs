@@ -29,10 +29,9 @@ fn style(p: &Project) -> String {
     );
     v.world.nodes.push(WorldNode {
         id: key.clone(),
-        type_id: "core.visual-style".into(),
+        type_id: "core.note".into(),
         name: "Watercolour style".into(),
         description: String::new(),
-        visual_description: String::new(),
         components: BTreeMap::from([("detail.visual-style".into(), values)]),
     });
     v.world.ai_context.push(AiContextBinding {
@@ -437,9 +436,9 @@ fn prose_schema_excludes_unused_author_profiles_and_effects_cannot_rewrite_plann
     let mut world = p.view().unwrap().world;
     let projected = crate::story_effects::prose_effect_schema(&world);
     assert!(!projected
-        .node_types
+        .component_types
         .iter()
-        .any(|d| d.id == "core.visual-style"));
+        .any(|d| d.id == "detail.visual-style"));
     assert!(projected
         .component_types
         .iter()
@@ -476,7 +475,7 @@ fn prose_schema_excludes_unused_author_profiles_and_effects_cannot_rewrite_plann
     assert!(
         crate::story_effects::effect_record_issues(&world, &world, &effect(node))[0]
             .iter()
-            .any(|e| e.contains("author planning guidance"))
+            .any(|e| e.contains("image-only"))
     );
     let style = style(&p);
     let world = p.view().unwrap().world;

@@ -76,7 +76,6 @@ pub(crate) fn note(
         type_id: "core.note".into(),
         name: name.into(),
         description: text.into(),
-        visual_description: "Unselected appearance.".into(),
         components: Default::default(),
     });
     world.ai_context.push(AiContextBinding {

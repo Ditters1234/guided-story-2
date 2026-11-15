@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
   import type { WorldNode } from './graph';
+  import NodeContextToggle from './NodeContextToggle.svelte';
   import ImagePreview from './ImagePreview.svelte';
   let { data, selected }: NodeProps<WorldNode> = $props();
   const symbols = { place: '⌂', character: '◉', item: '◇', thread: '↝', custom: '✧' };
@@ -12,6 +13,7 @@
     <span class="node-symbol" aria-hidden="true">{#if data.imageId&&data.imageStoryId}<ImagePreview storyId={data.imageStoryId} id={data.imageId} compact={true}/>{:else}{data.kind === 'character' ? data.name.split(' ').map((s) => s[0]).slice(0, 2).join('') : symbols[data.kind]}{/if}</span>
     <div><span class="node-kind">{data.detail}</span><strong>{data.name || 'Unnamed record'}</strong></div>
   </div>
+  {#if data.contextChoice}<div class="map-node-context"><NodeContextToggle choice={data.contextChoice} name={data.name} onToggle={()=>data.onContextToggle?.(data.id)}/></div>{/if}
   {#if data.count}
     <button class="node-expand nodrag" aria-label={`${data.expanded ? 'Collapse' : 'Expand'} ${data.name}`} onclick={(event) => { event.stopPropagation(); data.onToggle(data.id); }}>
       <span>{data.count} connected</span><span>{data.expanded ? '−' : '+'}</span>

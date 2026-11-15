@@ -49,13 +49,8 @@ fn ai_context_is_captured_for_image_assistance_and_only_selected_content_stales_
     p.finish_image_prompt(&draft, Ok(request.demo), false, false)
         .unwrap();
     let mut current = p.view().unwrap();
-    current
-        .world
-        .nodes
-        .iter_mut()
-        .find(|n| n.id == rule)
-        .unwrap()
-        .visual_description = "Unselected visual text.".into();
+    let node = current.world.nodes.iter_mut().find(|n| n.id == rule).unwrap();
+    crate::projection::set_image_notes(node, "Unselected visual text.");
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     assert!(!p.image_prompt_view(&draft, &text(), &image).unwrap().stale);
@@ -231,7 +226,7 @@ fn historical_requests_exclude_future_profiles_and_full_passage_prose() {
     )
     .unwrap();
     let mut current = p.view().unwrap();
-    current.world.nodes[1].visual_description = "Future silver mask".into();
+    crate::projection::set_image_notes(&mut current.world.nodes[1], "Future silver mask");
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     let key = proposal(&p, &media_id, &text(), &ImageConnection::default());
@@ -305,7 +300,7 @@ fn stale_inputs_block_application_and_preserve_proposals() {
             }
             "appearance" => {
                 let mut current = p.view().unwrap();
-                current.world.nodes[2].visual_description = "A future red coat".into();
+                crate::projection::set_image_notes(&mut current.world.nodes[2], "A future red coat");
                 p.commit(current.revision, id(), current.title, current.world)
                     .unwrap();
             }
@@ -502,7 +497,7 @@ fn malformed_and_oversized_typed_outputs_are_retained_without_losing_repair_work
 fn budget_failure_does_not_mark_a_request_running() {
     let (_dir, p) = fixture();
     let mut current = p.view().unwrap();
-    current.world.nodes[1].visual_description = "A".repeat(16000);
+    crate::projection::set_image_notes(&mut current.world.nodes[1], "A".repeat(16000));
     p.commit(current.revision, id(), current.title, current.world)
         .unwrap();
     let media = media(&p);

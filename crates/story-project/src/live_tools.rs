@@ -13,7 +13,6 @@ fn node(w: &World, kind: &str, name: &str) -> WorldNode {
         type_id: kind.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()
@@ -129,6 +128,12 @@ fn fixture(root: &Path) -> Fixture {
     text(&mut style, "core.narration-style", "person", "Third person");
     text(&mut style, "core.narration-style", "tense", "Past tense");
     text(&mut style,"core.narration-style","instructions","Write close third person from Nora's viewpoint, in past tense throughout scene action. Use concrete repair details and restrained dialogue. Do not reveal Otis's private thoughts.");
+    w.relation_types
+        .extend(crate::story::bundled_writing_relationships().unwrap());
+    w.edges.extend([
+        link("core.narration-pov", &style.id, &nora.id),
+        link("core.narration-focus", &style.id, &room.id),
+    ]);
     w.ai_context.push(AiContextBinding {
         node_id: style.id.clone(),
         enabled: true,
@@ -280,9 +285,8 @@ async fn author(
 fn edits(f: &Fixture, prose: &str) -> PassageEdits {
     let mut plan = f.p.next_passage_plan().unwrap();
     plan.location_id = Some(f.room.clone());
-    plan.viewpoint_id = Some(f.nora.clone());
+    plan.narration_node_id = Some(f.style.clone());
     plan.participant_ids = vec![f.otis.clone()];
-    plan.target_words = 160;
     plan.title = "The workshop key".into();
     plan.direction="Nora hands the brass key she carries to Otis after a brief disagreement about the generator. Complete the handoff on the page. They stay in the workshop. No other possession changes, new characters or time jumps.".into();
     PassageEdits {
@@ -358,7 +362,6 @@ async fn real_ai_tools_pass() {
             f.p.accept_passage(&opening_id, view.version, &s).unwrap();
             let mut next = edits(&f, "");
             next.plan = f.p.next_passage_plan().unwrap();
-            next.plan.target_words = 120;
             next.plan.direction = "Nora asks Otis whether they should wait out the rain. He answers that they should wait. Keep them in the workshop, in past tense. No key handoff or other possession changes.".into();
             next.plan.stop_after = "Otis says they should wait; end immediately after his answer, before preparations or departure.".into();
             let draft = id();
@@ -570,12 +573,10 @@ async fn real_ai_tools_pass() {
             e.plan.direction = String::new();
             e.plan.chapter_plan =
                 "A quiet, tense moment between Silas and Elara at the isolated homestead.".into();
-            e.plan.target_words = 160;
             let expected_version = if empty_cast {
                 e.plan.chapter_plan.clear();
-                e.plan.viewpoint_id = None;
+                e.plan.narration_node_id = None;
                 e.plan.participant_ids.clear();
-                e.plan.target_words = 800;
                 f.p.save_passage(&draft, 0, e.clone()).unwrap();
                 let error =
                     f.p.start_passage(&draft, 1, 1, false, &s)
@@ -588,60 +589,76 @@ async fn real_ai_tools_pass() {
                 assert_eq!(f.p.passage_view(&draft, &s).unwrap().version, 1);
                 assert_eq!(f.p.view().unwrap().world, w);
                 println!("Empty cast rejected before submission: {error}");
-                e.plan.viewpoint_id = Some(f.nora.clone());
+                e.plan.narration_node_id = Some(f.style.clone());
                 e.plan.participant_ids = vec![f.otis.clone()];
-                e.plan.target_words = 160;
                 f.p.save_passage(&draft, 1, e).unwrap();
                 2
             } else {
                 f.p.save_passage(&draft, 0, e).unwrap();
                 1
             };
+            let baseline = if case == "scene-start" {
+                let old = std::process::Command::new("git")
+                    .args([
+                        "show",
+                        "eaebc1403b012ace6b123da3d9cb21a16f357529:crates/story-project/src/prompts/passage.txt",
+                    ])
+                    .output()
+                    .unwrap();
+                assert!(old.status.success());
+                let old_system = String::from_utf8(old.stdout).unwrap();
+                let mut legacy = s.clone();
+                legacy
+                    .prompts
+                    .overrides
+                    .insert(TextPromptTask::Passage, old_system.clone());
+                let preview = f
+                    .p
+                    .preview_passage_prompt(
+                        &draft,
+                        expected_version,
+                        1,
+                        PassagePromptAction::Generate,
+                        &legacy,
+                    )
+                    .unwrap();
+                let mut input: Value = serde_json::from_str(&preview.user).unwrap();
+                input.as_object_mut().unwrap().remove("startingState");
+                for record in input["records"].as_array_mut().unwrap() {
+                    record.as_object_mut().unwrap().remove("startingPosition");
+                }
+                let plan = input["plan"].as_object_mut().unwrap();
+                for (key, label) in [
+                    ("intendedLocationId", "locationId"),
+                    ("intendedParticipantIds", "participantIds"),
+                ] {
+                    if let Some(value) = plan.remove(key) {
+                        plan.insert(label.into(), value);
+                    }
+                }
+                Some((old_system, input.to_string()))
+            } else {
+                None
+            };
             let prepared =
                 f.p.start_passage(&draft, expected_version, 1, false, &s)
                     .unwrap();
-            let mut baseline: Value = serde_json::from_str(&prepared.user).unwrap();
-            assert_eq!(
-                baseline["startingState"]["people"]
-                    .as_array()
-                    .unwrap()
-                    .len(),
-                2
-            );
-            assert!(baseline["startingState"]["people"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|p| p["relativeToFocus"] == "elsewhere"));
-            baseline.as_object_mut().unwrap().remove("startingState");
-            for record in baseline["records"].as_array_mut().unwrap() {
-                record.as_object_mut().unwrap().remove("startingPosition");
+            let input: Value = serde_json::from_str(&prepared.user).unwrap();
+            let people = input["startingState"]["people"].as_array().unwrap();
+            assert_eq!(people.len(), 2);
+            for (person, place) in [("Silas Thorne", "Main House"), ("Elara Vane", "Yard")] {
+                assert!(people
+                    .iter()
+                    .any(|p| p["name"] == person && p["currentPlace"]["name"] == place));
             }
-            let old_plan = baseline["plan"].as_object_mut().unwrap();
-            for (key, label) in [
-                ("intendedLocationId", "locationId"),
-                ("intendedParticipantIds", "participantIds"),
-            ] {
-                if let Some(value) = old_plan.remove(key) {
-                    old_plan.insert(label.into(), value);
-                }
-            }
-            let old = std::process::Command::new("git")
-                .args([
-                    "show",
-                    "eaebc1403b012ace6b123da3d9cb21a16f357529:crates/story-project/src/prompts/passage.txt",
-                ])
-                .output()
-                .unwrap();
-            assert!(old.status.success());
-            if case == "scene-start" {
+            if let Some((system, user)) = baseline {
                 let _baseline = call(
                     root,
                     "scene-baseline",
                     &s,
                     key.as_deref(),
-                    std::str::from_utf8(&old.stdout).unwrap(),
-                    &baseline.to_string(),
+                    &system,
+                    &user,
                     None,
                     prepared.output_tokens,
                 )

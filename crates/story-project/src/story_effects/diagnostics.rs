@@ -14,14 +14,19 @@ pub(crate) fn effect_record_issues(
     let scoped: BTreeSet<_> = context.nodes.iter().map(|n| n.id.as_str()).collect();
     let mut allowed = scoped.clone();
     let mut nodes: BTreeMap<_, _> = source.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let mut event_quotes = BTreeMap::<&str, usize>::new();
     for change in &effects.changes {
-        if let PassageEffect::PutNode { node, .. } = change {
+        if let PassageEffect::PutNode { node, evidence } = change {
             if alias(&node.id) {
                 allowed.insert(&node.id);
             }
             nodes.insert(&node.id, node);
+            if node.components.contains_key("detail.event") {
+                *event_quotes.entry(&node.id).or_default() += evidence.quotes().len();
+            }
         }
     }
+    let event_citations: usize = event_quotes.values().sum();
     let mut records: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut placements: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     let mut single_targets: BTreeMap<(&str, &str), Vec<usize>> = BTreeMap::new();
@@ -33,8 +38,13 @@ pub(crate) fn effect_record_issues(
         };
         records.entry(record_id).or_default().push(i);
         match change {
-            PassageEffect::PutNode { node, evidence } => {
+            PassageEffect::PutNode { node, .. } => {
                 let old = source.nodes.iter().find(|n| n.id == node.id);
+                if old.is_some_and(|n| {
+                    n.type_id != node.type_id || n.components.keys().ne(node.components.keys())
+                }) {
+                    issues[i].push("Passage effects cannot change an existing node's type/capability set.".into());
+                }
                 if (authoring_only_components(source, node.components.keys())
                     || old.is_some_and(|n| authoring_only_components(source, n.components.keys())))
                     && old.is_none_or(|n| n != node)
@@ -45,7 +55,18 @@ pub(crate) fn effect_record_issues(
                     node.components.contains_key(&d.id)
                         || old.is_some_and(|n| n.components.contains_key(&d.id))
                 }) {
-                    for field in def.fields.iter().filter(|f| !planning_only(f)) {
+                    if old.is_none()
+                        && def.image_only()
+                        && !source.node_types.iter().any(|preset| {
+                            preset.id == node.type_id && preset.components.contains(&def.id)
+                        })
+                    {
+                        issues[i].push(format!("Attach {} through Manage extensions after accepting the passage.", def.name));
+                    }
+                    let protected = |field: &FieldDefinition| {
+                        planning_only(field) || field.image_only() || crate::story::retired_writing_field(&def.id, &field.key)
+                    };
+                    for field in def.fields.iter().filter(|f| !protected(f)) {
                         if old
                             .and_then(|n| n.components.get(&def.id))
                             .and_then(|values| values.get(&field.key))
@@ -58,7 +79,7 @@ pub(crate) fn effect_record_issues(
                             issues[i].push(format!("{} / {} was omitted from this complete record. Restore its saved value in Edit, or explicitly clear it with passage evidence if the fact ended. Unrelated facts must be preserved.", def.name, field.label));
                         }
                     }
-                    for field in def.fields.iter().filter(|f| planning_only(f)) {
+                    for field in def.fields.iter().filter(|f| protected(f)) {
                         let before = old
                             .and_then(|n| n.components.get(&def.id))
                             .and_then(|v| v.get(&field.key))
@@ -74,29 +95,18 @@ pub(crate) fn effect_record_issues(
                             after != &PropertyValue::Null && after != &field.default_value
                         };
                         if changed {
-                            issues[i].push(format!("{} / {} is author planning guidance. Preserve its saved/default value or remove this proposal; use world tools to revise it.",def.name,field.label));
+                            let purpose = if field.image_only() { "image-only" } else { "author planning guidance" };
+                            issues[i].push(format!("{} / {} is {purpose}. Preserve its saved/default value or remove this proposal; use world tools to revise it.",def.name,field.label));
                         }
                     }
                 }
-                let event_citations: usize = effects
-                    .changes
-                    .iter()
-                    .map(|e| match e {
-                        PassageEffect::PutNode { node, evidence }
-                            if node.components.contains_key("detail.event") =>
-                        {
-                            evidence.quotes().len()
-                        }
-                        _ => 0,
-                    })
-                    .sum();
                 if node.components.contains_key("detail.event")
                     && (source
                         .source_annotations
                         .iter()
                         .filter(|a| a.node_id == node.id)
                         .count()
-                        + evidence.quotes().len()
+                        + event_quotes[node.id.as_str()]
                         > 32
                         || source.source_annotations.len() + event_citations > 10000)
                 {
@@ -110,12 +120,25 @@ pub(crate) fn effect_record_issues(
             }
             PassageEffect::PutLink { link, .. } => {
                 let old = source.edges.iter().find(|e| e.id == link.id);
+                if crate::story::NARRATION_LINKS.contains(&link.type_id.as_str())
+                    || old.is_some_and(|e| {
+                        crate::story::NARRATION_LINKS.contains(&e.type_id.as_str())
+                    })
+                {
+                    issues[i].push(
+                        "Narration POV/focus links are author planning. Use World to change them."
+                            .into(),
+                    );
+                }
                 if old.is_some_and(|old| {
                     old.type_id != link.type_id && has_planning_link_values(source, old)
                 }) {
                     issues[i].push("This connection has author planning guidance. Preserve its relationship type; use world tools to revise it.".into());
                 }
                 for displaced in displaced_links(source, link) {
+                    if has_planning_link_values(source, displaced) {
+                        issues[i].push(format!("Replacing {} would discard saved author planning guidance. Use World to change that connection.", link_label(source, displaced)));
+                    }
                     if !scoped.contains(displaced.source_id.as_str())
                         || !scoped.contains(displaced.target_id.as_str())
                     {
@@ -243,6 +266,11 @@ pub(crate) fn effect_record_issues(
             }
             PassageEffect::RemoveLink { id, .. } => {
                 if let Some(old) = source.edges.iter().find(|e| &e.id == id) {
+                    if crate::story::NARRATION_LINKS.contains(&old.type_id.as_str()) {
+                        issues[i].push("Narration POV/focus links are author planning. Use World to remove them.".into());
+                    } else if has_planning_link_values(source, old) {
+                        issues[i].push("Removing this connection would discard saved author planning guidance. Use World to remove it.".into());
+                    }
                     if !scoped.contains(old.source_id.as_str())
                         || !scoped.contains(old.target_id.as_str())
                     {
@@ -254,9 +282,28 @@ pub(crate) fn effect_record_issues(
             }
         }
     }
-    for indices in records.values().filter(|v| v.len() > 1) {
-        for &i in indices {
-            issues[i].push("Another proposal changes this same record. Keep one update/removal for it, or choose Create new connection for a separate connection.".into());
+    for (id, indices) in records.into_iter().filter(|(_, indices)| indices.len() > 1) {
+        if let Some(saved) = source.nodes.iter().find(|n| n.id == id).filter(|_| {
+            indices.iter().all(|&i| matches!(effects.changes[i], PassageEffect::PutNode { .. }))
+        }) {
+            let mut fields = BTreeMap::<_, Vec<usize>>::new();
+            for &i in &indices {
+                if let PassageEffect::PutNode { node, .. } = &effects.changes[i] {
+                    for field in changed_node_fields(saved, node) {
+                        fields.entry(field).or_default().push(i);
+                    }
+                }
+            }
+            for (field, cards) in fields.into_iter().filter(|(_, cards)| cards.len() > 1) {
+                let label = node_field_label(source, field);
+                for i in cards {
+                    issues[i].push(format!("Another proposal also changes {label}. Keep one final value for this field by editing or removing a proposal."));
+                }
+            }
+        } else {
+            for i in indices {
+                issues[i].push("Another proposal changes this same record. Keep one update/removal for it, or choose Create new connection for a separate connection.".into());
+            }
         }
     }
     for indices in placements.values().filter(|v| v.len() > 1) {
@@ -270,4 +317,19 @@ pub(crate) fn effect_record_issues(
         }
     }
     issues
+}
+
+fn node_field_label(world: &World, field: NodeEffectField<'_>) -> String {
+    match field {
+        NodeEffectField::Name => "Name".into(),
+        NodeEffectField::Description => "Story notes".into(),
+        NodeEffectField::Component(component, key) => {
+            let definition = world.component_types.iter().find(|def| def.id == component);
+            let name = definition.map_or(component, |def| def.name.as_str());
+            let label = definition
+                .and_then(|def| def.fields.iter().find(|field| field.key == key))
+                .map_or(key, |field| field.label.as_str());
+            format!("{name} / {label}")
+        }
+    }
 }

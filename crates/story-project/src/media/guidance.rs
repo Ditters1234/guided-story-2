@@ -21,7 +21,7 @@ pub struct ImagePreparationPreview {
 }
 
 fn image_sections(world: &World) -> Result<Vec<AiContextSection>, String> {
-    crate::ai_context::resolve_context_sections(world, |b| b.image_preparation, true)
+    crate::ai_context::resolve_context_sections(world, |b| b.image_preparation, true, true)
 }
 fn validate_sections(sections: &[AiContextSection]) -> Result<(), String> {
     for s in sections {

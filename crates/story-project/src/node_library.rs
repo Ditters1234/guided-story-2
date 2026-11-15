@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -13,25 +13,8 @@ use std::{
 
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_SCAN_BYTES: u64 = 64 * 1024 * 1024;
-
-pub fn validate_bundled_library_examples() -> Result<(), String> {
-    for (name, bytes) in [
-        (
-            "surveyor-and-belongings.json",
-            include_bytes!("../../../examples/node-library/surveyor-and-belongings.json")
-                .as_slice(),
-        ),
-        (
-            "workshop-corner.json",
-            include_bytes!("../../../examples/node-library/workshop-corner.json").as_slice(),
-        ),
-    ] {
-        let entry = decode_entry(bytes).map_err(|e| format!("Library example {name}: {e}"))?;
-        preview_world_edit(&World::default(), WorldEdit::InsertLibrary { entry })
-            .map_err(|e| format!("Library example {name}: {e}"))?;
-    }
-    Ok(())
-}
+const MAX_ENTRIES: usize = 500;
+const MAX_SCAN_ITEMS: usize = 10_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -54,6 +37,7 @@ pub struct LibraryExport {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LibraryFile {
+    // Path relative to the library root, with slash separators on all platforms.
     pub file_name: String,
     pub name: String,
     pub description: String,
@@ -389,12 +373,34 @@ pub(crate) fn insert_library(
             || entry.world.edges.iter().any(|e| e.type_id == d.id)
             || !target.relation_types.iter().any(|old| old.id == d.id)
     });
-    macro_rules! merge {($field:ident) => {for definition in &entry.world.$field {
-        if let Some(existing)=target.$field.iter().find(|d|d.id==definition.id) {
-            if existing!=definition {return Err(format!("Library schema conflict: {}. The story's definition is different and was not changed. Rename the conflicting definition and its uses in the library JSON, or use a compatible story.",definition.id));}
-        } else {changes.push(format!("Add definition: {} ({}).",definition.name,definition.id));target.$field.push(definition.clone());}
-    }}}
-    merge!(component_types);
+    let writing_fields = crate::story::bundled_writing_fields()?;
+    macro_rules! merge {
+        ($field:ident, $compatible:expr) => {
+            for definition in &entry.world.$field {
+                if let Some(existing) = target.$field.iter_mut().find(|d| d.id == definition.id) {
+                    if existing != definition && !($compatible)(existing, definition, &mut *changes) {
+                        return Err(format!("Library schema conflict: {}. The story's definition is different and was not changed. Rename the conflicting definition and its uses in the library JSON, or use a compatible story.", definition.id));
+                    }
+                } else {
+                    changes.push(format!("Add definition: {} ({}).", definition.name, definition.id));
+                    target.$field.push(definition.clone());
+                }
+            }
+        };
+        ($field:ident) => {
+            merge!($field, |_, _, _| false);
+        };
+    }
+    merge!(
+        component_types,
+        |existing: &mut ComponentDefinition,
+         incoming: &ComponentDefinition,
+         changes: &mut Vec<String>| {
+            writing_fields.get(&incoming.id).is_some_and(|fields| {
+                merge_optional_writing_fields(existing, incoming, fields, changes)
+            })
+        }
+    );
     merge!(node_types);
     merge!(relation_types);
     let mapping = crate::operations::paste_nodes(
@@ -416,6 +422,31 @@ pub(crate) fn insert_library(
         crate::operations::remap_reference(&mut field.default_value, &field.kind, &mapping);
     }
     Ok(())
+}
+
+fn merge_optional_writing_fields(
+    existing: &mut ComponentDefinition,
+    incoming: &ComponentDefinition,
+    optional: &[FieldDefinition],
+    changes: &mut Vec<String>,
+) -> bool {
+    // The inspector installs these fields on demand. Permit only exact,
+    // additive bundled fields and preserve any shared definition verbatim.
+    let without_optional = |definition: &ComponentDefinition| {
+        let mut definition = definition.clone();
+        definition.fields.retain(|field| !optional.contains(field));
+        definition
+    };
+    if without_optional(existing) != without_optional(incoming) {
+        return false;
+    }
+    for field in optional {
+        if incoming.fields.contains(field) && !existing.fields.contains(field) {
+            changes.push(format!("Add field: {} / {}.", existing.name, field.label));
+            existing.fields.push(field.clone());
+        }
+    }
+    true
 }
 
 #[derive(Serialize, Deserialize)]
@@ -497,25 +528,46 @@ fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     }
     Ok(bytes)
 }
-fn file_path(folder: &Path, name: &str) -> Result<PathBuf, String> {
-    if name.is_empty()
-        || name.len() > 240
-        || name.starts_with('.')
-        || name.contains(['/', '\\', ':'])
-        || !name.to_lowercase().ends_with(".json")
-        || name.chars().any(char::is_control)
+fn valid_path_segment(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('.')
+        && !name.ends_with([' ', '.'])
+        && !name.contains(['/', '\\', ':'])
+        && !name.chars().any(char::is_control)
+}
+
+fn json_file_name(name: &str) -> bool {
+    name.len() <= 240 && name.to_ascii_lowercase().ends_with(".json")
+}
+
+fn linked(meta: &fs::Metadata) -> bool {
+    #[cfg(windows)]
     {
-        return Err("Choose a JSON file directly inside the library folder.".into());
+        use std::os::windows::fs::MetadataExt;
+        meta.file_attributes() & 0x400 != 0 // Includes Windows junctions.
     }
-    let path = folder.join(name);
-    let meta = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
-    if meta.file_type().is_symlink()
-        || !meta.is_file()
-        || path.canonicalize().map_err(|e| e.to_string())?.parent() != Some(folder)
-    {
-        return Err(
-            "Library entries must be regular JSON files inside the selected folder.".into(),
-        );
+    #[cfg(not(windows))]
+    meta.file_type().is_symlink()
+}
+
+fn file_path(folder: &Path, name: &str) -> Result<PathBuf, String> {
+    let invalid_path = || "Choose a regular JSON file inside the library folder.".to_string();
+    let mut path = folder.to_path_buf();
+    let mut parts = name.split('/').peekable();
+    while let Some(part) = parts.next() {
+        let last = parts.peek().is_none();
+        if !valid_path_segment(part) || (last && !json_file_name(part)) {
+            return Err(invalid_path());
+        }
+        path.push(part);
+        let meta = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        if linked(&meta) || (last && !meta.is_file()) || (!last && !meta.is_dir()) {
+            return Err(invalid_path());
+        }
+    }
+    let path = path.canonicalize().map_err(|e| e.to_string())?;
+    if !path.starts_with(folder) {
+        return Err(invalid_path());
     }
     Ok(path)
 }
@@ -543,26 +595,73 @@ pub fn read_library_entry(
     }
     decode_entry(&bytes)
 }
-fn scan(folder: &Path) -> Result<LibraryListing, String> {
+fn scan_names(folder: &Path, warnings: &mut Vec<String>) -> Result<Vec<String>, String> {
     let mut names = vec![];
-    let mut warnings = vec![];
-    for item in fs::read_dir(folder).map_err(|e| e.to_string())? {
-        let item = item.map_err(|e| e.to_string())?;
-        let Some(name) = item.file_name().to_str().map(str::to_owned) else {
+    let mut pending = VecDeque::from([(folder.to_path_buf(), String::new())]);
+    let mut inspected = 0;
+    let mut unreadable = false;
+    'scan: while let Some((directory, prefix)) = pending.pop_front() {
+        if !prefix.is_empty()
+            && (!directory.canonicalize().is_ok_and(|path| path == directory)
+                || !fs::symlink_metadata(&directory)
+                    .is_ok_and(|meta| meta.is_dir() && !linked(&meta)))
+        {
+            unreadable = true;
             continue;
-        };
-        if !name.starts_with('.') && name.to_lowercase().ends_with(".json") {
-            names.push(name);
         }
-        if names.len() > 500 {
-            warnings.push(
-                "Only the first 500 JSON entries are shown. Use a smaller library folder.".into(),
-            );
-            break;
+        let items = match fs::read_dir(&directory) {
+            Ok(items) => items,
+            Err(error) if prefix.is_empty() => return Err(error.to_string()),
+            Err(_) => {
+                unreadable = true;
+                continue;
+            }
+        };
+        for item in items {
+            inspected += 1;
+            if inspected > MAX_SCAN_ITEMS {
+                warnings.push("The library scan reached its 10,000-item limit. Choose a smaller folder to see more entries.".into());
+                break 'scan;
+            }
+            let Ok(item) = item else {
+                unreadable = true;
+                continue;
+            };
+            let file_name = item.file_name();
+            let Some(name) = file_name.to_str().filter(|name| valid_path_segment(name)) else {
+                continue;
+            };
+            let Ok(meta) = item.metadata() else {
+                unreadable = true;
+                continue;
+            };
+            if linked(&meta) {
+                continue;
+            }
+            if meta.is_dir() {
+                pending.push_back((item.path(), format!("{prefix}{name}/")));
+            } else if meta.is_file() && json_file_name(name) {
+                if names.len() == MAX_ENTRIES {
+                    warnings.push(
+                        "Only the first 500 JSON entries are shown. Use a smaller library folder."
+                            .into(),
+                    );
+                    break 'scan;
+                }
+                names.push(format!("{prefix}{name}"));
+            }
         }
     }
+    if unreadable {
+        warnings.push("Some library files or folders could not be inspected.".into());
+    }
     names.sort();
-    names.truncate(500);
+    Ok(names)
+}
+
+fn scan(folder: &Path) -> Result<LibraryListing, String> {
+    let mut warnings = vec![];
+    let names = scan_names(folder, &mut warnings)?;
     let mut used = 0;
     let mut files = vec![];
     for name in names {

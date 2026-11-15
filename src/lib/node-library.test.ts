@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { libraryDragData, readLibraryDrag, libraryPositions } from './node-library';
-import { exampleWorld } from './model';
+import {exampleWorld} from '../test-fixtures/world';
 import type { LibraryEntry_Serialize } from './bindings';
 
 describe('portable library map interactions',()=>{
   it('drags a pinned file identity rather than trusting node JSON from a drag payload',()=>{
-    const file={fileName:'traveller.json',sha256:'a'.repeat(64),name:'Traveller',description:'',nodeCount:2,connectionCount:1,error:null};
+    const file={fileName:'Characters/Travellers/traveller.json',sha256:'a'.repeat(64),name:'Traveller',description:'',nodeCount:2,connectionCount:1,error:null};
     expect(readLibraryDrag(libraryDragData(file))).toEqual({fileName:file.fileName,sha256:file.sha256});
     for(const invalid of ['', '{}', '{broken', JSON.stringify({fileName:'x',sha256:'bad'}),JSON.stringify({fileName:5,sha256:'a'.repeat(64)})])expect(readLibraryDrag(invalid)).toBeNull();
   });

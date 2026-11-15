@@ -18,6 +18,7 @@ mod revisions;
 mod schema_integration;
 mod source_contract;
 mod starting_state;
+mod writing_inputs;
 fn id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -34,7 +35,6 @@ fn node(world: &World, kind: &str, name: &str) -> WorldNode {
         type_id: kind.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: t
             .components
             .iter()
@@ -423,6 +423,17 @@ fn extraction_failure_truncation_and_interruption_retain_prose_without_resend() 
     let v = p.passage_view(&rid, &settings()).unwrap();
     assert_eq!(v.stage, PassageStage::Interrupted);
     assert_eq!(v.edits.prose, prose);
+    let retry = p.start_passage(&rid, v.version, 0, true, &settings()).unwrap();
+    let input: Value = serde_json::from_str(&retry.user).unwrap();
+    assert_eq!(input["prose"], prose);
+    p.finish_passage(&rid, true, Ok(retry.demo), false, false, &settings())
+        .unwrap();
+    let reviewed = p.passage_view(&rid, &settings()).unwrap();
+    assert_eq!(reviewed.stage, PassageStage::Ready);
+    assert_eq!(reviewed.edits.prose, prose);
+    assert_eq!(reviewed.original_prose, v.original_prose);
+    assert!(reviewed.effects_review.checked);
+    assert_eq!(p.list_passage_drafts().unwrap().len(), 1);
     assert_eq!(p.view().unwrap().revision, 0);
 }
 #[test]

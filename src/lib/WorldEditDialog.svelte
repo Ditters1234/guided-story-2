@@ -72,7 +72,7 @@
       <p><strong>{candidate.entry.name}</strong></p>
       {#if candidate.entry.description}<p>{candidate.entry.description}</p>{/if}
       <p>Create {candidate.entry.world.nodes.length} independent nodes and {candidate.entry.world.edges.length} internal connections. Names and fields are retained; every node and connection gets a new identity.</p>
-      <p class="field-help">Required custom definitions are added on Apply. Existing definitions and nodes stay intact. Review any schema conflict before importing. Placement on the canvas does not attach the group to an existing node.</p>
+      <p class="field-help">Review any added schema definitions and writing fields before applying. Connect the group to existing nodes after importing.</p>
       <ul>{#each candidate.entry.world.nodes as node}<li>{node.name}</li>{/each}</ul>
     {:else if candidate.kind === 'pasteNodes'}
       <p>Create {candidate.nodes.length} independent {candidate.nodes.length === 1 ? 'node' : 'nodes'} and {candidate.edges.length} internal {candidate.edges.length===1?'connection':'connections'} with new identities.</p>

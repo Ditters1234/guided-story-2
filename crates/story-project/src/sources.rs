@@ -640,11 +640,12 @@ impl Project {
         validate_passage_anchors_using(p, r, |r| self.read_record("source-anchors", r))
     }
     /// Called only after every effect is reviewed, immediately before atomic publication.
-    pub(crate) fn annotate_passage_events(
+    pub(crate) fn annotate_passage_sources(
         &self,
         world: &mut World,
         effects: &PassageEffects,
         allocations: &BTreeMap<String, String>,
+        note_ids: &[String],
         reference: &RecordRef,
     ) -> Result<(), String> {
         let anchor: SourceAnchor = self.read_record("source-anchors", reference)?;
@@ -665,13 +666,19 @@ impl Project {
                     .iter()
                     .map(|quote| {
                         (
-                            i,
+                            Some(i as u32),
                             allocations.get(&node.id).unwrap_or(&node.id).clone(),
                             quote.clone(),
                         )
                     })
                     .collect::<Vec<_>>()
             })
+            .chain(
+                note_ids
+                    .iter()
+                    .zip(&effects.notes)
+                    .map(|(id, note)| (None, id.clone(), note.evidence.clone())),
+            )
             .collect();
         if targets.is_empty() {
             return Ok(());
@@ -681,7 +688,7 @@ impl Project {
                 .nodes
                 .iter()
                 .find(|n| n.id == id)
-                .ok_or("The accepted event target is missing.")?;
+                .ok_or("The accepted citation target is missing.")?;
             world.source_annotations.push(SourceAnnotation {
                 id: uuid::Uuid::new_v4().to_string(),
                 node_id: id,
@@ -692,7 +699,7 @@ impl Project {
                     event_id: anchor.event_id.clone(),
                     anchor: reference.clone(),
                     quote,
-                    effect_index: Some(index as u32),
+                    effect_index: index,
                 },
             });
         }

@@ -10,7 +10,6 @@ fn node(world: &World, preset: &str, name: &str) -> WorldNode {
         type_id: preset.id.clone(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()
@@ -377,11 +376,11 @@ fn older_project_head_is_rejected_without_replacing_its_files() {
     let dir = tempfile::tempdir().unwrap();
     let folder = dir.path().join("story");
     let p = Project::create(&folder, "Fixture".into(), World::default(), id()).unwrap();
-    assert_eq!(p.view().unwrap().schema_version, 2);
+    assert_eq!(p.view().unwrap().schema_version, 3);
     drop(p);
     let path = folder.join("head.json");
     let mut head: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    head["schemaVersion"] = json!(1);
+    head["schemaVersion"] = json!(2);
     let bytes = serde_json::to_vec(&head).unwrap();
     std::fs::write(&path, &bytes).unwrap();
     assert!(Project::open(&folder)

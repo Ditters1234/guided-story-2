@@ -22,6 +22,7 @@ fn relationship_planning_fields_are_bound_to_saved_values_or_new_link_defaults()
         .unwrap()
         .clone();
     definition.id = "custom.planning".into();
+    definition.single_target = true;
     definition.fields = [
         ("plan", FieldKind::Text, false, PropertyValue::Null),
         (
@@ -132,6 +133,22 @@ fn relationship_planning_fields_are_bound_to_saved_values_or_new_link_defaults()
     );
 
     let prose = "Mara waited beside Jon at the window.";
+    assert_eq!(
+        schema["properties"]["changes"]["properties"]["removeLinks"]["maxItems"],
+        0
+    );
+    let removal = PassageEffects {
+        changes: vec![PassageEffect::RemoveLink {
+            id: old.id.clone(),
+            evidence: prose.into(),
+        }],
+        ..Default::default()
+    };
+    assert!(
+        preview_passage_effects(&world, &world, prose, &removal, &mut BTreeMap::new())
+            .unwrap_err()
+            .contains("discard saved author planning guidance")
+    );
     let preview = |link| {
         preview_passage_effects(
             &world,
@@ -198,6 +215,14 @@ fn relationship_planning_fields_are_bound_to_saved_values_or_new_link_defaults()
         ..old.clone()
     };
     assert!(preview(fresh.clone()).is_ok());
+    let replacement = WorldEdge {
+        source_id: old.source_id.clone(),
+        target_id: old.target_id.clone(),
+        ..fresh.clone()
+    };
+    assert!(preview(replacement)
+        .unwrap_err()
+        .contains("discard saved author planning guidance"));
     let mut invalid = fresh.clone();
     invalid
         .properties
@@ -274,7 +299,6 @@ fn make(world: &World, type_id: &str, id: &str, name: &str) -> WorldNode {
         type_id: type_id.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()
@@ -659,18 +683,41 @@ fn link_endpoint_enums_follow_capabilities_including_container_holders_and_custo
     assert_eq!(present["sourceId"]["anyOf"][0]["enum"], json!([person.id]));
     assert_eq!(present["targetId"]["anyOf"][0]["enum"], json!([place.id]));
     let mounted = relationship("custom.mounted-at");
-    assert_eq!(
-        mounted["sourceId"]["anyOf"][0]["enum"],
-        json!([container.id])
-    );
-    assert_eq!(
-        mounted["sourceId"]["anyOf"][1]["pattern"],
-        "^new:[A-Za-z0-9_-]{1,60}$"
-    );
+    assert_eq!(mounted["sourceId"]["enum"], json!([container.id]));
+    assert!(mounted["sourceId"].get("pattern").is_none());
     // No captured wearable exists, but a proposed new garment can still be used.
     let worn = relationship("core.worn-by");
     assert_eq!(worn["sourceId"]["pattern"], "^new:[A-Za-z0-9_-]{1,60}$");
     assert!(worn["sourceId"].get("enum").is_none());
+
+    w.nodes.retain(|node| node.id != container.id);
+    let without_mount = effects_schema(&w);
+    assert!(!operation(&without_mount, "putLinks")
+        .to_string()
+        .contains("custom.mounted-at"));
+    assert!(!effects_relationships(&w, Some(&without_mount))
+        .to_string()
+        .contains("custom.mounted-at"));
+    w.node_types.push(NodeTypeDefinition {
+        id: "custom.mountable".into(),
+        name: "Mountable".into(),
+        description: String::new(),
+        components: vec!["custom.mount".into()],
+    });
+    let with_preset = effects_schema(&w);
+    assert!(effects_relationships(&w, Some(&with_preset))
+        .to_string()
+        .contains("custom.mounted-at"));
+    let mounted = operation(&with_preset, "putLinks")["properties"]["link"]["anyOf"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["properties"]["typeId"]["const"] == "custom.mounted-at")
+        .unwrap();
+    assert_eq!(
+        mounted["properties"]["sourceId"]["pattern"],
+        "^new:[A-Za-z0-9_-]{1,60}$"
+    );
 }
 
 #[test]
@@ -1058,7 +1105,6 @@ fn furnished_two_person_scene_fits_real_effects_preflight_at_32k() {
     plan.location_id = Some(room_id);
     plan.viewpoint_id = Some(nora_id);
     plan.participant_ids = vec![otis_id];
-    plan.target_words = 180;
     plan.direction = "Nora hands the brass key to Otis. Stay in the workshop.".into();
     p.save_passage(&draft, 0, PassageEdits {
         plan,

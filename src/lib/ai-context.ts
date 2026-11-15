@@ -1,5 +1,6 @@
 import type {AiContextBinding,TextPromptTask,WorldNode} from './bindings';
 import {makeNode,withBuiltinNodeType,type World} from './model';
+import {withWritingFields} from './writing-inputs';
 export const aiContextTasks:{id:TextPromptTask;label:string}[]=[{id:'world',label:'World creation / rerolls'},{id:'passage',label:'Passage writing'},{id:'wording',label:'Wording edits'},{id:'effects',label:'World changes'},{id:'memory',label:'Chapter memory'},{id:'imagePrompt',label:'Image-prompt assistance'},{id:'planning',label:'Scene and chapter planning'}];
 export function defaultContextBinding(nodeId:string,order=0,world?:World):AiContextBinding{
   const node=world?.nodes.find(n=>n.id===nodeId),narration=!!node?.components['core.narration-style'],visual=!!node?.components['detail.visual-style'];
@@ -19,11 +20,6 @@ export function addContextNote(world:World,id=crypto.randomUUID()):{world:World;
 export function addNarrationStyle(world:World,id=crypto.randomUUID()):{world:World;node:WorldNode}{
   const schema=withBuiltinNodeType(world,'core.narration-style');
   const node=makeNode(schema,'core.narration-style','Narration style',id);
-  const next={...schema,nodes:[...schema.nodes,node]};
-  return {world:setContextBinding(next,defaultContextBinding(id,(world.aiContext?.length??0)*10,next)),node};
-}
-
-export function addVisualStyle(world:World,id=crypto.randomUUID()):{world:World;node:WorldNode}{
-  const schema=withBuiltinNodeType(world,'core.visual-style'),node=makeNode(schema,'core.visual-style','Visual style',id),next={...schema,nodes:[...schema.nodes,node]};
+  const next=withWritingFields({...schema,nodes:[...schema.nodes,node]},node.id);
   return {world:setContextBinding(next,defaultContextBinding(id,(world.aiContext?.length??0)*10,next)),node};
 }

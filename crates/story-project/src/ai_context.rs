@@ -18,7 +18,6 @@ pub enum AiContextRole {
 #[serde(rename_all = "camelCase")]
 pub enum AiContextField {
     Description,
-    VisualDescription,
     Components,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -75,20 +74,25 @@ pub(crate) fn validate_ai_context(world: &World) -> Result<(), String> {
     }
     Ok(())
 }
-fn content(world: &World, node: &WorldNode, fields: &[AiContextField]) -> Result<String, String> {
+pub(crate) fn content(
+    world: &World,
+    node: &WorldNode,
+    fields: &[AiContextField],
+    image_guidance: bool,
+) -> Result<String, String> {
     let mut parts = vec![];
     if fields.contains(&AiContextField::Description) && !node.description.trim().is_empty() {
         parts.push(node.description.clone());
     }
-    if fields.contains(&AiContextField::VisualDescription)
-        && !node.visual_description.trim().is_empty()
-    {
-        parts.push(format!("Visible description: {}", node.visual_description));
-    }
     if fields.contains(&AiContextField::Components) {
         for (id, values) in &node.components {
             if let Some(definition) = world.component_types.iter().find(|d| &d.id == id) {
-                for field in &definition.fields {
+                // Subject appearance is projected with the shot's coverage.
+                for field in definition.fields.iter().filter(|field| {
+                    !crate::story::retired_writing_field(id, &field.key)
+                        && (!field.image_only()
+                            || (image_guidance && field.used_for(FieldUse::ImageGuidance)))
+                }) {
                     if let Some(value) = values.get(&field.key) {
                         if value != &PropertyValue::Null
                             && value != &PropertyValue::Text(String::new())
@@ -111,18 +115,6 @@ pub fn resolve_ai_context(
     world: &World,
     task: TextPromptTask,
 ) -> Result<Vec<AiContextSection>, String> {
-    if matches!(
-        task,
-        TextPromptTask::Passage | TextPromptTask::Wording | TextPromptTask::Planning
-    ) {
-        if let Some(binding) = world.ai_context.iter().find(|b| {
-            b.enabled
-                && b.tasks.contains(&task)
-                && b.fields.contains(&AiContextField::VisualDescription)
-        }) {
-            return Err(format!("AI context for {:?} selects image-only visualDescription on node {}. Deselect Extra visual notes for this binding or use an image task; required content was not silently dropped.", task, binding.node_id));
-        }
-    }
     if matches!(task,TextPromptTask::Passage|TextPromptTask::Wording) && world.ai_context.iter().any(|b|b.enabled&&b.tasks.contains(&task)&&world.nodes.iter().any(|n|n.id==b.node_id&&crate::knowledge::is_claim(n)&&matches!(n.components.get("core.claim").and_then(|v|v.get("disclosure")),Some(PropertyValue::Text(s)) if s=="withheld"))) {
         return Err("Required prose context includes a withheld claim. Change its inclusion or narration access; required context was not silently dropped.".into());
     }
@@ -130,12 +122,14 @@ pub fn resolve_ai_context(
         world,
         |b| b.tasks.contains(&task) || (task == TextPromptTask::ImagePrompt && b.image_preparation),
         false,
+        task == TextPromptTask::ImagePrompt,
     )
 }
 pub(crate) fn resolve_context_sections(
     world: &World,
     selected: impl Fn(&AiContextBinding) -> bool,
     allow_empty: bool,
+    image_guidance: bool,
 ) -> Result<Vec<AiContextSection>, String> {
     validate_ai_context(world)?;
     let mut sections = vec![];
@@ -146,7 +140,14 @@ pub(crate) fn resolve_context_sections(
             .iter()
             .find(|n| n.id == binding.node_id)
             .ok_or("Included AI context node is missing.")?;
-        let text = content(world, node, &binding.fields)?;
+        let text = content(world, node, &binding.fields, image_guidance)?;
+        if text.trim().is_empty() && binding.fields.contains(&AiContextField::Components)
+            && node.components.iter().any(|(capability, values)| values.iter().any(|(key, value)| {
+                crate::story::retired_writing_field(capability, key) && crate::story_effects::populated(value)
+            }))
+        {
+            continue;
+        }
         if text.trim().is_empty() && !allow_empty {
             return Err(format!("Included AI context “{}” has no selected content. Add text, select its content fields, or disable its inclusion for this tool.",node.name));
         }
@@ -243,7 +244,7 @@ pub(crate) fn story_ai_context_stamp(world: &World) -> Result<Option<String>, St
         source.push((
             narrative_binding,
             &node.name,
-            content(world, node, &binding.fields)?,
+            content(world, node, &binding.fields, false)?,
         ));
     }
     if source.is_empty() {

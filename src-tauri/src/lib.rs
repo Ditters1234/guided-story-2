@@ -48,8 +48,8 @@ fn remember_opened_project(app: &tauri::AppHandle, mut view: ProjectView) -> Pro
 
 #[tauri::command]
 #[specta::specta]
-fn location_template_world(template_id: String) -> Result<World, String> {
-    story_project::location_template_world(&template_id)
+fn story_template(template_id: String) -> Result<story_project::StoryTemplate, String> {
+    story_project::story_template(&template_id)
 }
 
 #[tauri::command]
@@ -59,6 +59,7 @@ fn create_project(
     title: String,
     world: World,
     request_id: String,
+    initial_plan: Option<story_project::PassagePlan>,
     state: State<AppState>,
     jobs: State<AuthoringJobs>,
     app: tauri::AppHandle,
@@ -76,7 +77,8 @@ fn create_project(
         .0
         .lock()
         .map_err(|_| "The project session needs to be reopened.")?;
-    let project = Project::create(&root, title, world, request_id)?;
+    let project =
+        Project::create_with_initial_passage(&root, title, world, request_id, initial_plan)?;
     let view = project.view()?;
     *guard = Some(project);
     Ok(remember_opened_project(&app, view))
@@ -307,7 +309,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<story_project::NodeCandidate>()
         .commands(tauri_specta::collect_commands![
             create_project,
-            location_template_world,
+            story_template,
             open_project,
             startup_project,
             recover_project,
@@ -360,6 +362,7 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
             get_passage_draft,
             save_passage_draft,
             start_passage_job,
+            preview_passage_prompt,
             validate_passage,
             accept_passage,
             begin_passage_revision,

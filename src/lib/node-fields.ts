@@ -8,11 +8,27 @@ export const hasCapability = (node:FieldTarget|undefined,id:string):boolean => !
 export function defaultProperties(definition:Pick<ComponentDefinition,'fields'>):Record<string,PropertyValue> {
   return Object.fromEntries(definition.fields.filter(f=>f.required||f.defaultValue!==null).map(f=>[f.key,Array.isArray(f.defaultValue)?[...f.defaultValue]:f.defaultValue]));
 }
-export function capabilitySections(world:World,node:WorldNode) {
+export function imageOnlyField(field:FieldDefinition):boolean {
+  const uses=field.metadata?.uses;
+  return !!uses?.length && uses.every(use=>use==='visual'||use==='imageGuidance');
+}
+
+export function imageOnlyExtension(definition:ComponentDefinition):boolean {
+  return definition.fields.length>0&&definition.fields.every(imageOnlyField);
+}
+
+export type FieldAudience='all'|'story'|'image';
+export function retiredWritingField(capability: string, key: string): boolean {
+  return capability === 'core.narration-style' && key === 'viewpointId';
+}
+
+export function capabilitySections(world:World,node:WorldNode,audience:FieldAudience='all') {
   const order=[...(world.nodeTypes.find(t=>t.id===node.typeId)?.components??[]),...Object.keys(node.components)];
   return [...new Set(order)].flatMap(id=>{
     const definition=world.componentTypes.find(d=>d.id===id),values=node.components[id];
-    return definition?.fields.length&&values?[{definition,values}]:[];
+    if(!definition||!values)return [];
+    const fields=definition.fields.filter(field=>!retiredWritingField(id,field.key)&&(audience==='all'||imageOnlyField(field)===(audience==='image')));
+    return fields.length?[{definition:{...definition,fields},values}]:[];
   });
 }
 export const hasFieldValue=(value:PropertyValue|undefined):boolean=>value!==null&&value!==undefined&&(
@@ -29,5 +45,5 @@ export function referenceTargets(field:FieldDefinition,nodes:FieldTarget[]):Fiel
   return capability?nodes.filter(n=>hasCapability(n,capability)):nodes;
 }
 export function nodeSearchText(node:WorldNode):string {
-  return [node.name,node.description,node.visualDescription,...Object.values(node.components).flatMap(values=>Object.values(values).map(v=>Array.isArray(v)?v.join(' '):v===null?'':String(v)))].join(' ');
+  return [node.name,node.description,...Object.values(node.components).flatMap(values=>Object.values(values).map(v=>Array.isArray(v)?v.join(' '):v===null?'':String(v)))].join(' ');
 }

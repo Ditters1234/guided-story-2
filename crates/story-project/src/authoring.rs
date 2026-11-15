@@ -203,7 +203,7 @@ fn bounded_request(request: &AuthoringRequest) -> Result<(), String> {
 pub fn authoring_fields(world: &World, targets: &[String]) -> Vec<EditableField> {
     let mut fields = vec![];
     for node in world.nodes.iter().filter(|n| targets.contains(&n.id)) {
-        for key in ["name", "description", "visualDescription"] {
+        for key in ["name", "description"] {
             fields.push(EditableField {
                 node_id: node.id.clone(),
                 component_id: None,
@@ -425,17 +425,11 @@ fn output_schema(world: &World, request: &AuthoringRequest) -> Value {
                     || json!({"type":"string","maxLength":16000}),
                     |old| json!({"const":old.description}),
                 );
-            let visible = previous
-                .filter(|n| !selected(request, &n.id, None, "visualDescription"))
-                .map_or_else(
-                    || json!({"type":"string","maxLength":16000}),
-                    |old| json!({"const":old.visual_description}),
-                );
             let mut node_schema = json!({"type":"object","properties":{
             "id":node_id.map_or_else(||if !request.bundle&&request.type_id.as_ref()==Some(&preset.id){json!({"const":"new:root"})}else{creation::new_alias_schema()},|id|json!({"const":id})),"typeId":{"const":preset.id},"name":name,
-            "description":description,"visualDescription":visible,
+            "description":description,
             "components":{"type":"object","properties":properties,"required":required,"additionalProperties":false}
-        },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
+        },"required":["id","typeId","name","description","components"],"additionalProperties":false});
             if request.mode == AuthoringMode::Create {
                 creation::add_marker_flags(
                     &mut node_schema,
@@ -986,7 +980,6 @@ fn clothing_example(world: &World) -> Option<Value> {
         type_id: preset.id.clone(),
         name: "Linen work shirt".into(),
         description: String::new(),
-        visual_description: String::new(),
         components,
     };
     let mut nodes = vec![shirt.clone()];
@@ -1259,6 +1252,13 @@ fn candidate_world(
             {
                 return Err("A new node is missing a capability from its preset.".into());
             }
+            if source.component_types.iter().any(|definition| {
+                definition.image_only()
+                    && node.components.contains_key(&definition.id)
+                    && !preset.components.contains(&definition.id)
+            }) {
+                return Err("Remove the optional image extension from this proposal. Attach it through Manage extensions after applying the node.".into());
+            }
             record
                 .allocations
                 .entry(node.id.clone())
@@ -1282,21 +1282,12 @@ fn candidate_world(
             for (key, a, b) in [
                 ("name", &old.name, &node.name),
                 ("description", &old.description, &node.description),
-                (
-                    "visualDescription",
-                    &old.visual_description,
-                    &node.visual_description,
-                ),
             ] {
                 if a != b {
                     if !selected(request, &node.id, None, key) {
                         return Err(format!("{} is protected on {}.", key, old.name));
                     }
-                    let label = match key {
-                        "name" => "Name",
-                        "description" => "Story notes",
-                        _ => "Visible description",
-                    };
+                    let label = if key == "name" { "Name" } else { "Story notes" };
                     changes.push(format!("Update {} / {label}.", old.name));
                 }
             }
@@ -2058,7 +2049,6 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                 type_id: preset.id.clone(),
                 name: format!("Demo {} {n}", preset.name),
                 description: format!("Offline group example: {}", request.direction),
-                visual_description: String::new(),
                 components: preset
                     .components
                     .iter()
@@ -2122,7 +2112,6 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
             type_id: preset.id.clone(),
             name: format!("Demo {}", preset.name),
             description: format!("Offline demo candidate: {}", request.direction),
-            visual_description: String::new(),
             components,
         }]
     } else {
@@ -2163,9 +2152,6 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                                 .collect()
                         }
                         "description" => node.description = format!("Demo variation: {direction}"),
-                        "visualDescription" => {
-                            node.visual_description = format!("Demo visual variation: {direction}")
-                        }
                         _ => (),
                     }
                 }
@@ -2220,7 +2206,6 @@ pub fn demo_authoring(world: &World, request: &AuthoringRequest) -> Result<Strin
                 type_id: preset.id.clone(),
                 name: "Demo related item".into(),
                 description: format!("Offline related addition: {}", request.direction),
-                visual_description: String::new(),
                 components: preset
                     .components
                     .iter()

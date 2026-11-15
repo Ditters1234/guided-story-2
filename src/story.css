@@ -59,6 +59,14 @@
 .story-drafts .draft-group h3 { font-size:.85rem; margin:16px 0 6px; overflow-wrap:anywhere; }
 .draft-direction { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .review-plan-summary { overflow-wrap:anywhere; }
+.world-passage-inputs { border-top:1px solid var(--border); margin-top:20px; padding-top:14px; }
+.world-passage-inputs h2 { font-size:.95rem; margin:0 0 8px; }
+.world-passage-inputs summary { cursor:pointer; padding:10px 0; font-size:.85rem; color:var(--muted); }
+.world-passage-inputs .passage-plan h3 { font-size:.85rem; }
+.world-passage-inputs .story-warning { margin-inline:0; }
+.tree-context { display:flex; align-items:center; gap:2px; flex-shrink:0; color:var(--muted); font-size:.65rem; }
+.tree-context input { margin:0; accent-color:var(--accent); }
+.passage-plan>.text-action,.passage-plan>.secondary-button { display:block; margin:10px 0; text-align:left; }
 .effects-review-heading:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
 .prose-field textarea { min-height: 17rem; font-family: Georgia,serif; font-size: 1.05rem; line-height: 1.85; }
 .passage-effects textarea { width: 100%; font-family: Consolas,monospace; font-size: .8rem; }
@@ -104,8 +112,6 @@
 .memory-json textarea { width: 100%; font: .8rem/1.6 Consolas,monospace; margin: 10px 0; }
 .memory-saved button { margin: 5px 8px 5px 0; }
 .memory-source-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 1rem/1.9 Georgia,serif; }
-.memory-source-link { display: block; width: 100%; text-align: left; line-height: 1.6; margin: 10px 0; }
-.memory-source-link small { display: block; color: var(--muted); }
 .image-dialog{width:min(900px,calc(100vw - 32px));max-height:calc(100dvh - 32px);display:flex;flex-direction:column;padding:0;overflow:hidden}
 .image-editor-body{overflow:auto;min-height:0;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
 .image-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}

@@ -67,21 +67,25 @@ fn reference(ids: impl IntoIterator<Item = String>, new_alias: bool) -> Option<V
     }
 }
 
-fn endpoint_reference(world: &World, required: Option<&str>) -> Value {
+fn endpoint_reference(
+    world: &World,
+    required: Option<&str>,
+    new_capabilities: &BTreeSet<String>,
+    can_create: bool,
+) -> Option<Value> {
     reference(
         world
             .nodes
             .iter()
             .filter(|node| required.is_none_or(|id| crate::model::capability(node, id)))
             .map(|node| node.id.clone()),
-        true,
+        can_create && required.is_none_or(|id| new_capabilities.contains(id)),
     )
-    .unwrap()
 }
 
-fn components(world: &World, required: &[String], old: Option<&WorldNode>) -> Value {
+fn node_capabilities(required: &[String], new: bool) -> BTreeSet<String> {
     let mut allowed: BTreeSet<_> = required.iter().cloned().collect();
-    if old.is_none() {
+    if new {
         if allowed.contains("core.item") {
             allowed.extend([
                 "core.container".into(),
@@ -89,15 +93,27 @@ fn components(world: &World, required: &[String], old: Option<&WorldNode>) -> Va
                 "detail.wearable".into(),
             ]);
         }
-        if allowed.contains("core.character") {
-            allowed.insert("detail.anatomy".into());
-        }
     }
+    allowed
+}
+
+fn new_presets(world: &World) -> impl Iterator<Item = &NodeTypeDefinition> {
+    world
+        .node_types
+        .iter()
+        .filter(|preset| !authoring_only_components(world, preset.components.iter()))
+}
+
+fn components(world: &World, required: &[String], old: Option<&WorldNode>) -> Value {
+    let allowed = node_capabilities(required, old.is_none());
     let properties: serde_json::Map<_, _> = world.component_types.iter().filter(|d| allowed.contains(&d.id)).map(|d| {
         let mut required_fields = vec![];
         let fields: serde_json::Map<_, _> = d.fields.iter().filter_map(|f| {
+            if f.image_only() && (old.is_some() || !f.required) {
+                return None;
+            }
             let previous = old.and_then(|n| n.components.get(&d.id)).and_then(|values| values.get(&f.key));
-            let schema = if planning_only(f) {
+            let schema = if planning_only(f) || f.image_only() {
                 if old.is_some() && previous.is_none() { return None; }
                 json!({"const":previous.unwrap_or(&f.default_value)})
             } else { crate::authoring::field_schema(f) };
@@ -118,9 +134,9 @@ fn node(
 ) -> Value {
     let mut schema = json!({"type":"object","properties":{
         "id":id,"typeId":{"const":type_id},"name":{"type":"string","minLength":1,"maxLength":200},
-        "description":{"type":"string","maxLength":16000},"visualDescription":{"type":"string","maxLength":16000},
+        "description":{"type":"string","maxLength":16000},
         "components":components(world,required,old)
-    },"required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false});
+    },"required":["id","typeId","name","description","components"],"additionalProperties":false});
     if old.is_some() {
         schema["required"] = json!(["id"]);
         schema["minProperties"] = json!(2);
@@ -173,11 +189,7 @@ fn nodes(world: &World) -> Vec<Value> {
             )
         })
         .collect();
-    for preset in world
-        .node_types
-        .iter()
-        .filter(|t| !authoring_only_components(world, t.components.iter()))
-    {
+    for preset in new_presets(world) {
         choices.push(node(
             world,
             &preset.id,
@@ -217,6 +229,19 @@ fn link_properties(definition: &RelationDefinition, old: Option<&WorldEdge>) -> 
 }
 
 fn links(world: &World, scoped: &BTreeSet<&str>) -> Vec<Value> {
+    let can_create = new_presets(world).next().is_some();
+    let mut new_capabilities: BTreeSet<_> = new_presets(world)
+        .flat_map(|preset| node_capabilities(&preset.components, true))
+        .filter(|id| {
+            world
+                .component_types
+                .iter()
+                .any(|definition| definition.id == *id)
+        })
+        .collect();
+    if new_capabilities.contains("core.container") {
+        new_capabilities.insert("core.holder".into());
+    }
     let catalogue = crate::authoring::relationship_schema(world);
     let mut choices = vec![];
     for template in catalogue["anyOf"].as_array().into_iter().flatten() {
@@ -225,6 +250,25 @@ fn links(world: &World, scoped: &BTreeSet<&str>) -> Vec<Value> {
             .iter()
             .find(|r| template["properties"]["typeId"]["const"] == r.id)
             .unwrap();
+        if crate::story::NARRATION_LINKS.contains(&definition.id.as_str()) {
+            continue;
+        }
+        let (Some(source), Some(target)) = (
+            endpoint_reference(
+                world,
+                definition.source_capability.as_deref(),
+                &new_capabilities,
+                can_create,
+            ),
+            endpoint_reference(
+                world,
+                definition.target_capability.as_deref(),
+                &new_capabilities,
+                can_create,
+            ),
+        ) else {
+            continue;
+        };
         // Share exact protected-property contracts, keeping saved targets and
         // new connections distinct only when their planning values differ.
         let fresh = link_properties(definition, None);
@@ -246,10 +290,8 @@ fn links(world: &World, scoped: &BTreeSet<&str>) -> Vec<Value> {
         for (_, (properties, ids, new_alias)) in groups {
             let mut variant = template.clone();
             variant["properties"]["id"] = reference(ids, new_alias).unwrap();
-            variant["properties"]["sourceId"] =
-                endpoint_reference(world, definition.source_capability.as_deref());
-            variant["properties"]["targetId"] =
-                endpoint_reference(world, definition.target_capability.as_deref());
+            variant["properties"]["sourceId"] = source.clone();
+            variant["properties"]["targetId"] = target.clone();
             if properties["required"]
                 .as_array()
                 .is_some_and(|p| !p.is_empty())
@@ -277,7 +319,11 @@ pub(super) fn effects_schema(world: &World) -> Value {
     let link_ids: Vec<_> = world
         .edges
         .iter()
-        .filter(|e| scoped.contains(e.source_id.as_str()) && scoped.contains(e.target_id.as_str()))
+        .filter(|e| {
+            !has_planning_link_values(world, e)
+                && scoped.contains(e.source_id.as_str())
+                && scoped.contains(e.target_id.as_str())
+        })
         .map(|e| e.id.clone())
         .collect();
     let links = links(world, &scoped);
@@ -293,9 +339,7 @@ pub(super) fn effects_schema(world: &World) -> Value {
         "suggestChapterEnd":{"type":"boolean"}
     },"required":["changes","notes","suggestChapterEnd"],"additionalProperties":false});
     let mut new_model = world.clone();
-    new_model
-        .node_types
-        .retain(|t| !authoring_only_components(world, t.components.iter()));
+    new_model.node_types = new_presets(world).cloned().collect();
     let references = crate::prompt_context::ReferenceScope::new(
         world,
         world.nodes.iter().map(|n| n.id.clone()).collect(),

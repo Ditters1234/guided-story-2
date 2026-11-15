@@ -54,9 +54,6 @@ pub(super) fn schema_world(world: &World, request: &AuthoringRequest) -> World {
         // The native capability resolver treats every container as a holder.
         source_ids.insert("core.holder".into());
     }
-    if source_ids.contains("core.character") {
-        source_ids.insert("detail.anatomy".into());
-    }
     let mut descriptor_ids = source_ids.clone();
     descriptor_ids.extend(
         world
@@ -64,11 +61,13 @@ pub(super) fn schema_world(world: &World, request: &AuthoringRequest) -> World {
             .iter()
             .flat_map(|n| n.components.keys().cloned()),
     );
-    if !unrestricted_catalogue {
-        model
-            .component_types
-            .retain(|d| descriptor_ids.contains(&d.id));
-    }
+    model.component_types.retain(|d| {
+        if d.image_only() {
+            source_ids.contains(&d.id)
+        } else {
+            descriptor_ids.contains(&d.id) || unrestricted_catalogue
+        }
+    });
     model.relation_types.retain(|r| {
         r.source_capability
             .as_ref()
@@ -82,8 +81,8 @@ pub(super) fn schema_world(world: &World, request: &AuthoringRequest) -> World {
 /// the complete saved schema always owns native candidate validation.
 pub(super) fn prompt_schema(world: &World, request: &AuthoringRequest) -> Value {
     let mut schema = json!({"type":"object","required":["nodes","edges"],"additionalProperties":false,"properties":{
-        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group){0}else{1},"maxItems":if request.bundle{20}else{1},"items":{"type":"object","required":["id","typeId","name","description","visualDescription","components"],"additionalProperties":false,"properties":{
-            "id":if !request.bundle&&request.type_id.is_some(){json!({"const":"new:root"})}else{json!({"type":"string"})},"typeId":{"enum":world.node_types.iter().map(|t|&t.id).collect::<Vec<_>>()},"name":{"type":"string"},"description":{"type":"string"},"visualDescription":{"type":"string"},"components":{"type":"object","propertyNames":{"enum":world.component_types.iter().map(|c|&c.id).collect::<Vec<_>>()},"additionalProperties":{"type":"object"},"description":"Use exact capability and field keys from capabilities. Include every capability listed by the chosen nodeType; unused optional fields may be omitted and unused preset capabilities may be empty objects. Required fields, kinds and choices are defined in capabilities."}
+        "nodes":{"type":"array","minItems":if request.creation_scope==Some(CreationScope::Group){0}else{1},"maxItems":if request.bundle{20}else{1},"items":{"type":"object","required":["id","typeId","name","description","components"],"additionalProperties":false,"properties":{
+            "id":if !request.bundle&&request.type_id.is_some(){json!({"const":"new:root"})}else{json!({"type":"string"})},"typeId":{"enum":world.node_types.iter().map(|t|&t.id).collect::<Vec<_>>()},"name":{"type":"string"},"description":{"type":"string"},"components":{"type":"object","propertyNames":{"enum":world.component_types.iter().map(|c|&c.id).collect::<Vec<_>>()},"additionalProperties":{"type":"object"},"description":"Use exact capability and field keys from capabilities. Include every capability listed by the chosen nodeType; unused optional fields may be omitted and unused preset capabilities may be empty objects. Required fields, kinds and choices are defined in capabilities."}
         }}},
         "edges":{"type":"array","maxItems":80,"items":{"type":"object","required":["id","typeId","sourceId","targetId","description"],"additionalProperties":false,"properties":{"id":{"type":"string"},"typeId":{"enum":world.relation_types.iter().map(|r|&r.id).collect::<Vec<_>>()},"sourceId":{"type":"string"},"targetId":{"type":"string"},"description":{"type":"string"},"properties":{"type":"object","description":"Only declared relationship field keys, kinds and required values from relationships."}}}}
     }});
@@ -174,9 +173,6 @@ pub(crate) fn offered_components(world: &World, preset: &NodeTypeDefinition) -> 
     allowed.extend(preset.components.iter().map(String::as_str));
     if preset.components.iter().any(|id| id == "core.item") {
         allowed.extend(["core.container", "core.wearable", "detail.wearable"]);
-    }
-    if preset.components.iter().any(|id| id == "core.character") {
-        allowed.insert("detail.anatomy");
     }
     world
         .component_types
@@ -299,7 +295,6 @@ pub(super) fn limit_foundation_fields(
         for (key, bound) in [
             ("name", 120),
             ("description", 160),
-            ("visualDescription", 160),
         ] {
             if let Some(field) = node["properties"].get_mut(key) {
                 limit_text(field, bound);
@@ -700,7 +695,6 @@ pub(super) fn demo_world(world: &World, request: &AuthoringRequest) -> Option<No
         type_id: preset.id.clone(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()

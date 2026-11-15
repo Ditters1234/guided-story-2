@@ -16,7 +16,6 @@ fn node(w: &World, kind: &str, name: &str) -> WorldNode {
         type_id: kind.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: p
             .components
             .iter()
@@ -83,6 +82,21 @@ fn fixture() -> (tempfile::TempDir, Project, PassagePlan) {
     )
     .unwrap();
     (dir, p, plan)
+}
+fn link_viewpoint(w: &mut World, plan: &mut PassagePlan) {
+    let narration = node(w, "core.narration-style", "Workshop narration");
+    w.relation_types
+        .extend(crate::story::bundled_writing_relationships().unwrap());
+    w.edges.push(WorldEdge {
+        id: id(),
+        type_id: "core.narration-pov".into(),
+        source_id: narration.id.clone(),
+        target_id: plan.viewpoint_id.clone().unwrap(),
+        description: String::new(),
+        properties: Default::default(),
+    });
+    plan.narration_node_id = Some(narration.id.clone());
+    w.nodes.push(narration);
 }
 fn commit(p: &Project, w: World) {
     let v = p.view().unwrap();
@@ -170,6 +184,7 @@ fn false_belief_reader_disclosure_and_author_information_stay_separate() {
 fn actual_request_excludes_hidden_records_links_citations_and_sends_labelled_claims_once() {
     let (_dir, p, mut plan) = fixture();
     let mut w = p.view().unwrap().world;
+    link_viewpoint(&mut w, &mut plan);
     let hidden = claim(&mut w, "WITHHELD_RECORD", "withheld", "established");
     w.nodes.last_mut().unwrap().description = "WITHHELD_DESCRIPTION".into();
     let e = held(
@@ -225,7 +240,7 @@ fn actual_request_excludes_hidden_records_links_citations_and_sends_labelled_cla
         .all(|r| r["typeId"] != "core.claim"));
     assert!(req
         .system
-        .contains("Author assessment is not character knowledge"));
+        .contains("Preserve the difference between author assessment, each character's stance and reader disclosure"));
     p.finish_passage(
         &key,
         false,
@@ -320,8 +335,9 @@ fn required_bindings_cannot_bypass_the_scene_perspective() {
 
 #[test]
 fn relevant_stance_edits_stale_checked_drafts_but_unrelated_claims_do_not() {
-    let (_dir, p, plan) = fixture();
+    let (_dir, p, mut plan) = fixture();
     let mut w = p.view().unwrap().world;
+    link_viewpoint(&mut w, &mut plan);
     let c = claim(&mut w, "Pump defect", "narrator", "unconfirmed");
     let edge = held(&mut w, &c, plan.viewpoint_id.as_ref().unwrap(), "believes");
     commit(&p, w);
@@ -538,6 +554,9 @@ fn wording_never_silently_trims_a_required_source_containing_excluded_claims() {
     let (_dir, p, mut plan) = fixture();
     let mut w = p.view().unwrap().world;
     let c = claim(&mut w, "Hidden cause", "withheld", "established");
+    let brief = node(&w, "core.brief", "Workshop brief");
+    plan.brief_node_id = Some(brief.id.clone());
+    w.nodes.push(brief);
     plan.reference_ids.push(c.clone());
     commit(&p, w);
     let key = save(&p, &plan, "Mara waited beside the workshop window.");
@@ -561,6 +580,32 @@ fn wording_never_silently_trims_a_required_source_containing_excluded_claims() {
     )
     .unwrap();
     let accepted = p.read_passage(&key).unwrap();
+    let note = accepted
+        .after
+        .nodes
+        .iter()
+        .find(|node| node.type_id == "core.note")
+        .unwrap();
+    let next = p.next_passage_plan().unwrap();
+    let mut next = next;
+    next.reference_ids = vec![note.id.clone()];
+    let followup = save(&p, &next, "");
+    let preview = p.passage_view(&followup, &text()).unwrap();
+    assert!(!preview
+        .scene_context
+        .resources
+        .iter()
+        .any(|resource| resource.node_id == note.id));
+    let prompt = p
+        .preview_passage_prompt(
+            &followup,
+            preview.version,
+            p.view().unwrap().revision,
+            PassagePromptAction::Generate,
+            &text(),
+        )
+        .unwrap();
+    assert!(!prompt.user.contains(&note.id) && !prompt.user.contains(&note.description));
     let revision = id();
     p.begin_passage_revision(
         &revision,

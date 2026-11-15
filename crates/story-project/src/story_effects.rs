@@ -160,7 +160,9 @@ pub(crate) fn materialize_effects_text(text: &str) -> Result<String, String> {
     serde_json::to_string(&effects).map_err(|e| e.to_string())
 }
 pub(crate) fn planning_only(field: &FieldDefinition) -> bool {
-    !field.used_for(FieldUse::Story) && !field.used_for(FieldUse::Visual)
+    !field.used_for(FieldUse::Story)
+        && !field.used_for(FieldUse::Visual)
+        && !field.used_for(FieldUse::ImageGuidance)
 }
 pub(crate) fn populated(value: &PropertyValue) -> bool {
     match value {
@@ -170,6 +172,31 @@ pub(crate) fn populated(value: &PropertyValue) -> bool {
         PropertyValue::Boolean(_) | PropertyValue::Number(_) => true,
     }
 }
+pub(crate) fn effects_prompt_records(world: &World) -> Vec<Value> {
+    world
+        .nodes
+        .iter()
+        .map(|node| {
+            let mut record = crate::prompt_context::reference_node(world, node);
+            for definition in &world.component_types {
+                if let Some(fields) = record["components"]
+                    .get_mut(&definition.id)
+                    .and_then(Value::as_object_mut)
+                {
+                    for field in definition
+                        .fields
+                        .iter()
+                        .filter(|field| planning_only(field))
+                    {
+                        fields.remove(&field.key);
+                    }
+                }
+            }
+            record
+        })
+        .collect()
+}
+
 pub(crate) fn authoring_only_components(
     world: &World,
     ids: impl Iterator<Item = impl AsRef<str>>,
@@ -189,14 +216,20 @@ pub(crate) fn authoring_only_components(
         .component_types
         .iter()
         .filter(|d| ids.contains(&d.id))
-        .flat_map(|d| &d.fields)
+        .flat_map(|d| d.fields.iter().filter(|f| !crate::story::retired_writing_field(&d.id, &f.key)))
         .collect();
-    !operational && !fields.is_empty() && fields.iter().all(|f| planning_only(f))
+    !operational
+        && !fields.is_empty()
+        && fields.iter().all(|f| planning_only(f) || f.image_only())
 }
 /// The canonical schema stays complete; prose only receives creation definitions
 /// for story/appearance records and declarations needed by supplied existing nodes.
 pub(crate) fn prose_effect_schema(world: &World) -> World {
     let mut scoped = world.clone();
+    scoped.nodes.iter_mut().for_each(crate::story::strip_retired_writing_values);
+    for definition in &mut scoped.component_types {
+        definition.fields.retain(|field| !crate::story::retired_writing_field(&definition.id, &field.key));
+    }
     scoped.node_types.retain(|t| {
         world.nodes.iter().any(|n| n.type_id == t.id)
             || !authoring_only_components(world, t.components.iter())
@@ -216,15 +249,16 @@ pub(crate) fn prose_effect_schema(world: &World) -> World {
         world
             .component_types
             .iter()
-            .filter(|c| c.fields.is_empty() || c.fields.iter().any(|f| !planning_only(f)))
+            .filter(|c| c.fields.is_empty() || c.fields.iter().any(|f| f.used_for(FieldUse::Story)))
             .map(|c| c.id.clone()),
     );
     scoped.component_types.retain(|c| needed.contains(&c.id));
     scoped.relation_types.retain(|r| {
-        [r.source_capability.as_ref(), r.target_capability.as_ref()]
-            .into_iter()
-            .flatten()
-            .all(|id| needed.contains(id))
+        !crate::story::NARRATION_LINKS.contains(&r.id.as_str())
+            && [r.source_capability.as_ref(), r.target_capability.as_ref()]
+                .into_iter()
+                .flatten()
+                .all(|id| needed.contains(id))
     });
     scoped
 }
@@ -292,18 +326,54 @@ pub(crate) fn displaced_links<'a>(world: &'a World, link: &WorldEdge) -> Vec<&'a
 }
 
 pub(crate) fn has_planning_link_values(world: &World, link: &WorldEdge) -> bool {
-    world
-        .relation_types
-        .iter()
-        .find(|r| r.id == link.type_id)
-        .is_some_and(|r| {
-            r.fields.iter().filter(|f| planning_only(f)).any(|f| {
-                link.properties
-                    .get(&f.key)
-                    .is_some_and(|v| v != &PropertyValue::Null)
+    crate::story::NARRATION_LINKS.contains(&link.type_id.as_str())
+        || world
+            .relation_types
+            .iter()
+            .find(|r| r.id == link.type_id)
+            .is_some_and(|r| {
+                r.fields.iter().filter(|f| planning_only(f)).any(|f| {
+                    link.properties
+                        .get(&f.key)
+                        .is_some_and(|v| v != &PropertyValue::Null)
+                })
             })
-        })
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum NodeEffectField<'a> {
+    Name,
+    Description,
+    Component(&'a str, &'a str),
+}
+
+// Each card contains a complete record based on the same saved world.
+// Compare with that baseline so one card's unchanged values can't undo another card.
+fn changed_node_fields<'a>(
+    saved: &'a WorldNode,
+    proposed: &'a WorldNode,
+) -> impl Iterator<Item = NodeEffectField<'a>> {
+    [
+        (saved.name != proposed.name).then_some(NodeEffectField::Name),
+        (saved.description != proposed.description).then_some(NodeEffectField::Description),
+    ]
+    .into_iter()
+    .flatten()
+    .chain(proposed.components.iter().flat_map(move |(component, after)| {
+        let before = saved.components.get(component);
+        let removed = before.into_iter().flat_map(|fields| {
+            fields.keys().filter(|key| !after.contains_key(*key))
+        });
+        after
+            .iter()
+            .filter_map(move |(key, value)| {
+                (before.and_then(|fields| fields.get(key)) != Some(value)).then_some(key)
+            })
+            .chain(removed)
+            .map(|key| NodeEffectField::Component(component, key))
+    }))
+}
+
 pub(crate) fn preview_passage_effects(
     source: &World,
     context: &World,
@@ -352,17 +422,8 @@ pub(crate) fn preview_passage_effects(
     }
     let scoped: BTreeSet<_> = context.nodes.iter().map(|n| n.id.clone()).collect();
     let mut allowed = scoped.clone();
-    let mut seen = BTreeSet::new();
     let mut new_count = 0;
     for change in &effects.changes {
-        let id = match change {
-            PassageEffect::PutNode { node, .. } => node.id.as_str(),
-            PassageEffect::PutLink { link, .. } => link.id.as_str(),
-            PassageEffect::RemoveLink { id, .. } => id.as_str(),
-        };
-        if !seen.insert(id.to_string()) {
-            return Err("Duplicate effect record ID; combine its changes in one effect.".into());
-        }
         if let PassageEffect::PutNode { node, .. } = change {
             if alias(&node.id) {
                 new_count += 1;
@@ -411,17 +472,7 @@ pub(crate) fn preview_passage_effects(
                 .iter()
                 .find(|t| t.id == node.type_id)
                 .ok_or("Unknown node type in effects.")?;
-            if let Some(old) = old {
-                if old.type_id != node.type_id
-                    || old.components.keys().collect::<Vec<_>>()
-                        != node.components.keys().collect::<Vec<_>>()
-                {
-                    return Err(
-                        "Passage effects cannot change an existing node's type/capability set."
-                            .into(),
-                    );
-                }
-            } else if preset
+            if old.is_none() && preset
                 .components
                 .iter()
                 .any(|c| !node.components.contains_key(c))
@@ -470,11 +521,25 @@ pub(crate) fn preview_passage_effects(
                 }
             }
             node.id = resolve(&node.id);
-            if let Some(existing) = world.nodes.iter_mut().find(|n| n.id == node.id) {
-                if existing != &node {
+            if let Some(saved) = old {
+                let existing = world.nodes.iter_mut().find(|n| n.id == saved.id).unwrap();
+                if saved != &node {
                     labels.push(format!("Update {} — “{}”", node.name, evidence));
                 }
-                *existing = node;
+                for field in changed_node_fields(saved, &node) {
+                    match field {
+                        NodeEffectField::Name => existing.name.clone_from(&node.name),
+                        NodeEffectField::Description => existing.description.clone_from(&node.description),
+                        NodeEffectField::Component(component, key) => {
+                            let fields = existing.components.get_mut(component).unwrap();
+                            if let Some(value) = node.components[component].get(key) {
+                                fields.insert(key.to_owned(), value.clone());
+                            } else {
+                                fields.remove(key);
+                            }
+                        }
+                    }
+                }
             } else {
                 labels.push(format!("Introduce {} — “{}”", node.name, evidence));
                 world.nodes.push(node);
@@ -564,8 +629,31 @@ pub(crate) fn effects_schema(world: &World) -> Value {
     schema::effects_schema(world)
 }
 pub(crate) fn effects_capabilities(world: &World, formal_schema: bool) -> Value {
-    crate::prompt_context::capabilities(world, formal_schema)
+    let mut catalogue = world.clone();
+    catalogue.component_types.retain(|definition| !definition.image_only());
+    for definition in &mut catalogue.component_types {
+        definition.fields.retain(|field| !field.image_only());
+    }
+    crate::prompt_context::capabilities(&catalogue, formal_schema)
 }
-pub(crate) fn effects_relationships(world: &World, formal_schema: bool) -> Value {
-    crate::prompt_context::relationships(world, formal_schema)
+pub(crate) fn effects_relationships(world: &World, compact_schema: Option<&Value>) -> Value {
+    let mut relationships = crate::prompt_context::relationships(world, true);
+    if let Some(schema) = compact_schema {
+        let branches =
+            schema.pointer("/properties/changes/properties/putLinks/items/properties/link/anyOf");
+        let available: BTreeSet<_> = branches
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|branch| branch["properties"]["typeId"]["const"].as_str())
+            .collect();
+        if let Some(entries) = relationships.as_array_mut() {
+            entries.retain(|entry| {
+                entry["id"]
+                    .as_str()
+                    .is_some_and(|id| available.contains(id))
+            });
+        }
+    }
+    relationships
 }

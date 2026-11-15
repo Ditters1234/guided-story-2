@@ -81,3 +81,41 @@ pub(super) fn starting_state(world: &World, plan: &PassagePlan) -> Value {
         .collect();
     json!({"intendedSceneFocus":focus.and_then(named),"openingViewpoint":opening,"openingFacts":facts,"people":people,"physicalLinks":links})
 }
+
+/// Narration gets one named position per character. Preserve additional facts
+/// on annotated/custom links and keep containment, routes and inventory links.
+pub(super) fn project_narrative_positions(input: &mut Value) {
+    let state = input["startingState"].as_object_mut().unwrap();
+    state.retain(|key, _| key == "people");
+    let people = state["people"].as_array_mut().unwrap();
+    for person in people.iter_mut() {
+        person.as_object_mut().unwrap().retain(|key, _| {
+            matches!(key.as_str(), "id" | "name" | "currentPlace")
+        });
+    }
+    let placements: BTreeMap<_, _> = people
+        .iter()
+        .filter_map(|person| {
+            Some((
+                person["id"].as_str()?.to_owned(),
+                person["currentPlace"]["id"].as_str()?.to_owned(),
+            ))
+        })
+        .collect();
+    if let Some(records) = input["records"].as_array_mut() {
+        for record in records {
+            record.as_object_mut().unwrap().remove("startingPosition");
+        }
+    }
+    if let Some(links) = input["links"].as_array_mut() {
+        links.retain(|link| {
+            !(link["typeId"] == "core.present-at"
+                && link.get("description").is_none()
+                && link.get("details").is_none()
+                && link["sourceId"]
+                    .as_str()
+                    .and_then(|source| placements.get(source))
+                    .is_some_and(|place| link["targetId"] == *place))
+        });
+    }
+}

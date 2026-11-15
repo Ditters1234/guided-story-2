@@ -18,11 +18,14 @@ pub struct EffectReviewEntry {
     pub displaced_links: Vec<WorldEdge>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EffectsReview {
     pub checked: bool,
     pub entries: Vec<EffectReviewEntry>,
+    pub record_ids: Vec<String>,
+    pub link_ids: Vec<String>,
+    pub removable_link_ids: Vec<String>,
 }
 
 fn node_references(node: &WorldNode, world: &World) -> Vec<String> {
@@ -43,20 +46,34 @@ fn node_references(node: &WorldNode, world: &World) -> Vec<String> {
     refs
 }
 
+#[derive(Serialize)]
+#[serde(untagged)]
+enum NodeDependency<'a> {
+    Single(&'a WorldNode),
+    Multiple(Vec<&'a WorldNode>),
+}
+
 fn dependencies<'a>(
     refs: Vec<String>,
-    nodes: &BTreeMap<&str, &'a WorldNode>,
+    nodes: &BTreeMap<&str, Vec<&'a WorldNode>>,
     world: &World,
-) -> BTreeMap<String, &'a WorldNode> {
+) -> BTreeMap<String, NodeDependency<'a>> {
     let mut found = BTreeMap::new();
     let mut pending = refs;
     while let Some(id) = pending.pop() {
         if found.contains_key(&id) {
             continue;
         }
-        if let Some(node) = nodes.get(id.as_str()) {
-            found.insert(id, *node);
-            pending.extend(node_references(node, world));
+        if let Some(proposals) = nodes.get(id.as_str()) {
+            // Preserve the existing approval hash for dependencies with one card.
+            let dependency = match proposals.as_slice() {
+                [node] => NodeDependency::Single(node),
+                _ => NodeDependency::Multiple(proposals.clone()),
+            };
+            found.insert(id, dependency);
+            for node in proposals {
+                pending.extend(node_references(node, world));
+            }
         }
     }
     found
@@ -69,34 +86,32 @@ pub(super) fn effect_review(
     issues: &[Vec<String>],
 ) -> Result<EffectsReview, String> {
     let Some((world, source)) = prepared else {
-        return Ok(EffectsReview {
-            checked: false,
-            entries: vec![],
-        });
+        return Ok(EffectsReview::default());
     };
+    let mut review = EffectsReview {
+        record_ids: world.nodes.iter().map(|node| node.id.clone()).collect(),
+        ..Default::default()
+    };
+    for link in &world.edges {
+        if !NARRATION_LINKS.contains(&link.type_id.as_str()) {
+            review.link_ids.push(link.id.clone());
+            if !crate::story_effects::has_planning_link_values(world, link) {
+                review.removable_link_ids.push(link.id.clone());
+            }
+        }
+    }
     let Ok(effects) = serde_json::from_str::<PassageEffects>(&edits.effects_text) else {
-        return Ok(EffectsReview {
-            checked: false,
-            entries: vec![],
-        });
+        return Ok(review);
     };
     if effects.changes.len() > 80 || effects.notes.len() > 12 {
-        return Ok(EffectsReview {
-            checked: false,
-            entries: vec![],
-        });
+        return Ok(review);
     }
-    let nodes: BTreeMap<_, _> = effects
-        .changes
-        .iter()
-        .filter_map(|e| {
-            if let PassageEffect::PutNode { node, .. } = e {
-                Some((node.id.as_str(), node))
-            } else {
-                None
-            }
-        })
-        .collect();
+    let mut nodes = BTreeMap::<_, Vec<_>>::new();
+    for change in &effects.changes {
+        if let PassageEffect::PutNode { node, .. } = change {
+            nodes.entry(node.id.as_str()).or_default().push(node);
+        }
+    }
     let mut entries = vec![];
     let mut occurrences = BTreeMap::<String, u32>::new();
     let mut unique_key = |base: String| -> Result<String, String> {
@@ -167,7 +182,9 @@ pub(super) fn effect_review(
             displaced_links: vec![],
         });
     }
-    Ok(EffectsReview { checked, entries })
+    review.checked = checked;
+    review.entries = entries;
+    Ok(review)
 }
 
 #[cfg(test)]

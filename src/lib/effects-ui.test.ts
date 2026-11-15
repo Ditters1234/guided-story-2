@@ -1,6 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import type {PassageEffects,PassageEffect} from './bindings';
-import {emptyWorld,exampleWorld,makeNode} from './model';
+import {exampleWorld} from '../test-fixtures/world';
+import {emptyWorld,makeNode} from './model';
 import {parseEffects,evidenceIssue,passageQuotes,removalPlan,removeProposals,nodeDiff,proposedNodes,effectTitle,connectionIdentity,addReviewProposal,reviewNodes} from './effects-ui';
 const none=():PassageEffects=>({changes:[],notes:[],suggestChapterEnd:false});
 describe('structured passage effects',()=>{
@@ -24,7 +25,14 @@ describe('structured passage effects',()=>{
     expect(withNode.changes[0]).toEqual({kind:'putNode',node:person,evidence:''});
     if(withNode.changes[0].kind==='putNode')withNode.changes[0].node.components['detail.intent'].emotion='Worried';
     expect(person.components['detail.intent'].emotion).toBe('Calm');
-    expect(()=>addReviewProposal(w,withNode,scope,'node',person.id)).toThrow('existing proposal');
+    const withSecond=addReviewProposal(w,withNode,scope,'node',person.id);
+    const second=withSecond.changes[1];
+    expect(second).toEqual({kind:'putNode',node:person,evidence:''});
+    if(second.kind==='putNode')second.node.name='Fern';
+    const projected=proposedNodes(w,withSecond).find(n=>n.id===person.id);
+    expect(projected?.name).toBe('Fern');
+    expect(projected?.components['detail.intent'].emotion).toBe('Worried');
+    expect(proposedNodes(w,{...withSecond,changes:[...withSecond.changes].reverse()})).toEqual(proposedNodes(w,withSecond));
     expect(()=>addReviewProposal(w,empty,scope,'node',other.id)).toThrow('supplied');
     const withLink=addReviewProposal(w,withNode,scope,'link',link.id);
     expect(withLink.changes[1]).toEqual({kind:'putLink',link:{...link,properties:{...link.properties}},evidence:''});
@@ -89,6 +97,6 @@ describe('structured passage effects',()=>{
     expect(removalPlan(w,effects,'change',0)).toEqual({changes:[0,1],notes:[]});
   });
   it('shows human names and schema field labels in generic before/after comparisons',()=>{
-    const w=exampleWorld(),coat=w.nodes.find(n=>n.components['core.wearable'])!,next=structuredClone(coat);next.components['core.wearable'].layer=3;next.visualDescription='A different color.';const person=w.nodes.find(n=>n.components['core.character'])!;w.componentTypes.push({id:'custom.refs',name:'Refs',description:'',fields:[{key:'literal',label:'Literal',kind:'text',required:false,defaultValue:''},{key:'target',label:'Target',kind:'nodeRef',required:false,defaultValue:null}]});coat.components['custom.refs']={literal:'old',target:null};next.components['custom.refs']={literal:person.id,target:person.id};const effects:PassageEffects={...none(),changes:[{kind:'putNode',node:next,evidence:'Source text.'}]};const nodes=proposedNodes(w,effects),diff=nodeDiff(w,nodes,next);expect(diff.find(r=>r.label==='Refs · Literal')?.after).toBe(person.id);expect(diff.find(r=>r.label==='Refs · Target')?.after).toBe(person.name);expect(diff.find(r=>r.label==='Wearable · Layer')).toEqual({label:'Wearable · Layer',before:'2',after:'3'});expect(effectTitle(w,effects,effects.changes[0])).toContain(coat.name);expect(w.nodes.find(n=>n.id===coat.id)?.components['core.wearable'].layer).toBe(2);expect(nodes.filter(n=>n.id===coat.id)).toHaveLength(1);
+    const w=exampleWorld(),coat=w.nodes.find(n=>n.components['core.wearable'])!,next=structuredClone(coat);next.components['core.wearable'].layer=3;next.components['detail.design'].colours='A different color.';const person=w.nodes.find(n=>n.components['core.character'])!;w.componentTypes.push({id:'custom.refs',name:'Refs',description:'',fields:[{key:'literal',label:'Literal',kind:'text',required:false,defaultValue:''},{key:'target',label:'Target',kind:'nodeRef',required:false,defaultValue:null}]});coat.components['custom.refs']={literal:'old',target:null};next.components['custom.refs']={literal:person.id,target:person.id};const effects:PassageEffects={...none(),changes:[{kind:'putNode',node:next,evidence:'Source text.'}]};const nodes=proposedNodes(w,effects),diff=nodeDiff(w,nodes,next);expect(diff.find(r=>r.label==='Refs · Literal')?.after).toBe(person.id);expect(diff.find(r=>r.label==='Refs · Target')?.after).toBe(person.name);expect(diff.find(r=>r.label==='Wearable · Layer')).toEqual({label:'Wearable · Layer',before:'2',after:'3'});expect(effectTitle(w,effects,effects.changes[0])).toContain(coat.name);expect(w.nodes.find(n=>n.id===coat.id)?.components['core.wearable'].layer).toBe(2);expect(nodes.filter(n=>n.id===coat.id)).toHaveLength(1);
   });
 });

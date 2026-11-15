@@ -2,11 +2,11 @@
 
 Images share one service and review flow. Any world node, including a custom preset, can have a selected image. Character portraits stay in the map and shared inspector. Accepted passage illustrations appear with their passage in the reader.
 
-Story format 2 resolves structured fields marked for images, including custom extensions, together with supplementary visual notes. Garment design/condition comes from linked worn item records. Regional detail can declare matching garment coverage that hides it from image facts; this remains a conservative projection, not a full clothing/framing simulator. The same captured facts feed the default prompt and optional LLM prompt tools. Relevant structured changes stale pending image work; story-only voice/goal edits do not change appearance applicability. Accepted sources remain immutable.
+Story format 3 uses structured appearance and design fields. Attach **Image details** for extra visual notes and **Detailed anatomy** for optional coverage-aware detail. Garment design/condition comes from linked worn item records. Regional detail can declare matching garment coverage that hides it from image facts; this remains a conservative projection, not a full clothing/framing simulator. The same captured facts feed the default prompt and optional LLM prompt tools. Relevant structured changes stale pending image work; story-only voice/goal edits do not change appearance applicability. Accepted sources remain immutable.
 
 ## Use images
 
-- In a saved project's inspector, open **Image → Generate / choose image**. Choose **New shot**, write or edit its prompt, then **Generate image**. **Import image** uses the same candidate review flow for a local PNG, JPEG or WebP.
+- In a saved project's inspector, attach **Image details** in **Manage extensions**, then open **Image → Generate / choose image**. Choose **New shot**, write or edit its prompt, then **Generate image**. **Import image** uses the same candidate review flow for a local PNG, JPEG or WebP.
 - In Story, read an accepted passage and choose **Illustrate passage**. Before/After selects the immutable source state; up to four subjects supply visible descriptions and worn garments. Changing source/subjects requires **New shot** before submission.
 - After submission, **Check result** reads the existing job and downloads its finished image. Review it, then **Use as node image** or **Accept illustration**. Generation/import alone never publishes an image or advances story events.
 - **Reroll image** creates another saved candidate, retaining the prompt/controls and choosing a new 32-bit seed when the profile provides a seed binding. Previous candidates and accepted files remain available. Selecting or clearing a displayed node image preserves its image history.
@@ -37,7 +37,7 @@ Guided Story's pinned Krea 2 profiles preserve their original custom nodes and p
 
 ## Image guidance
 
-Use **Add node → Visual style**, or include any existing node for **Image generation** in AI context. The standard preset offers Medium, Rendering, Palette, Lighting, Composition and Image instructions. It describes presentation independently of captured body, outfit and scene facts. Creation explicitly includes the node as Instructions for images and optional prompt assistance; it creates no image and makes no provider request.
+Attach **Visual style** in **Manage extensions** on a Note or another node. Medium, Rendering, Palette, Lighting, Composition and Image instructions describe presentation. In AI context, choose **Image generation** or **Image-prompt assistance** to include that guidance.
 
 The native backend captures selected content in order with its exact immutable source world. Direct preparation appends the manual shot prompt after the labelled guidance and substitutes only the graph's bound positive prompt. Negative prompt, loaders, conditioning, samplers and other controls retain their existing profile behavior. No text request is required. **Image guidance & assembled prompt** shows the captured sections and complete positive prompt; **Prepared workflow** shows the exact graph. Empty selected guidance and a combined prompt exceeding 16,000 characters block generation with a repair message; required content is never silently dropped. Imported images may retain unfinished guidance without submitting a workflow.
 

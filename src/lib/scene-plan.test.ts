@@ -3,7 +3,7 @@ import type {PassagePlan} from './bindings';
 import {emptyWorld,makeNode} from './model';
 import {scenePlan,sceneStartingPositions,nearbySceneCast,withNearbySceneCast,sceneConditionChoices,sceneReferenceSuggestions} from './scene-plan';
 
-const base=():PassagePlan=>({chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450});
+const base=():PassagePlan=>({chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[]});
 
 describe('explicit bounded scene reference suggestions',()=>{
   it('offers nested inventory, focus objects and directly linked threads without selecting or traversing the wider world',()=>{
@@ -69,13 +69,13 @@ describe('editable scene defaults',()=>{
   it('stages only the selected place and its present cast, including custom character presets',()=>{
     const {world,location,cast,distant}=fixture(),before=structuredClone(world),plan=base();
     const scene=scenePlan(world,plan,location.id);
-    expect(scene.locationId).toBe(location.id);expect(scene.viewpointId).toBe(cast[0].id);expect(scene.participantIds).toEqual([cast[1].id]);expect(scene.participantIds).not.toContain(distant.id);expect(scene.direction).toBe('');expect(scene.referenceIds).toEqual([]);expect(world).toEqual(before);expect(plan).toEqual(base());
+    expect(scene.locationId).toBe(location.id);expect(scene.viewpointId).toBeNull();expect(scene.participantIds).toEqual(cast.map(n=>n.id));expect(scene.participantIds).not.toContain(distant.id);expect(scene.direction).toBe('');expect(scene.referenceIds).toEqual([]);expect(world).toEqual(before);expect(plan).toEqual(base());
   });
   it('follows a selected character location and preserves deliberate previous scene choices',()=>{
     const {world,location,cast,distant}=fixture();
-    const scene=scenePlan(world,base(),cast[1].id);expect(scene.viewpointId).toBe(cast[1].id);expect(scene.locationId).toBe(location.id);expect(scene.participantIds).toEqual([cast[0].id]);
+    const scene=scenePlan(world,base(),cast[1].id);expect(scene.viewpointId).toBeNull();expect(scene.locationId).toBe(location.id);expect(scene.participantIds).toEqual([cast[1].id,cast[0].id]);
     const previous={...base(),viewpointId:cast[1].id,locationId:location.id,participantIds:[distant.id,'removed']};
-    expect(scenePlan(world,base(),null,previous).participantIds).toEqual([distant.id]);
+    expect(scenePlan(world,base(),null,previous).participantIds).toEqual([distant.id,cast[1].id]);
     expect(scenePlan(world,base(),location.id,{...base(),participantIds:[]}).viewpointId).toBeNull();
   });
   it('bounds default cast selection and does not pull in the remaining world',()=>{
@@ -100,7 +100,7 @@ describe('canonical starting positions',()=>{
   it('visibly stages nearby people for an empty barn without moving them from the house and yard',()=>{
     const {world,barn,house,yard,silas,elara}=homestead(),before=structuredClone(world);
     const emptyBarn=scenePlan(world,base(),barn.id);
-    expect(emptyBarn).toMatchObject({locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(emptyBarn).toMatchObject({locationId:barn.id,viewpointId:null,participantIds:[silas.id,elara.id]});
     const plan={...base(),locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id,silas.id],referenceIds:[house.id]};
     expect(sceneStartingPositions(world,plan)).toEqual([
       {nodeId:silas.id,name:silas.name,placeId:house.id,placeName:house.name,status:'elsewhere'},
@@ -113,15 +113,15 @@ describe('canonical starting positions',()=>{
     const {world,house,yard,barn,silas,elara}=homestead();
     const previous={...base(),locationId:barn.id,viewpointId:elara.id,participantIds:[silas.id]};
     const selected=scenePlan(world,base(),silas.id,previous);
-    expect(selected.viewpointId).toBe(silas.id);
+    expect(selected.viewpointId).toBeNull();
     expect(selected.locationId).toBe(house.id);
-    expect(scenePlan(world,base(),null,{...previous,viewpointId:silas.id,participantIds:[elara.id]})).toMatchObject({locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]});
-    const continuation={...base(),locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]};
+    expect(scenePlan(world,base(),null,{...previous,viewpointId:silas.id,participantIds:[elara.id]})).toMatchObject({locationId:house.id,viewpointId:null,participantIds:[elara.id,silas.id]});
+    const continuation={...base(),narrationNodeId:'style',locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]};
     world.edges.find(e=>e.sourceId===silas.id)!.targetId=yard.id;
     const continued=scenePlan(world,base(),null,continuation);
-    expect(continued).toMatchObject({locationId:yard.id,viewpointId:silas.id,participantIds:[elara.id]});
-    expect(sceneStartingPositions(world,continued).find(p=>p.nodeId===silas.id)).toMatchObject({placeId:yard.id,placeName:yard.name,status:'at'});
-    expect(scenePlan(world,base(),barn.id,continuation)).toMatchObject({locationId:barn.id,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(continued).toMatchObject({locationId:yard.id,viewpointId:null,participantIds:[elara.id]});
+    expect(sceneStartingPositions(world,{...continued,viewpointId:silas.id}).find(p=>p.nodeId===silas.id)).toMatchObject({placeId:yard.id,placeName:yard.name,status:'at'});
+    expect(scenePlan(world,base(),barn.id,continuation)).toMatchObject({locationId:barn.id,viewpointId:null,participantIds:[elara.id]});
     expect(world.edges.find(e=>e.sourceId===silas.id)?.targetId).toBe(yard.id);
   });
   it('stages a selected item as an editable reference and carries valid prior references forward',()=>{
@@ -144,7 +144,7 @@ describe('canonical starting positions',()=>{
       {id:crypto.randomUUID(),typeId:'story.feels-toward',sourceId:silas.id,targetId:barn.id,description:'Wants to work there.'}
     );
     expect(scenePlan(world,base(),silas.id).locationId).toBe(room.id);
-    expect(scenePlan(world,base(),room.id).viewpointId).toBe(silas.id);
+    expect(scenePlan(world,base(),room.id)).toMatchObject({viewpointId:null,participantIds:[silas.id]});
     const plan={...base(),locationId:house.id,viewpointId:silas.id,participantIds:[elara.id]};
     expect(sceneStartingPositions(world,plan).map(p=>[p.placeName,p.status])).toEqual([[room.name,'within'],[yard.name,'elsewhere']]);
     expect(sceneStartingPositions(world,{...plan,locationId:estate.id}).map(p=>p.status)).toEqual(['within','within']);
@@ -170,7 +170,7 @@ describe('bounded nearby cast suggestions',()=>{
     const {world,barn,silas,elara}=homestead(),occupant=makeNode(world,'core.character','Barn keeper');
     world.nodes.push(occupant);world.edges.push({id:crypto.randomUUID(),typeId:'core.present-at',sourceId:occupant.id,targetId:barn.id,description:''});
     expect(nearbySceneCast(world,barn.id).map(n=>n.id)).toEqual([occupant.id]);
-    expect(scenePlan(world,base(),barn.id)).toMatchObject({viewpointId:occupant.id,participantIds:[]});
+    expect(scenePlan(world,base(),barn.id)).toMatchObject({viewpointId:null,participantIds:[occupant.id]});
     expect(nearbySceneCast(world,barn.id).map(n=>n.id)).not.toContain(silas.id);
     expect(nearbySceneCast(world,barn.id).map(n=>n.id)).not.toContain(elara.id);
   });
@@ -201,20 +201,20 @@ describe('bounded nearby cast suggestions',()=>{
     const empty={...base(),locationId:barn.id,direction:'Begin quietly.',referenceIds:[house.id],chapterPlan:'Preserve the premise.'},original=structuredClone(empty);
     expect(scenePlan(world,base(),barn.id,empty)).toMatchObject({viewpointId:null,participantIds:[]});
     const selected=withNearbySceneCast(world,empty);
-    expect(selected).toEqual({...empty,viewpointId:silas.id,participantIds:[elara.id]});
+    expect(selected).toEqual({...empty,participantIds:[silas.id,elara.id]});
     expect(empty).toEqual(original);expect(world).toEqual(before);
     expect(sceneStartingPositions(world,selected).map(p=>p.status)).toEqual(['elsewhere','elsewhere']);
   });
-  it('bounds the nearby fallback to thirteen people and twelve participants',()=>{
+  it('bounds the nearby fallback to twelve participants',()=>{
     const {world,house,barn}=homestead();
     for(let i=0;i<20;i++){const n=makeNode(world,'core.character',`Nearby visitor ${i}`);world.nodes.push(n);world.edges.push({id:crypto.randomUUID(),typeId:'core.present-at',sourceId:n.id,targetId:house.id,description:''});}
     const people=nearbySceneCast(world,barn.id),plan=scenePlan(world,base(),barn.id);
-    expect(people).toHaveLength(13);expect(plan.participantIds).toHaveLength(12);expect(new Set([plan.viewpointId,...plan.participantIds]).size).toBe(13);
+    expect(people).toHaveLength(12);expect(new Set(plan.participantIds).size).toBe(12);expect(plan.viewpointId).toBeNull();
   });
   it('does not substitute nearby roles for an explicitly selected or deliberately empty cast',()=>{
     const {world,estate,barn,silas}=homestead();
     world.edges=world.edges.filter(e=>e.sourceId!==silas.id);
-    expect(scenePlan(world,base(),silas.id)).toMatchObject({locationId:estate.id,viewpointId:silas.id,participantIds:[]});
+    expect(scenePlan(world,base(),silas.id)).toMatchObject({locationId:estate.id,viewpointId:null,participantIds:[silas.id]});
     expect(scenePlan(world,base(),barn.id,{...base(),locationId:barn.id})).toMatchObject({locationId:barn.id,viewpointId:null,participantIds:[]});
     expect(nearbySceneCast(world,null)).toEqual([]);expect(nearbySceneCast(world,'missing')).toEqual([]);
     expect(withNearbySceneCast(world,{...base(),locationId:'missing'})).toEqual({...base(),locationId:'missing'});

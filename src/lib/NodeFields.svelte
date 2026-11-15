@@ -2,13 +2,14 @@
   import type {PropertyValue,WorldNode} from './bindings';
   import type {World} from './model';
   import NodeFieldSection from './NodeFieldSection.svelte';
-  import {capabilitySections,type FieldTarget} from './node-fields';
-  let {world,node,nodes=world.nodes,disabled=false,canEdit=()=>true,onChange}:{
+  import {capabilitySections,type FieldAudience,type FieldTarget} from './node-fields';
+  let {world,node,nodes=world.nodes,audience='all',disabled=false,canEdit=()=>true,onChange}:{
     world:World;node:WorldNode;nodes?:FieldTarget[];disabled?:boolean;
+    audience?:FieldAudience;
     canEdit?:(componentId:string,key:string)=>boolean;
     onChange:(componentId:string,key:string,value:PropertyValue)=>void;
   }=$props();
-  const sections=$derived(capabilitySections(world,node));
+  const sections=$derived(capabilitySections(world,node,audience));
 </script>
 {#key node.id}
   <div class="node-fields">

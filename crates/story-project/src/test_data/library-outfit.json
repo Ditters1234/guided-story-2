@@ -8,8 +8,7 @@
         "id": "b1000000-0000-4000-8000-000000000001",
         "typeId": "core.character",
         "name": "Rowan the surveyor",
-        "description": "An adult travelling surveyor who repairs field instruments and keeps careful route notes.",
-        "visualDescription": "An adult with short black hair, brown eyes and a practical walking build.",
+        "description": "An adult travelling surveyor who repairs field instruments and keeps careful route notes. An adult with short black hair, brown eyes and a practical walking build.",
         "components": {
           "core.character": {},
           "core.holder": {},
@@ -26,8 +25,7 @@
         "id": "b1000000-0000-4000-8000-000000000002",
         "typeId": "core.item",
         "name": "Canvas satchel",
-        "description": "A shoulder bag for tools and route notes.",
-        "visualDescription": "Olive canvas with a leather strap and two exterior pockets.",
+        "description": "A shoulder bag for tools and route notes. Olive canvas with a leather strap and two exterior pockets.",
         "components": {
           "core.item": {
             "quantity": 1,
@@ -43,8 +41,7 @@
         "id": "b1000000-0000-4000-8000-000000000003",
         "typeId": "core.wearable-item",
         "name": "Work shirt",
-        "description": "A long-sleeved everyday shirt.",
-        "visualDescription": "A blue linen shirt with button cuffs.",
+        "description": "A long-sleeved everyday shirt. A blue linen shirt with button cuffs.",
         "components": {
           "core.item": {
             "quantity": 1,
@@ -64,8 +61,7 @@
         "id": "b1000000-0000-4000-8000-000000000004",
         "typeId": "core.wearable-item",
         "name": "Work trousers",
-        "description": "Sturdy full-length trousers.",
-        "visualDescription": "Brown canvas trousers with reinforced knees.",
+        "description": "Sturdy full-length trousers. Brown canvas trousers with reinforced knees.",
         "components": {
           "core.item": {
             "quantity": 1,
@@ -85,8 +81,7 @@
         "id": "b1000000-0000-4000-8000-000000000005",
         "typeId": "core.wearable-item",
         "name": "Walking boots",
-        "description": "One paired item representing practical walking boots.",
-        "visualDescription": "Dark leather ankle boots with firm soles.",
+        "description": "One paired item representing practical walking boots. Dark leather ankle boots with firm soles.",
         "components": {
           "core.item": {
             "quantity": 1,
@@ -106,8 +101,7 @@
         "id": "b1000000-0000-4000-8000-000000000006",
         "typeId": "core.wearable-item",
         "name": "Field coat",
-        "description": "A weather-resistant outer coat.",
-        "visualDescription": "A green waxed-cotton coat with a high collar.",
+        "description": "A weather-resistant outer coat. A green waxed-cotton coat with a high collar.",
         "components": {
           "core.item": {
             "quantity": 1,
@@ -503,12 +497,12 @@
           },
           {
             "key": "temperament",
-            "label": "Temperament / habits",
+            "label": "Behavior patterns",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "Specific behaviour, rather than a list of generic adjectives.",
+              "help": "What do they repeatedly do, especially under pressure?",
               "uses": [
                 "story"
               ],
@@ -538,12 +532,12 @@
         "fields": [
           {
             "key": "wants",
-            "label": "Long-term wants",
+            "label": "Long-term goal",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "What they want, without claiming it has happened.",
+              "help": "The outcome they pursue across passages.",
               "uses": [
                 "story"
               ],
@@ -552,12 +546,12 @@
           },
           {
             "key": "stakes",
-            "label": "Reasons / stakes",
+            "label": "Why it matters",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "Why the outcome matters to them.",
+              "help": "What they stand to gain or lose.",
               "uses": [
                 "story"
               ],
@@ -566,12 +560,12 @@
           },
           {
             "key": "obstacles",
-            "label": "Obstacles",
+            "label": "Standing obstacles",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "What currently makes the goal difficult.",
+              "help": "Persistent barriers to the long-term goal.",
               "uses": [
                 "story"
               ],
@@ -587,12 +581,12 @@
         "fields": [
           {
             "key": "style",
-            "label": "Speaking style",
+            "label": "Speech pattern",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "Sentence patterns, vocabulary and directness.",
+              "help": "Vocabulary, sentence rhythm and directness.",
               "uses": [
                 "story"
               ],
@@ -601,12 +595,12 @@
           },
           {
             "key": "habits",
-            "label": "Conversational habits",
+            "label": "Conversation habits",
             "kind": "longText",
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "How they respond, evade or initiate; avoid compulsory catchphrases.",
+              "help": "How do they respond to a request, disagreement or awkward question?",
               "uses": [
                 "story"
               ],
@@ -620,7 +614,7 @@
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "A short illustrative line, not an event that occurred.",
+              "help": "One sample line illustrating delivery.",
               "uses": [
                 "story"
               ],
@@ -677,7 +671,7 @@
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "What they are trying to achieve now, not a completed event.",
+              "help": "What specific result are they trying to achieve right now?",
               "uses": [
                 "story"
               ],
@@ -698,7 +692,7 @@
             "required": false,
             "defaultValue": null,
             "metadata": {
-              "help": "Shape, layout or construction details.",
+              "help": "Visible shape and construction.",
               "uses": [
                 "story",
                 "visual"

@@ -24,7 +24,6 @@ fn node(world: &mut World, type_id: &str, name: &str) -> String {
         type_id: type_id.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components,
     });
     id
@@ -197,6 +196,108 @@ fn library_folder_choice_is_device_local_and_survives_reopen() {
     save_library_entry(&config, &id(), &exported()).unwrap();
     assert_eq!(list_library(&config).unwrap().files.len(), 1);
     assert!(!folder.join("node-library.json").exists());
+}
+
+#[test]
+fn nested_files_are_listed_and_pinned_by_their_full_relative_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let config = temp.path().join("config");
+    let folder = temp.path().join("library");
+    let nested = folder.join("Characters").join("Travellers");
+    fs::create_dir_all(&nested).unwrap();
+    fs::create_dir(folder.join(".hidden")).unwrap();
+    let mut entry = exported();
+    let root_bytes = serde_json::to_vec(&entry).unwrap();
+    fs::write(folder.join("same.json"), &root_bytes).unwrap();
+    fs::write(folder.join(".hidden").join("ignored.json"), &root_bytes).unwrap();
+    entry.name = "Nested traveller".into();
+    let nested_bytes = serde_json::to_vec(&entry).unwrap();
+    fs::write(nested.join("same.json"), &nested_bytes).unwrap();
+    fs::write(nested.join("invalid.JSON"), b"{broken").unwrap();
+
+    let listing = choose_library_folder(&config, folder.to_str().unwrap()).unwrap();
+    assert_eq!(
+        listing
+            .files
+            .iter()
+            .map(|f| f.file_name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "Characters/Travellers/invalid.JSON",
+            "Characters/Travellers/same.json",
+            "same.json"
+        ]
+    );
+    assert!(listing.files[0].error.is_some());
+    let file = &listing.files[1];
+    assert_eq!(
+        read_library_entry(&config, &file.file_name, &file.sha256)
+            .unwrap()
+            .name,
+        entry.name
+    );
+    assert!(read_library_entry(&config, "same.json", &file.sha256)
+        .unwrap_err()
+        .contains("changed"));
+    for name in [
+        "Characters/../same.json",
+        "Characters//Travellers/same.json",
+        "/same.json",
+        "Characters\\Travellers\\same.json",
+        ".hidden/ignored.json",
+    ] {
+        assert!(read_library_entry(&config, name, &sha(&root_bytes)).is_err());
+    }
+}
+
+#[test]
+fn library_import_combines_only_bundled_optional_writing_fields() {
+    let mut source = World::default();
+    let narration = node(&mut source, "core.narration-style", "Narration");
+    let export = |world: &World| {
+        export_library_entry(
+            world,
+            vec![narration.clone()],
+            BTreeMap::new(),
+            "Narration".into(),
+            String::new(),
+        )
+        .unwrap()
+        .entry
+    };
+    let basic = export(&source);
+    let fields = &crate::story::bundled_writing_fields().unwrap()["core.narration-style"];
+    let definition = source
+        .component_types
+        .iter_mut()
+        .find(|d| d.id == "core.narration-style")
+        .unwrap();
+    definition.fields.extend(fields.clone());
+    let expanded = export(&source);
+    for (world, entry) in [(&source, basic), (&World::default(), expanded.clone())] {
+        let inserted = preview_world_edit(world, WorldEdit::InsertLibrary { entry }).unwrap();
+        let saved = inserted
+            .world
+            .component_types
+            .iter()
+            .find(|d| d.id == "core.narration-style")
+            .unwrap();
+        assert!(fields.iter().all(|field| saved.fields.contains(field)));
+    }
+    source
+        .component_types
+        .iter_mut()
+        .find(|d| d.id == "core.narration-style")
+        .unwrap()
+        .fields
+        .last_mut()
+        .unwrap()
+        .label = "Custom label".into();
+    assert!(
+        preview_world_edit(&source, WorldEdit::InsertLibrary { entry: expanded })
+            .unwrap_err()
+            .contains("schema conflict")
+    );
 }
 
 #[test]
@@ -415,8 +516,8 @@ fn imports_publish_once_preserve_history_and_reopen_without_library_files() {
 #[test]
 fn examples_are_valid_runtime_files_with_independent_repeated_instances() {
     for bytes in [
-        include_bytes!("../../../../examples/node-library/surveyor-and-belongings.json").as_slice(),
-        include_bytes!("../../../../examples/node-library/workshop-corner.json").as_slice(),
+        include_bytes!("../test_data/library-outfit.json").as_slice(),
+        include_bytes!("../test_data/library-workshop.json").as_slice(),
     ] {
         let entry = decode_entry(bytes).unwrap();
         let world = World::default();

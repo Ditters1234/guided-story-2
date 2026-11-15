@@ -231,7 +231,7 @@ fn concrete_schemas_do_not_offer_unrelated_capabilities_and_revisions_bind_actua
         .is_none());
     assert!(components("core.character")["properties"]
         .get("detail.anatomy")
-        .is_some());
+        .is_none());
     assert!(components("core.item")["properties"]
         .get("core.container")
         .is_none());

@@ -18,7 +18,15 @@ export class PassageSession {
   async reroll(){await this.flush();if(!this.id||!this.view)throw Error('Open a saved passage candidate first.');this.adopt(unwrap(await commands.clonePassageDraft(this.storyId,this.id,this.view.version,crypto.randomUUID())));}
   async revise(){await this.flush();if(!this.id||!this.view)throw Error('Open a saved passage candidate first.');this.adopt(unwrap(await commands.revisePassageDraft(this.storyId,this.id,this.view.version,crypto.randomUUID())));}
   clear(){clearTimeout(this.timer);this.id=null;this.value=null;this.view=null;this.version=0;this.edits=this.saved=0;this.pending=null;this.dirty=false;this.error='';}
-  adopt(view:PassageView_Serialize){clearTimeout(this.timer);this.id=view.id;this.view=view;this.value=structuredClone($state.snapshot(view.edits));this.version=view.version;this.edits=this.saved=0;this.pending=null;this.dirty=false;this.error='';}
+  adopt(view:PassageView_Serialize){
+    clearTimeout(this.timer);this.id=view.id;this.view=view;this.value=structuredClone($state.snapshot(view.edits));
+    const plan=this.value.plan;
+    if(!view.revision&&view.stage!=='accepted'&&!plan.narrationNodeId&&plan.viewpointId&&view.resolvedPlan){
+      plan.viewpointId=null;
+      plan.participantIds=[...view.resolvedPlan.participantIds];
+    }
+    this.version=view.version;this.edits=this.saved=0;this.pending=null;this.dirty=false;this.error='';
+  }
   touch(){if(!this.id||!this.value||this.running||this.view?.stage==='accepted')return;this.edits++;this.dirty=true;clearTimeout(this.timer);this.timer=setTimeout(()=>{void this.flush().catch(()=>{});},350);}
   async refresh(){if(!this.id)return;await this.flush();const id=this.id;const view=unwrap(await commands.getPassageDraft(this.storyId,id));if(this.id===id&&view.version>=this.version&&!this.dirty&&!this.saving)this.adopt(view);}
   async flush(){clearTimeout(this.timer);if(this.flight)return this.flight;if(!this.id||!this.value)return;this.flight=this.saveLoop();try{await this.flight;}finally{this.flight=null;}}

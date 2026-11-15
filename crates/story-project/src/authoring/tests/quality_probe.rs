@@ -229,7 +229,7 @@ async fn developed_world_and_group_quality() {
         .iter()
         .filter(|n| n.components.contains_key("core.character"))
         .collect();
-    let detail = |n: &&WorldNode| json!({"name":n.name,"description":n.description,"visualDescription":n.visual_description,"components":n.components});
+    let detail = |n: &&WorldNode| json!({"name":n.name,"description":n.description,"components":n.components});
     let world_summary = json!({"calls":1,"seconds":started.elapsed().as_secs_f64(),"nodes":world.nodes.len(),"places":places.iter().map(detail).collect::<Vec<_>>(),"people":people.iter().map(detail).collect::<Vec<_>>(),"links":world.edges,"narration":world.nodes.iter().filter(|n|n.components.contains_key("core.narration-style")).collect::<Vec<_>>(),"aiContext":world.ai_context});
     fs::write(
         root.join("world-evaluation.json"),
@@ -480,7 +480,7 @@ async fn named_people_and_item_outfits_from_a_homestead_idea() {
                 },
             )
             .unwrap();
-        people.push(json!({"name":person.name,"storyNotes":person.description,"appearance":person.visual_description,"outfit":worn.iter().map(|n|json!({"name":n.name,"appearance":n.visual_description})).collect::<Vec<_>>(),"imageOutfitCount":image.draft.source.facts[0].outfit.len()}));
+        people.push(json!({"name":person.name,"storyNotes":person.description,"appearance":crate::visual_summary(&world, person, &[]),"outfit":worn.iter().map(|n|json!({"name":n.name,"appearance":crate::visual_summary(&world, n, &[])})).collect::<Vec<_>>(),"imageOutfitCount":image.draft.source.facts[0].outfit.len()}));
     }
     let summary = json!({"calls":1,"elapsedSeconds":started.elapsed().as_secs_f64(),"nodeCount":world.nodes.len(),"people":people,"warnings":view.warnings});
     fs::write(
@@ -509,7 +509,7 @@ async fn named_people_and_item_outfits_from_a_homestead_idea() {
             "Role label used as name: {}",
             person.name
         );
-        assert!(person.description.len() > 30 && person.visual_description.len() > 20);
+        assert!(person.description.len() > 30 && crate::visual_summary(&world, person, &[]).len() > 20);
         let worn = world
             .edges
             .iter()

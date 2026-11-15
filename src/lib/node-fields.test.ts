@@ -11,6 +11,18 @@ describe('composable node editing',()=>{
     expect(capabilitySections(world,node).map(s=>s.definition.name)).toContain('Goals');
     const item=makeNode(world,'core.item','Pump handle');expect(item.components['core.item']).toEqual({quantity:1,unit:'item'});
   });
+  it('keeps shared appearance in the story inspector and reveals images on explicit attachment',()=>{
+    const world=emptyWorld(),node=makeNode(world,'core.character','Nora');
+    expect(capabilitySections(world,node,'image')).toEqual([]);
+    node.components['detail.image']={visibleNotes:'Visible stitching'};
+    node.components['detail.anatomy']={};
+    node.components['detail.visual-style']={palette:'Amber'};
+    expect(capabilitySections(world,node,'image').map(section=>section.definition.id)).toEqual(['detail.image','detail.anatomy','detail.visual-style']);
+    const story=capabilitySections(world,node,'story').map(section=>section.definition.id);
+    expect(story).toContain('detail.appearance');
+    expect(story).not.toContain('detail.image');
+    expect(story).not.toContain('detail.visual-style');
+  });
   it('uses custom presets and independent capabilities rather than a single display kind',()=>{
     const world=emptyWorld();world.nodeTypes.push({id:'custom.traveller',name:'Traveller',description:'',components:['core.character','core.item','core.container','detail.voice']});
     const node=makeNode(world,'custom.traveller','Clockwork traveller');

@@ -1,7 +1,27 @@
+use crate::{AiContextBinding, AiContextField, AiContextRole, PassagePlan, TextPromptTask};
 use crate::{PropertyValue, World, WorldEdge, WorldNode};
 use serde::Deserialize;
+use serde::Serialize;
+use specta::Type;
 use std::collections::BTreeMap;
 use uuid::Uuid;
+
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StoryTemplate {
+    pub world: World,
+    pub initial_plan: Option<PassagePlan>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WritingSetup {
+    narration_key: String,
+    brief_key: String,
+    reference_keys: Vec<String>,
+    chapter_title: String,
+    passage_title: String,
+}
 
 // Authoring data only. Templates become ordinary project-local nodes; there is
 // no live inheritance or dependency on this catalogue after project creation.
@@ -14,6 +34,8 @@ struct LocationTemplate {
     nodes: Vec<TemplateNode>,
     #[serde(default)]
     edges: Vec<TemplateEdge>,
+    #[serde(default)]
+    writing_setup: Option<WritingSetup>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,7 +58,6 @@ struct TemplateNode {
     type_id: String,
     name: String,
     description: String,
-    visual_description: String,
     parent: Option<String>,
     #[serde(default)]
     components: BTreeMap<String, BTreeMap<String, PropertyValue>>,
@@ -57,7 +78,7 @@ fn parse_catalogue(text: &str) -> Result<Vec<LocationTemplate>, String> {
         if let Some(nodes) = value["nodes"].as_array() {
             for (i, node) in nodes.iter().enumerate() {
                 let key = node["key"].as_str().unwrap_or("<missing key>");
-                    for field in ["key", "typeId", "name", "description", "visualDescription"] {
+                    for field in ["key", "typeId", "name", "description"] {
                         if node.get(field).is_some_and(|value| !value.is_string()) {
                             return Err(format!("{prefix} / nodes[{key}] / {field}: expected string"));
                         }
@@ -101,11 +122,55 @@ fn parse_catalogue(text: &str) -> Result<Vec<LocationTemplate>, String> {
 
 /// Assemble and validate a fresh editable world without touching project files.
 pub fn location_template_world(template_id: &str) -> Result<World, String> {
+    Ok(story_template(template_id)?.world)
+}
+
+pub fn story_template(template_id: &str) -> Result<StoryTemplate, String> {
     let template = catalogue()?
         .into_iter()
         .find(|t| t.id == template_id)
         .ok_or_else(|| format!("Location template {template_id:?} is unavailable."))?;
-    assemble_template(&template)
+    let world = assemble_template(&template)?;
+    let initial_plan = template_plan(&template, &world)?;
+    Ok(StoryTemplate {
+        world,
+        initial_plan,
+    })
+}
+
+fn template_plan(
+    template: &LocationTemplate,
+    world: &World,
+) -> Result<Option<PassagePlan>, String> {
+    let Some(setup) = &template.writing_setup else {
+        return Ok(None);
+    };
+    let id_for = |key: &str| {
+        template
+            .nodes
+            .iter()
+            .position(|n| n.key == key)
+            .map(|i| world.nodes[i].id.clone())
+            .ok_or_else(|| {
+                format!(
+                    "template {} / writingSetup: unknown node key {key}",
+                    template.id
+                )
+            })
+    };
+    let plan = PassagePlan {
+        narration_node_id: Some(id_for(&setup.narration_key)?),
+        brief_node_id: Some(id_for(&setup.brief_key)?),
+        reference_ids: setup
+            .reference_keys
+            .iter()
+            .map(|k| id_for(k))
+            .collect::<Result<_, _>>()?,
+        chapter_title: setup.chapter_title.clone(),
+        title: setup.passage_title.clone(),
+        ..Default::default()
+    };
+    crate::story::validate_initial_plan(world, &plan).map(Some)
 }
 
 fn assemble_template(template: &LocationTemplate) -> Result<World, String> {
@@ -118,6 +183,12 @@ fn assemble_template(template: &LocationTemplate) -> Result<World, String> {
         ));
     }
     let mut world = World::bundled()?;
+    if template.writing_setup.is_some() {
+        crate::story::install_bundled_writing_fields(&mut world, None)?;
+        world
+            .relation_types
+            .extend(crate::story::bundled_writing_relationships()?);
+    }
     let mut ids = BTreeMap::new();
     for node in &template.nodes {
         if node.key.trim().is_empty()
@@ -134,13 +205,8 @@ fn assemble_template(template: &LocationTemplate) -> Result<World, String> {
     for seed in &template.nodes {
         let path = format!("{prefix} / nodes[{}]", seed.key);
         crate::validate_name(&seed.name).map_err(|e| format!("{path} / name: {e}"))?;
-        for (field, value) in [
-            ("description", &seed.description),
-            ("visualDescription", &seed.visual_description),
-        ] {
-            if value.chars().count() > 16000 {
-                return Err(format!("{path} / {field}: exceeds 16,000 characters"));
-            }
+        if seed.description.chars().count() > 16000 {
+            return Err(format!("{path} / description: exceeds 16,000 characters"));
         }
         let preset = world
             .node_types
@@ -172,7 +238,6 @@ fn assemble_template(template: &LocationTemplate) -> Result<World, String> {
             type_id: seed.type_id.clone(),
             name: seed.name.clone(),
             description: seed.description.clone(),
-            visual_description: seed.visual_description.clone(),
             components,
         };
         if let Some(parent) = &seed.parent {
@@ -318,6 +383,20 @@ fn assemble_template(template: &LocationTemplate) -> Result<World, String> {
             properties,
         });
     }
+    if let Some(setup) = &template.writing_setup {
+        let node_id = ids
+            .get(&setup.narration_key)
+            .ok_or("Template narration key is missing.")?;
+        world.ai_context.push(AiContextBinding {
+            node_id: node_id.clone(),
+            enabled: true,
+            role: AiContextRole::Instructions,
+            tasks: vec![TextPromptTask::Passage, TextPromptTask::Wording],
+            fields: vec![AiContextField::Description, AiContextField::Components],
+            order: 0,
+            image_preparation: false,
+        });
+    }
     world.validate().map_err(|error| {
         let keys = template
             .nodes
@@ -365,7 +444,6 @@ pub fn validate_bundled_world_data() -> Result<(), String> {
             type_id: preset.id.clone(),
             name: preset.name.clone(),
             description: String::new(),
-            visual_description: String::new(),
             components: preset
                 .components
                 .iter()
@@ -386,7 +464,8 @@ pub fn validate_bundled_world_data() -> Result<(), String> {
         .validate()
         .map_err(|e| format!("Bundled preset defaults: {e}"))?;
     for template in catalogue()? {
-        assemble_template(&template)?;
+        let world = assemble_template(&template)?;
+        template_plan(&template, &world)?;
     }
     Ok(())
 }

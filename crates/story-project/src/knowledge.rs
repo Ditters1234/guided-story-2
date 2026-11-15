@@ -352,23 +352,28 @@ pub(crate) fn scrub_references(value: &mut serde_json::Value, excluded: &BTreeSe
         _ => (),
     }
 }
-pub(crate) fn project_records(context: &World, input: &mut serde_json::Value, planning: bool) {
-    let claim_ids: BTreeSet<_> = context
+pub(crate) fn project_records(
+    context: &World,
+    input: &mut serde_json::Value,
+    planning: bool,
+    excluded: &BTreeSet<String>,
+) {
+    let omitted_ids: BTreeSet<_> = context
         .nodes
         .iter()
-        .filter(|n| is_claim(n))
+        .filter(|n| is_claim(n) || excluded.contains(&n.id))
         .map(|n| &n.id)
         .collect();
     input["records"] = json!(context
         .nodes
         .iter()
-        .filter(|n| !is_claim(n))
+        .filter(|n| !omitted_ids.contains(&n.id))
         .map(|n| crate::projection::story_record(context, n, planning))
         .collect::<Vec<_>>());
     input["links"] = json!(context
         .edges
         .iter()
-        .filter(|e| !claim_ids.contains(&e.source_id) && !claim_ids.contains(&e.target_id))
+        .filter(|e| !omitted_ids.contains(&e.source_id) && !omitted_ids.contains(&e.target_id))
         .map(|e| crate::projection::story_link(context, e, planning))
         .collect::<Vec<_>>());
     let guidance = crate::projection::narrative_relationship_guidance(
@@ -389,7 +394,7 @@ pub(crate) fn project_records(context: &World, input: &mut serde_json::Value, pl
     input["sources"] = json!(context
         .source_annotations
         .iter()
-        .filter(|a| !claim_ids.contains(&a.node_id))
+        .filter(|a| !omitted_ids.contains(&a.node_id))
         .collect::<Vec<_>>());
     let starts = input["startingState"]["people"]
         .as_array()

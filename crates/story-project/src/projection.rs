@@ -205,7 +205,7 @@ pub fn projected_node(world: &World, node: &WorldNode, usage: FieldUse) -> World
     let mut projected = node.clone();
     for (id, values) in &mut projected.components {
         values.retain(|key, _| {
-            world
+            !crate::story::retired_writing_field(id, key) && world
                 .component_types
                 .iter()
                 .find(|d| &d.id == id)
@@ -232,8 +232,10 @@ pub(crate) fn story_record(world: &World, node: &WorldNode, planning: bool) -> V
                 .fields
                 .iter()
                 .filter(|field| {
-                    field.used_for(FieldUse::Story)
-                        || (planning && field.used_for(FieldUse::Planning))
+                    !crate::story::retired_writing_field(&definition.id, &field.key)
+                        && !field.image_only()
+                        && (field.used_for(FieldUse::Story)
+                            || (planning && field.used_for(FieldUse::Planning)))
                 })
                 .filter_map(|field| {
                     let value = values.get(&field.key)?;
@@ -260,8 +262,13 @@ pub(crate) fn story_record(world: &World, node: &WorldNode, planning: bool) -> V
             )
         })
         .collect();
+    let capabilities: Vec<_> = node.components.keys().filter(|id| {
+        !world.component_types.iter().any(|definition| {
+            &definition.id == *id && definition.image_only()
+        })
+    }).collect();
     let mut record = json!({"id":node.id,"name":node.name,"typeId":node.type_id,
-        "capabilities":node.components.keys().collect::<Vec<_>>()});
+        "capabilities":capabilities});
     if !node.description.is_empty() {
         record["notes"] = json!(node.description);
     }
@@ -276,8 +283,54 @@ pub(crate) fn story_record(world: &World, node: &WorldNode, planning: bool) -> V
     record
 }
 
-/// Values with no visual hint are not inferred to describe appearance. Supplementary
-/// visual notes remain explicit appearance input, and field order is deterministic.
+/// Describe repeated fields once for the model. A field used on a single
+/// record keeps its metadata inline, avoiding a glossary entry for it.
+pub(crate) fn share_story_field_guidance(input: &mut Value) {
+    let Some(records) = input["records"].as_array_mut() else {
+        return;
+    };
+    let mut counts = BTreeMap::new();
+    for section in records
+        .iter()
+        .flat_map(|record| record["details"].as_array().into_iter().flatten())
+    {
+        let capability = section["capability"].as_str().unwrap();
+        for field in section["fields"].as_array().unwrap() {
+            let key = field["key"].as_str().unwrap();
+            *counts
+                .entry((capability.to_owned(), key.to_owned()))
+                .or_insert(0) += 1;
+        }
+    }
+    let mut guidance = BTreeMap::<String, BTreeMap<String, serde_json::Map<String, Value>>>::new();
+    for section in records
+        .iter_mut()
+        .flat_map(|record| record["details"].as_array_mut().into_iter().flatten())
+    {
+        let capability = section["capability"].as_str().unwrap().to_owned();
+        for field in section["fields"].as_array_mut().unwrap() {
+            let key = field["key"].as_str().unwrap().to_owned();
+            if counts[&(capability.clone(), key.clone())] < 2 {
+                continue;
+            }
+            let metadata = guidance
+                .entry(capability.clone())
+                .or_default()
+                .entry(key)
+                .or_default();
+            for key in ["label", "help", "stability"] {
+                if let Some(value) = field.as_object_mut().unwrap().remove(key) {
+                    metadata.entry(key.to_owned()).or_insert(value);
+                }
+            }
+        }
+    }
+    if !guidance.is_empty() {
+        input["fieldGuidance"] = json!(guidance);
+    }
+}
+
+/// The captured appearance uses declared visual fields in deterministic order.
 pub fn visual_summary(world: &World, node: &WorldNode, covered_regions: &[String]) -> String {
     let normalize = |s: &str| {
         s.replace(['-', '_'], " ")
@@ -287,9 +340,6 @@ pub fn visual_summary(world: &World, node: &WorldNode, covered_regions: &[String
             .to_lowercase()
     };
     let mut lines = Vec::new();
-    if !node.visual_description.trim().is_empty() {
-        lines.push(node.visual_description.clone());
-    }
     for definition in &world.component_types {
         let Some(values) = node.components.get(&definition.id) else {
             continue;
@@ -340,4 +390,32 @@ pub fn visual_summary(world: &World, node: &WorldNode, covered_regions: &[String
         }
     }
     lines.join("\n")
+}
+
+pub(crate) fn strip_image_components(world: &World, node: &mut Value) {
+    let Some(components) = node.get_mut("components").and_then(Value::as_object_mut) else {
+        return;
+    };
+    components.retain(|id, values| {
+        let Some(definition) = world.component_types.iter().find(|d| d.id == *id) else {
+            return true;
+        };
+        if definition.image_only() {
+            return false;
+        }
+        if let Some(values) = values.as_object_mut() {
+            for field in definition.fields.iter().filter(|field| {
+                field.image_only() || crate::story::retired_writing_field(id, &field.key)
+            }) {
+                values.remove(&field.key);
+            }
+        }
+        true
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn set_image_notes(node: &mut WorldNode, notes: impl Into<String>) {
+    node.components.entry("detail.image".into()).or_default()
+        .insert("visibleNotes".into(), PropertyValue::Text(notes.into()));
 }

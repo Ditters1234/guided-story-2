@@ -10,7 +10,7 @@ use std::{
 };
 use uuid::Uuid;
 
-const SCHEMA: u32 = 2;
+const SCHEMA: u32 = 3;
 const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
 mod backup;
 mod cleanup;
@@ -233,11 +233,37 @@ impl Project {
         world: World,
         request_id: String,
     ) -> Result<Self, String> {
+        Self::create_with_initial_passage(root, title, world, request_id, None)
+    }
+
+    pub fn create_with_initial_passage(
+        root: &Path,
+        title: String,
+        world: World,
+        request_id: String,
+        plan: Option<crate::PassagePlan>,
+    ) -> Result<Self, String> {
+        Self::create_seeded_with_hook(root, title, world, request_id, plan, |_| Ok(()))
+    }
+
+    fn create_seeded_with_hook(
+        root: &Path,
+        title: String,
+        world: World,
+        request_id: String,
+        plan: Option<crate::PassagePlan>,
+        hook: impl Fn(&str) -> Result<(), String>,
+    ) -> Result<Self, String> {
         validate_name(&title)?;
         validate_id(&request_id)?;
         let mut world = world;
         crate::sources::ensure_manual_event_sources(&mut world);
         world.validate()?;
+        let plan = plan
+            .map(|p| crate::story::validate_initial_plan(&world, &p))
+            .transpose()?;
+        let story_id = Uuid::new_v4().to_string();
+        let draft_id = Uuid::new_v4().to_string();
         fs::create_dir(root).map_err(|e| {
             format!("Choose a new project folder; existing folders are never overwritten: {e}")
         })?;
@@ -254,14 +280,23 @@ impl Project {
             },
         )]);
         project.publish(
-            Uuid::new_v4().to_string(),
+            story_id.clone(),
             title,
             0,
             world,
             receipts,
             None,
             None,
-            |_| Ok(()),
+            |phase| {
+                if phase == "before-head" {
+                    if let Some(plan) = &plan {
+                        hook("before-initial-draft")?;
+                        project.seed_initial_passage(&story_id, &draft_id, plan.clone())?;
+                        hook("after-initial-draft")?;
+                    }
+                }
+                hook(phase)
+            },
         )?;
         Ok(project)
     }

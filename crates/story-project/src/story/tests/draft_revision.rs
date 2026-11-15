@@ -31,7 +31,10 @@ fn revision_captures_saved_edits_and_direction_and_requires_fresh_review() {
     let summaries = p.list_passage_drafts().unwrap();
     let summary = summaries.iter().find(|d| d.id == key).unwrap();
     assert_eq!(summary.source_draft_id.as_deref(), Some(source.as_str()));
-    assert_eq!(summary.revision_direction, original.edits.revision_direction);
+    assert_eq!(
+        summary.revision_direction,
+        original.edits.revision_direction
+    );
     assert!(summary.target_passage_id.is_none());
     assert_eq!(candidate.edits.prose, original.edits.prose);
     assert!(candidate.edits.approved_effects.is_empty());
@@ -42,9 +45,20 @@ fn revision_captures_saved_edits_and_direction_and_requires_fresh_review() {
         .prompts
         .overrides
         .insert(TextPromptTask::Passage, "Saved author passage base.".into());
+    let prompt = p
+        .preview_passage_prompt(
+            &source,
+            original.version,
+            before.revision,
+            PassagePromptAction::Revise,
+            &config,
+        )
+        .unwrap();
     let request = p
         .start_passage(&key, candidate.version, before.revision, false, &config)
         .unwrap();
+    assert_eq!(prompt.system, request.system);
+    assert_eq!(prompt.user, request.user);
     let input: Value = serde_json::from_str(&request.user).unwrap();
     assert_eq!(request.system, "Saved author passage base.");
     assert_eq!(input["draftRevision"]["prose"], original.edits.prose);
@@ -227,16 +241,35 @@ fn draft_revision_backup_restores_standalone_source_and_review_data() {
     let source = source(&p);
     let original = p.passage_view(&source, &settings()).unwrap();
     let key = id();
-    p.revise_passage_draft(&source, original.version, &key).unwrap();
-    let backup = p.export_backup(dir.path(), &id(), p.view().unwrap().revision).unwrap();
+    p.revise_passage_draft(&source, original.version, &key)
+        .unwrap();
+    let backup = p
+        .export_backup(dir.path(), &id(), p.view().unwrap().revision)
+        .unwrap();
     let reviewed = crate::inspect_backup(std::path::Path::new(&backup.folder_path)).unwrap();
-    let restored = crate::restore_backup(std::path::Path::new(&backup.folder_path), dir.path(), &id(), &reviewed.fingerprint).unwrap();
+    let restored = crate::restore_backup(
+        std::path::Path::new(&backup.folder_path),
+        dir.path(),
+        &id(),
+        &reviewed.fingerprint,
+    )
+    .unwrap();
     drop(p);
-    fs::rename(dir.path().join("story"), dir.path().join("source-unavailable")).unwrap();
+    fs::rename(
+        dir.path().join("story"),
+        dir.path().join("source-unavailable"),
+    )
+    .unwrap();
     let p = Project::open(std::path::Path::new(&restored.folder_path)).unwrap();
     let candidate = p.passage_view(&key, &settings()).unwrap();
-    assert_eq!(candidate.draft_revision.unwrap().prose, original.edits.prose);
-    assert_eq!(p.passage_view(&source, &settings()).unwrap().edits, original.edits);
+    assert_eq!(
+        candidate.draft_revision.unwrap().prose,
+        original.edits.prose
+    );
+    assert_eq!(
+        p.passage_view(&source, &settings()).unwrap().edits,
+        original.edits
+    );
     assert!(!candidate.can_accept);
 }
 

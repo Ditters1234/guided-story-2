@@ -10,7 +10,7 @@ fn sparse_updates_preserve_captured_facts_and_retain_all_supplied_unknown_values
     let mut w = p.view().unwrap().world;
     let person = &mut w.nodes[1];
     person.description = "Saved supplementary facts. ".repeat(60);
-    person.visual_description = "Saved appearance.".into();
+    crate::projection::set_image_notes(person, "Saved appearance.");
     person.components.get_mut("detail.intent").unwrap().insert(
         "objective".into(),
         PropertyValue::Text("Repair the pump".into()),
@@ -26,7 +26,7 @@ fn sparse_updates_preserve_captured_facts_and_retain_all_supplied_unknown_values
         panic!()
     };
     assert_eq!(node.description, w.nodes[1].description);
-    assert_eq!(node.visual_description, w.nodes[1].visual_description);
+    assert_eq!(node.components["detail.image"], w.nodes[1].components["detail.image"]);
     assert_eq!(
         node.components.keys().collect::<Vec<_>>(),
         w.nodes[1].components.keys().collect::<Vec<_>>()
@@ -228,7 +228,7 @@ fn sparse_expansion_respects_the_complete_draft_size_limit() {
             &format!("Fictional participant {index}"),
         );
         person.description = "x".repeat(16000);
-        person.visual_description = "y".repeat(16000);
+        crate::projection::set_image_notes(&mut person, "y".repeat(16000));
         proposals.push(json!({"kind":"putNode","node":{"id":person.id,"components":{"detail.condition":{"condition":"Wet clothes"}}},"evidence":["Rain soaked everyone's clothes."]}));
         w.nodes.push(person);
     }

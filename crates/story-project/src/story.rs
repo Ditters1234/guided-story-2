@@ -22,12 +22,26 @@ pub use planning::*;
 mod starting_state;
 mod writing_brief;
 pub use writing_brief::WritingBrief;
+mod writing_inputs;
+pub use writing_inputs::validate_bundled_writing_fields;
+pub(crate) use writing_inputs::{
+    bundled_writing_fields, bundled_writing_relationships, install_bundled_writing_fields,
+    retired_writing_field, strip_retired_writing_values, validate_writing_relationships,
+    NARRATION_LINKS,
+};
 mod continuity;
+mod continuity_nodes;
 pub use continuity::PassageHandoff;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassagePlan {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub narration_node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief_node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub consumed_brief_passage: Option<String>,
     pub chapter_title: String,
     pub chapter_plan: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -42,13 +56,25 @@ pub struct PassagePlan {
     pub location_id: Option<String>,
     pub participant_ids: Vec<String>,
     pub reference_ids: Vec<String>,
-    pub target_words: u32,
+    #[serde(
+        default,
+        rename = "targetWords",
+        skip_serializing,
+        deserialize_with = "discard_target_words"
+    )]
+    #[specta(skip)]
+    pub(crate) retired_target_words: (),
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub saved_draft_direction: Option<SavedDraftDirection>,
     #[serde(default, skip_serializing_if = "crate::knowledge::default_perspective")]
     pub knowledge_perspective: KnowledgePerspective,
 }
 impl Default for PassagePlan {
     fn default() -> Self {
         Self {
+            narration_node_id: None,
+            brief_node_id: None,
+            consumed_brief_passage: None,
             chapter_title: "Chapter 1".into(),
             chapter_plan: String::new(),
             chapter_progress: String::new(),
@@ -60,9 +86,40 @@ impl Default for PassagePlan {
             location_id: None,
             participant_ids: vec![],
             reference_ids: vec![],
-            target_words: 450,
+            retired_target_words: (),
+            saved_draft_direction: None,
             knowledge_perspective: KnowledgePerspective::Viewpoint,
         }
+    }
+}
+fn discard_target_words<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<(), D::Error> {
+    u32::deserialize(deserializer).map(|_| ())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SavedDraftDirection {
+    pub chapter_plan: String,
+    pub chapter_progress: String,
+    pub direction: String,
+    pub stop_after: String,
+}
+
+impl SavedDraftDirection {
+    fn from_plan(plan: &PassagePlan) -> Self {
+        Self {
+            chapter_plan: plan.chapter_plan.clone(),
+            chapter_progress: plan.chapter_progress.clone(),
+            direction: plan.direction.clone(),
+            stop_after: plan.stop_after.clone(),
+        }
+    }
+
+    fn within_limits(&self) -> bool {
+        self.chapter_plan.chars().count() <= 4000
+            && self.chapter_progress.chars().count() <= 4000
+            && self.direction.chars().count() <= 8000
+            && self.stop_after.chars().count() <= 2000
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -281,6 +338,8 @@ pub struct PassageSummary {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PassageView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_plan: Option<PassagePlan>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub draft_revision: Option<DraftRevision>,
     pub repeated_passages: Vec<String>,
     pub effects_review: EffectsReview,
@@ -363,12 +422,78 @@ pub struct PreparedPassage {
     pub output_tokens: u32,
     pub demo: String,
 }
+#[derive(Debug, Clone, Copy, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum PassagePromptAction {
+    Generate,
+    Revise,
+    CheckChanges,
+}
+
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PassagePromptPreview {
+    pub system: String,
+    pub user: String,
+    pub response_schema: Option<String>,
+    pub offline: bool,
+}
+
 pub(crate) fn story_hash<T: Serialize>(value: &T) -> Result<String, String> {
     Ok(format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(value).map_err(|e| e.to_string())?)
     ))
 }
+fn blank_passage_draft(
+    story_id: String,
+    id: &str,
+    edits: PassageEdits,
+    version: u32,
+) -> Result<PassageDraft, String> {
+    Ok(PassageDraft {
+        draft_revision: None,
+        revision: None,
+        cloned_from: None,
+        narration_provider: String::new(),
+        effects_provider: String::new(),
+        schema_version: 1,
+        id: id.into(),
+        story_id: story_id,
+        version,
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| "Clock unavailable.")?
+            .as_millis() as u64,
+        stage: if edits.prose.trim().is_empty() {
+            PassageStage::Draft
+        } else {
+            PassageStage::NeedsCheck
+        },
+        edits,
+        source: None,
+        narration_source: None,
+        checked: String::new(),
+        error: String::new(),
+        original_prose: String::new(),
+        original_effects: String::new(),
+        allocations: BTreeMap::new(),
+        attempt: None,
+        incomplete: false,
+    })
+}
+
+pub(crate) fn validate_initial_plan(
+    world: &World,
+    plan: &PassagePlan,
+) -> Result<PassagePlan, String> {
+    validate_name(&plan.chapter_title)?;
+    validate_name(&plan.title)?;
+    let resolved = writing_inputs::resolve(world, plan)?;
+    scene_world(world, &resolved)?;
+    Ok(resolved)
+}
+
 fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
     if edits.approved_effects.len() > 92
         || edits
@@ -379,6 +504,12 @@ fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
         return Err("Invalid effect review approvals.".into());
     }
     let p = &edits.plan;
+    if p.consumed_brief_passage
+        .as_ref()
+        .is_some_and(|key| key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("Invalid consumed brief direction key.".into());
+    }
     if p.chapter_title.chars().count() > 200 || p.title.chars().count() > 200 {
         return Err("Passage/chapter titles exceed 200 characters.".into());
     }
@@ -386,7 +517,9 @@ fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
         || p.chapter_progress.chars().count() > 4000
         || p.stop_after.chars().count() > 2000
         || p.direction.chars().count() > 8000
-        || p.target_words > 10000
+        || p.saved_draft_direction
+            .as_ref()
+            .is_some_and(|saved| !saved.within_limits())
         || p.participant_ids.len() > 12
         || p.reference_ids.len() > 12
         || edits.prose.len() > 100000
@@ -403,6 +536,8 @@ fn validate_edits(edits: &PassageEdits) -> Result<(), String> {
         .chain(p.location_id.iter())
         .chain(&p.participant_ids)
         .chain(&p.reference_ids)
+        .chain(p.narration_node_id.iter())
+        .chain(p.brief_node_id.iter())
     {
         validate_id(id)?;
     }
@@ -551,12 +686,28 @@ impl Project {
         };
         if let Some(entry) = index.passages.last() {
             let last: AcceptedPassage = self.read_record("passages", &entry.record)?;
-            plan.location_id = last.plan.location_id;
-            plan.viewpoint_id = last.plan.viewpoint_id;
-            plan.participant_ids = last.plan.participant_ids;
-            plan.reference_ids = last.plan.reference_ids;
+            plan.location_id = last.plan.location_id.clone();
+            plan.participant_ids = last.plan.participant_ids.clone();
+            plan.reference_ids = last.plan.reference_ids.clone();
             plan.knowledge_perspective = last.plan.knowledge_perspective;
-            plan.target_words = last.plan.target_words;
+            plan.narration_node_id = last.plan.narration_node_id.clone();
+            if let Some(narration) = &plan.narration_node_id {
+                plan.viewpoint_id = writing_inputs::linked_target(
+                    &self.view()?.world,
+                    narration,
+                    NARRATION_LINKS[0],
+                );
+            } else if let Some(former) = &last.plan.viewpoint_id {
+                writing_inputs::retain_former_viewpoint(&self.view()?.world, &mut plan, former);
+            }
+            if active.is_some() {
+                plan.brief_node_id = last.plan.brief_node_id.clone();
+                if plan.brief_node_id.is_some() {
+                    let before = self.read_record("worlds", &last.before_world)?;
+                    plan.consumed_brief_passage =
+                        writing_inputs::brief_passage_key(&before, &last.plan)?;
+                }
+            }
         }
         Ok(plan)
     }
@@ -566,6 +717,8 @@ impl Project {
         plan.chapter_title = format!("Chapter {}", self.story_index()?.chapters.len() + 1);
         plan.chapter_plan.clear();
         plan.chapter_progress.clear();
+        plan.brief_node_id = None;
+        plan.consumed_brief_passage = None;
         Ok(plan)
     }
     fn passage_path(&self, id: &str) -> Result<std::path::PathBuf, String> {
@@ -574,6 +727,22 @@ impl Project {
             .root_path()
             .join("passage-drafts")
             .join(format!("{id}.json")))
+    }
+    pub(crate) fn seed_initial_passage(
+        &self,
+        story_id: &str,
+        id: &str,
+        plan: PassagePlan,
+    ) -> Result<(), String> {
+        let edits = PassageEdits {
+            plan,
+            prose: String::new(),
+            effects_text: empty_effects(),
+            close_chapter: false,
+            revision_direction: String::new(),
+            approved_effects: vec![],
+        };
+        self.write_passage_draft(&blank_passage_draft(story_id.into(), id, edits, 1)?)
     }
     fn write_passage_draft(&self, draft: &PassageDraft) -> Result<(), String> {
         fs::create_dir_all(self.root_path().join("passage-drafts")).map_err(|e| e.to_string())?;
@@ -590,13 +759,17 @@ impl Project {
         }
         Ok(draft)
     }
-    fn read_passage_draft_record(&self, id: &str) -> Result<PassageDraft, String> {
-        let mut d: PassageDraft =
+    fn load_passage_draft_record(&self, id: &str) -> Result<PassageDraft, String> {
+        let d: PassageDraft =
             serde_json::from_slice(&crate::store::read_bytes(&self.passage_path(id)?)?)
                 .map_err(|e| format!("Invalid passage draft; it was kept: {e}"))?;
         if d.schema_version != 1 || d.id != id || d.story_id != self.view()?.story_id {
             return Err("The passage draft belongs to another story/version.".into());
         }
+        Ok(d)
+    }
+    fn read_passage_draft_record(&self, id: &str) -> Result<PassageDraft, String> {
+        let mut d = self.load_passage_draft_record(id)?;
         if d.stage != PassageStage::Accepted && self.passage_committed(&d)?.is_some() {
             d.stage = PassageStage::Accepted;
             d.version += 1;
@@ -740,32 +913,9 @@ impl Project {
             if expected != 0 || self.list_passage_drafts()?.len() >= 200 {
                 return Err("Passage draft limit reached or version changed.".into());
             }
-            PassageDraft {
-                draft_revision: None,
-                revision: None,
-                cloned_from: None,
-                narration_provider: String::new(),
-                effects_provider: String::new(),
-                schema_version: 1,
-                id: id.into(),
-                story_id: self.view()?.story_id,
-                version: 0,
-                created_at: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|_| "Clock unavailable.")?
-                    .as_millis() as u64,
-                stage: PassageStage::Draft,
-                edits: edits.clone(),
-                source: None,
-                narration_source: None,
-                checked: String::new(),
-                error: String::new(),
-                original_prose: String::new(),
-                original_effects: String::new(),
-                allocations: BTreeMap::new(),
-                attempt: None,
-                incomplete: false,
-            }
+            let mut draft = blank_passage_draft(self.view()?.story_id, id, edits.clone(), 0)?;
+            draft.stage = PassageStage::Draft;
+            draft
         };
         if d.edits.plan != edits.plan
             || d.edits.prose != edits.prose
@@ -845,6 +995,7 @@ impl Project {
         let memory = self.memory_context(index, plan, &context, world, memory_budget)?;
         let mut intent = serde_json::to_value(plan).map_err(|e| e.to_string())?;
         let object = intent.as_object_mut().ok_or("Invalid scene plan.")?;
+        object.remove("savedDraftDirection");
         for (key, label) in [
             ("locationId", "intendedLocationId"),
             ("participantIds", "intendedParticipantIds"),
@@ -853,8 +1004,10 @@ impl Project {
                 object.insert(label.into(), value);
             }
         }
+        let mut records = context.nodes.clone();
+        records.iter_mut().for_each(strip_retired_writing_values);
         let mut input = json!({"storyTitle":self.view()?.title,"plan":intent,"writingBrief":writing_brief::assemble(plan,index),
-            "records":context.nodes,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
+            "records":records,"links":context.edges,"sources":context.source_annotations,"recentPassages":recent,"earlierMemory":memory});
         if let Some(handoff) = continuity::handoff(index, &recent) {
             input["passageHandoff"] = json!(handoff);
         }
@@ -880,7 +1033,7 @@ impl Project {
             })
             .collect();
         let mut fingerprint = story_hash(&(
-            "passage-source-v22-continuity-handoff",
+            "passage-source-v24-compact-narrative-context",
             &input,
             &context.node_types,
             &context.component_types,
@@ -898,6 +1051,9 @@ impl Project {
         if let Some(included) = story_ai_context_stamp(world)? {
             fingerprint = story_hash(&(&fingerprint, included))?;
         }
+        if let Some(sources) = writing_inputs::stamp(world, plan)? {
+            fingerprint = story_hash(&(&fingerprint, sources))?;
+        }
         Ok((context, input, fingerprint, ids))
     }
     pub fn start_passage(
@@ -910,21 +1066,103 @@ impl Project {
     ) -> Result<PreparedPassage, String> {
         settings.ready()?;
         let mut d = self.read_passage_draft(id)?;
+        self.check_passage_request_boundary(&d, expected, revision)?;
+        let (prepared, source) = self.prepare_passage_request(&mut d, checking, settings)?;
+        self.archive_passage(&d)?;
+        if !checking {
+            d.narration_source = Some(source.world.clone());
+        }
+        d.source = Some(source);
+        d.checked.clear();
+        d.error.clear();
+        d.attempt = None;
+        d.incomplete = false;
+        d.stage = if checking {
+            PassageStage::Checking
+        } else {
+            PassageStage::Narrating
+        };
+        let label = if settings.provider == TextProvider::Demo {
+            "Offline demo · no model request".into()
+        } else {
+            settings.model.clone()
+        };
+        if checking {
+            d.effects_provider = label;
+        } else {
+            d.narration_provider = label;
+        }
+        d.version += 1;
+        self.write_passage_draft(&d)?;
+        Ok(prepared)
+    }
+
+    pub fn preview_passage_prompt(
+        &self,
+        id: &str,
+        expected: u32,
+        revision: u32,
+        action: PassagePromptAction,
+        settings: &LlmConnection,
+    ) -> Result<PassagePromptPreview, String> {
+        settings.validate()?;
+        // Preview must not reconcile a committed draft or create a candidate.
+        let mut draft = self.load_passage_draft_record(id)?;
+        self.check_passage_request_boundary(&draft, expected, revision)?;
+        if self.passage_committed(&draft)?.is_some() {
+            return Err("This passage is already accepted. Open an editable draft.".into());
+        }
+        let checking = matches!(action, PassagePromptAction::CheckChanges);
+        match action {
+            // Generate alternative clears the previous draft-revision instructions.
+            PassagePromptAction::Generate => draft.draft_revision = None,
+            PassagePromptAction::Revise => {
+                draft.draft_revision = Some(DraftRevision::from_saved_draft(&draft)?);
+            }
+            PassagePromptAction::CheckChanges => {}
+        }
+        let (prepared, _) = self.prepare_passage_request(&mut draft, checking, settings)?;
+        Ok(PassagePromptPreview {
+            system: prepared.system,
+            user: prepared.user,
+            response_schema: if settings.structured_output == StructuredOutput::Schema {
+                prepared.schema.as_ref().map(Value::to_string)
+            } else {
+                None
+            },
+            offline: settings.provider == TextProvider::Demo,
+        })
+    }
+
+    fn check_passage_request_boundary(
+        &self,
+        d: &PassageDraft,
+        expected: u32,
+        revision: u32,
+    ) -> Result<(), String> {
         validate_name(&d.edits.plan.chapter_title)?;
         validate_name(&d.edits.plan.title)?;
-        if !(100..=1500).contains(&d.edits.plan.target_words) {
-            return Err("Choose a target of 100–1,500 words.".into());
-        }
-        let current = self.view()?;
         if d.version != expected
-            || current.revision != revision
+            || self.view()?.revision != revision
             || matches!(
                 d.stage,
-                PassageStage::Narrating | PassageStage::Checking | PassageStage::Accepted
+                PassageStage::Narrating
+                    | PassageStage::Checking
+                    | PassageStage::Accepted
+                    | PassageStage::Discarded
             )
         {
-            return Err("Save the latest world and passage before starting.".into());
+            return Err("Save the latest world and passage before preparing the prompt.".into());
         }
+        Ok(())
+    }
+
+    fn prepare_passage_request(
+        &self,
+        d: &mut PassageDraft,
+        checking: bool,
+        settings: &LlmConnection,
+    ) -> Result<(PreparedPassage, PassageSource), String> {
         if checking && d.edits.prose.trim().is_empty() {
             return Err("Write or generate prose before checking its effects.".into());
         }
@@ -942,8 +1180,9 @@ impl Project {
         if checking && wording {
             return Err("Wording revisions keep their accepted events. Validate wording after reviewing the text instead.".into());
         }
+        d.edits.plan = self.resolved_writing_plan(d)?;
         let (context, source_world, mut input, mut fingerprint, _) =
-            self.draft_input_budget(&d, settings, 0)?;
+            self.draft_input_budget(d, settings, 0)?;
         let task = if checking {
             TextPromptTask::Effects
         } else if wording {
@@ -952,21 +1191,41 @@ impl Project {
             TextPromptTask::Passage
         };
         let mut system = settings.system_prompt(task);
-        let effect_schema_context = prose_effect_schema(&context);
-        if checking {
+        let default_prompt = !settings.prompts.overrides.contains_key(&task);
+        let compact_effects = checking && default_prompt;
+        if compact_effects {
+            // Keep the full source and fingerprint for native review and merging.
+            input = json!({
+                "startingState": input["startingState"].take(),
+                "records": crate::story_effects::effects_prompt_records(&context),
+                "links": context.edges.iter()
+                    .filter(|edge| !NARRATION_LINKS.contains(&edge.type_id.as_str()))
+                    .collect::<Vec<_>>()
+            });
+        }
+        let schema = checking.then(|| {
+            let effect_schema_context = prose_effect_schema(&context);
+            let schema = effects_schema(&effect_schema_context);
             input["prose"] = json!(d.edits.prose);
             input["nodeTypes"] = json!(effect_schema_context.node_types);
             // Every effects mode receives the complete concrete schema, either
             // in response_format or in the user message.
             input["capabilities"] = effects_capabilities(&effect_schema_context, true);
-            input["relationships"] = effects_relationships(&effect_schema_context, true);
+            input["relationships"] =
+                effects_relationships(&effect_schema_context, compact_effects.then_some(&schema));
             input["catalogueRules"] = json!("fieldDefaults shares metadata; an omitted label means the key. The output schema supplies kinds, requirements and choices. Local $defs share identical contracts.");
-        }
+            schema
+        });
         let source_world_data: World = self.read_record("worlds", &source_world)?;
+        let excluded = if checking {
+            BTreeSet::new()
+        } else {
+            self.excluded_narrative_nodes(&source_world_data, &context, &d.edits.plan, task)?
+        };
         let included = if checking {
             resolve_ai_context(&source_world_data, task)?
         } else {
-            crate::knowledge::resolve_narrative_context(&source_world_data, task, &d.edits.plan)?
+            writing_inputs::guidance(&source_world_data, &d.edits.plan, task)?
         };
         if !checking && !wording {
             scene_context::validate_cast(
@@ -994,98 +1253,80 @@ impl Project {
                 });
             }
         }
-        if !checking {
-            scene_context::project_records(&context, &d.edits.plan, &mut input, false);
-            let excluded = crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan);
-            if wording {
-                if let Some(revision) = &d.revision {
-                    let base: AcceptedPassage = self.read_record("passages", &revision.source)?;
-                    if crate::knowledge::excluded_claim_passages(&source_world_data, &d.edits.plan)
-                        .contains(&base.id)
-                        || crate::knowledge::mentions_excluded(&base.effects, &excluded)?
-                    {
-                        return Err("This wording source contains a claim omitted by the saved perspective. Revise manually or change access in a new story branch; the required original text was not silently trimmed.".into());
-                    }
+        if wording {
+            if let Some(revision) = &d.revision {
+                let base: AcceptedPassage = self.read_record("passages", &revision.source)?;
+                if crate::knowledge::excluded_claim_passages(&source_world_data, &d.edits.plan)
+                    .contains(&base.id)
+                    || crate::knowledge::mentions_excluded(&base.effects, &excluded)?
+                {
+                    return Err("This wording source contains a claim omitted by the saved perspective. Revise manually or change access in a new story branch; the required original text was not silently trimmed.".into());
                 }
             }
-            crate::knowledge::scrub_references(&mut input, &excluded);
         }
-        let schema = checking.then(|| effects_schema(&effect_schema_context));
         if settings.structured_output != StructuredOutput::Schema && checking {
             input["responseSchema"] = schema.clone().unwrap();
         }
-        writing_brief::project(&mut input, settings, task);
-        crate::prompt_context::compact_envelope(&mut input);
-        let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
+        let project = |input: &mut Value| {
+            if checking && !compact_effects {
+                if let Some(records) = input["records"].as_array_mut() {
+                    for record in records {
+                        crate::projection::strip_image_components(&context, record);
+                    }
+                }
+            } else if !checking {
+                scene_context::project_records(
+                    &context,
+                    &d.edits.plan,
+                    input,
+                    false,
+                    &excluded,
+                    default_prompt,
+                );
+                crate::knowledge::scrub_references(input, &excluded);
+                if default_prompt {
+                    continuity::split_recent_handoff(input);
+                }
+            }
+            if !compact_effects {
+                writing_brief::project(input, settings, task);
+            }
+            continuity::project_prompt_sources(input);
+            crate::prompt_context::compact_envelope(input);
+        };
+        project(&mut input);
+        let mut user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         let extra = if settings.structured_output == StructuredOutput::Schema {
             schema.as_ref().map_or(0, |s| s.to_string().len())
         } else {
             0
         };
-        let output_tokens = if checking {
-            settings.max_tokens
-        } else {
-            settings.max_tokens.min(d.edits.plan.target_words * 3 + 512)
-        };
+        let output_tokens = settings.max_tokens;
         let available_bytes = (settings.context_tokens.saturating_sub(output_tokens + 256)
             as usize)
             .saturating_mul(3);
-        let memory_budget = available_bytes
-            .saturating_sub(system.len() + user.len() + extra + 128)
-            .min(default_memory_budget() as usize) as u32;
+        let memory_budget = if compact_effects {
+            0
+        } else {
+            available_bytes
+                .saturating_sub(system.len() + user.len() + extra + 128)
+                .min(default_memory_budget() as usize) as u32
+        };
         if memory_budget > 0 {
             let (_, _, expanded, expanded_fingerprint, _) =
-                self.draft_input_budget(&d, settings, memory_budget)?;
+                self.draft_input_budget(d, settings, memory_budget)?;
             for (key, value) in expanded.as_object().ok_or("Invalid passage context.")? {
                 input[key] = value.clone();
             }
             fingerprint = expanded_fingerprint;
+            project(&mut input);
+            user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         }
-        if !checking {
-            scene_context::project_records(&context, &d.edits.plan, &mut input, false);
-            crate::knowledge::scrub_references(
-                &mut input,
-                &crate::knowledge::excluded_claims(&source_world_data, &d.edits.plan),
-            );
-        }
-        writing_brief::project(&mut input, settings, task);
-        crate::prompt_context::compact_envelope(&mut input);
-        let user = serde_json::to_string(&input).map_err(|e| e.to_string())?;
         if (system.len() + user.len() + extra) / 3 + 256 + output_tokens as usize
             > settings.context_tokens as usize
         {
-            return Err(format!("Required scene context and output exceed the configured budget. Included AI context: {}. Shorten included nodes, narrow references or shorten the passage target; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
+            return Err(format!("Required scene context and output exceed the configured budget. Included AI context: {}. Shorten included nodes, narrow references or lower the output-token limit; no required content was dropped.",included.iter().map(|s|s.name.as_str()).collect::<Vec<_>>().join(", ")));
         }
-        self.archive_passage(&d)?;
-        d.source = Some(PassageSource {
-            world: source_world.clone(),
-            fingerprint,
-            memory_budget,
-        });
-        if !checking {
-            d.narration_source = Some(source_world);
-        }
-        d.checked.clear();
-        d.error.clear();
-        d.attempt = None;
-        d.incomplete = false;
-        d.stage = if checking {
-            PassageStage::Checking
-        } else {
-            PassageStage::Narrating
-        };
-        let label = if settings.provider == TextProvider::Demo {
-            "Offline demo · no model request".into()
-        } else {
-            settings.model.clone()
-        };
-        if checking {
-            d.effects_provider = label;
-        } else {
-            d.narration_provider = label;
-        }
-        d.version += 1;
-        self.write_passage_draft(&d)?;
         let demo = if checking {
             serde_json::to_string(&PassageEffects::default()).unwrap()
         } else if let Some(revision) = &d.draft_revision {
@@ -1104,13 +1345,21 @@ impl Project {
         } else {
             format!("The room fell quiet. {} paused to consider what came next.\n\n{}\n\nFor the moment, nothing in the world had changed.",context.nodes.iter().find(|n|Some(&n.id)==d.edits.plan.viewpoint_id.as_ref()).map(|n|n.name.as_str()).unwrap_or("The visitor"),d.edits.plan.direction)
         };
-        Ok(PreparedPassage {
+        let prepared = PreparedPassage {
             system,
             user,
             schema,
             output_tokens,
             demo,
-        })
+        };
+        Ok((
+            prepared,
+            PassageSource {
+                world: source_world,
+                fingerprint,
+                memory_budget,
+            },
+        ))
     }
     pub fn finish_passage(
         &self,
@@ -1141,7 +1390,10 @@ impl Project {
                     d.edits.approved_effects.clear();
                     d.original_effects = text.clone();
                     let materialized = (|| {
-                        let source = d.source.as_ref().ok_or("Missing captured extraction source.")?;
+                        let source = d
+                            .source
+                            .as_ref()
+                            .ok_or("Missing captured extraction source.")?;
                         let captured: World = self.read_record("worlds", &source.world)?;
                         let scene = scene_world(&captured, &d.edits.plan)?;
                         materialize_provider_effects(&text, &scene)
@@ -1213,9 +1465,6 @@ impl Project {
         let mut d = self.read_passage_draft(id)?;
         validate_name(&d.edits.plan.chapter_title)?;
         validate_name(&d.edits.plan.title)?;
-        if !(100..=1500).contains(&d.edits.plan.target_words) {
-            return Err("Choose a target of 100–1,500 words.".into());
-        }
         if d.version != expected
             || matches!(
                 d.stage,
@@ -1227,6 +1476,7 @@ impl Project {
         if d.edits.prose.trim().is_empty() {
             return Err("A passage needs prose before acceptance.".into());
         }
+        d.edits.plan = self.resolved_writing_plan(&d)?;
         let (context, source_world, _, fingerprint, _) = self.draft_input(&d, settings)?;
         if d.revision
             .as_ref()
@@ -1237,10 +1487,10 @@ impl Project {
             let world: World = self.read_record("worlds", &source_world)?;
             let effects: PassageEffects = serde_json::from_str(&d.edits.effects_text)
                 .map_err(|e| format!("Effects JSON needs editing: {e}"))?;
-            preview_passage_effects(
+            continuity_nodes::preview_draft_effects(
                 &world,
                 &context,
-                &d.edits.prose,
+                &d.edits,
                 &effects,
                 &mut d.allocations,
             )?;
@@ -1274,6 +1524,7 @@ impl Project {
             .revision
             .as_ref()
             .is_some_and(|r| r.kind == PassageRevisionKind::Wording);
+        let resolved = self.resolved_writing_plan(&d);
         let prepared = self.draft_input(&d, settings);
         if d.revision.is_some() && d.stage != PassageStage::Accepted {
             if let Err(error) = &prepared {
@@ -1304,17 +1555,22 @@ impl Project {
                             current.world.clone()
                         }
                     };
-                    let context = scene_world(&source, &d.edits.plan)?;
+                    let plan = if d.source.is_some() {
+                        &d.edits.plan
+                    } else {
+                        resolved.as_ref().map_err(Clone::clone)?
+                    };
+                    let context = scene_world(&source, plan)?;
                     review_issues = effect_record_issues(&source, &context, &effects);
-                    preview_passage_effects(
+                    continuity_nodes::preview_draft_effects(
                         &source,
                         &context,
-                        &d.edits.prose,
+                        &d.edits,
                         &effects,
                         &mut d.allocations,
                     )
                 }) {
-                Ok((_, labels)) => changes = labels,
+                Ok((_, labels, _)) => changes = labels,
                 Err(error) => {
                     if d.error.is_empty() {
                         d.error = error;
@@ -1330,7 +1586,7 @@ impl Project {
         let effects_review = if wording {
             EffectsReview {
                 checked,
-                entries: vec![],
+                ..Default::default()
             }
         } else {
             review::effect_review(
@@ -1347,9 +1603,10 @@ impl Project {
         let repeated_passages = if wording {
             vec![]
         } else {
-            prepared.as_ref().map_or_else(|_| vec![], |(_, _, input, _, _)| {
-                continuity::repeated_passages(&d.edits.prose, input)
-            })
+            prepared.as_ref().map_or_else(
+                |_| vec![],
+                |(_, _, input, _, _)| continuity::repeated_passages(&d.edits.prose, input),
+            )
         };
         let knowledge_history_omissions = prepared
             .as_ref()
@@ -1373,10 +1630,17 @@ impl Project {
         let (scene_context, recent_passages) = match prepared {
             Ok((ctx, _, input, _, recent)) => {
                 let world = revision.as_ref().map_or(&current.world, |r| &r.world);
-                (
-                    scene_context::preview(world, &ctx, &input, &d.edits.plan, settings, task),
-                    recent,
-                )
+                let plan = resolved.as_ref().unwrap_or(&d.edits.plan);
+                let preview = match self.excluded_narrative_nodes(world, &ctx, plan, task) {
+                    Ok(excluded) => {
+                        scene_context::preview(world, &ctx, &input, plan, settings, task, &excluded)
+                    }
+                    Err(error) => SceneContextPreview {
+                        error,
+                        ..Default::default()
+                    },
+                };
+                (preview, recent)
             }
             Err(error) => (
                 SceneContextPreview {
@@ -1387,6 +1651,9 @@ impl Project {
             ),
         };
         Ok(PassageView {
+            resolved_plan: resolved.ok().filter(|plan| {
+                plan != &d.edits.plan || plan.narration_node_id.is_some() || plan.brief_node_id.is_some()
+            }),
             draft_revision: d.draft_revision,
             repeated_passages,
             knowledge_history_omissions,
@@ -1454,10 +1721,10 @@ impl Project {
         let mut effects: PassageEffects =
             serde_json::from_str(&d.edits.effects_text).map_err(|e| e.to_string())?;
         let context = scene_world(&current.world, &d.edits.plan)?;
-        let (world, _) = preview_passage_effects(
+        let (world, _, note_ids) = continuity_nodes::preview_draft_effects(
             &current.world,
             &context,
-            &d.edits.prose,
+            &d.edits,
             &effects,
             &mut d.allocations,
         )?;
@@ -1521,7 +1788,13 @@ impl Project {
                 &d.edits.prose,
                 &effects,
             )?;
-            self.annotate_passage_events(&mut world, &effects, &d.allocations, &text_anchor)?;
+            self.annotate_passage_sources(
+                &mut world,
+                &effects,
+                &d.allocations,
+                &note_ids,
+                &text_anchor,
+            )?;
             let after = self.write_record("worlds", &world)?;
             let passage = AcceptedPassage {
                 text_version_id: Some(text_version_id),
@@ -1537,7 +1810,10 @@ impl Project {
                 id: id.into(),
                 source_story_id: current.story_id.clone(),
                 chapter_id: chapter_id.clone(),
-                plan: d.edits.plan.clone(),
+                plan: PassagePlan {
+                    saved_draft_direction: None,
+                    ..d.edits.plan.clone()
+                },
                 prose: d.edits.prose.clone(),
                 effects,
                 close_chapter: d.edits.close_chapter,

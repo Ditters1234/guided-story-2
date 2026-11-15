@@ -38,7 +38,7 @@ fn noted(p: &Project, prose: &str, note: &str) -> String {
 }
 
 #[test]
-fn reopened_handoff_uses_exact_latest_version_and_full_recent_prose_without_pending_text() {
+fn reopened_handoff_sends_the_exact_latest_ending_once_and_keeps_earlier_prose() {
     let (dir, p) = fixture();
     accept(
         &p,
@@ -58,25 +58,66 @@ fn reopened_handoff_uses_exact_latest_version_and_full_recent_prose_without_pend
     let key = draft(&p);
     drop(p);
     let p = Project::open(&dir.path().join("story")).unwrap();
+    let mut custom = settings();
+    custom.prompts.overrides.insert(
+        TextPromptTask::Passage,
+        "Use the latest full prose in recentPassages.".into(),
+    );
+    let preview = p
+        .preview_passage_prompt(
+            &key,
+            1,
+            p.view().unwrap().revision,
+            PassagePromptAction::Generate,
+            &custom,
+        )
+        .unwrap();
+    let custom_input: Value = serde_json::from_str(&preview.user).unwrap();
+    assert_eq!(custom_input["recentPassages"][1]["prose"], latest);
+    let planning = p
+        .prepare_plan_fill(
+            &key,
+            1,
+            p.view().unwrap().revision,
+            PlanFillKind::Scene,
+            &settings(),
+        )
+        .unwrap();
+    let planning_input: Value = serde_json::from_str(&planning.user).unwrap();
     let input = narration(&p, &key);
     assert_eq!(input["recentPassages"].as_array().unwrap().len(), 2);
     assert_eq!(input["recentPassages"][0]["prose"], penultimate);
-    assert_eq!(input["recentPassages"][1]["prose"], latest);
+    assert!(input["recentPassages"][1].get("version").is_none());
+    assert!(input["recentPassages"][1].get("chapterId").is_none());
     assert!(!input.to_string().contains("UNACCEPTED_FUTURE_CONVERSATION"));
     let handoff = &input["passageHandoff"];
     assert_eq!(handoff["passageId"], latest_id);
-    assert_eq!(handoff["source"], json!(source));
+    assert!(handoff.get("source").is_none());
     assert_eq!(handoff["chapterRelation"], "sameChapter");
     let ending = handoff["endingExcerpt"].as_str().unwrap();
     assert!(ending.len() <= 1200 && latest.trim_end().ends_with(ending));
     assert!(ending.ends_with("Mara asked Jon which route they should take."));
+    let prefix = latest.trim_end().strip_suffix(ending).unwrap().trim_end();
+    assert_eq!(input["recentPassages"][1]["prose"], prefix);
+    assert_eq!(
+        planning_input["recentPassages"][1]["precedingExcerpt"],
+        prefix
+    );
+    assert!(planning_input["recentPassages"][1].get("endingExcerpt").is_none());
+    for projected in [&input, &planning_input] {
+        assert_eq!(
+            projected.to_string().matches("which route they should take.").count(),
+            1
+        );
+    }
     let preview = p
         .passage_view(&key, &settings())
         .unwrap()
         .scene_context
         .passage_handoff
         .unwrap();
-    assert_eq!(json!(preview), *handoff);
+    assert_eq!(preview.source, Some(source));
+    assert_eq!(preview.ending_excerpt, ending);
 }
 
 #[test]
@@ -103,19 +144,23 @@ fn planning_and_writing_recall_settled_dialogue_in_an_open_chapter_without_rewri
             .as_str()
             .unwrap()
             .contains("discussion was settled"));
-        assert_eq!(
-            input["earlierMemory"]["points"][0]["source"],
-            json!(original.record)
-        );
+        assert!(input["earlierMemory"]["points"][0].get("source").is_none());
+        assert!(input["recentPassages"][0].get("version").is_none());
+        assert!(!request.user.contains(&original.record.sha256));
         assert_eq!(
             input["writingBrief"]["chapterDirection"],
             original.passage.plan.chapter_plan
         );
         assert!(input["writingBrief"].get("chapterRemaining").is_none());
         assert!(!input["passageHandoff"]["withheld"].as_bool().unwrap());
+        assert!(input["recentPassages"][1].get("endingExcerpt").is_none());
     }
     let input = narration(&p, &key);
     assert_eq!(input["earlierMemory"]["points"][0]["passageId"], first);
+    assert!(input["earlierMemory"]["points"][0].get("source").is_none());
+    assert!(input["recentPassages"][1].get("prose").is_none());
+    let memory = p.passage_view(&key, &settings()).unwrap().memory;
+    assert_eq!(memory.points[0].source, original.record);
     assert_eq!(p.read_passage(&first).unwrap().record, original.record);
     assert_eq!(p.view().unwrap().revision, revision);
 }

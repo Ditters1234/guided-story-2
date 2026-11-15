@@ -109,6 +109,7 @@ pub(super) fn preview(
     plan: &PassagePlan,
     settings: &LlmConnection,
     task: TextPromptTask,
+    excluded: &BTreeSet<String>,
 ) -> SceneContextPreview {
     let included_claims: BTreeSet<_> = input["situatedKnowledge"]["claims"]
         .as_array()
@@ -121,7 +122,8 @@ pub(super) fn preview(
         .nodes
         .iter()
         .filter(|node| {
-            !crate::knowledge::is_claim(node) || included_claims.contains(node.id.as_str())
+            !excluded.contains(&node.id)
+                && (!crate::knowledge::is_claim(node) || included_claims.contains(node.id.as_str()))
         })
         .map(|node| SceneResource {
             node_id: node.id.clone(),
@@ -130,7 +132,7 @@ pub(super) fn preview(
         })
         .collect();
     resources.sort_by(|a, b| (&a.role, &a.name, &a.node_id).cmp(&(&b.role, &b.name, &b.node_id)));
-    let (guidance, error) = match crate::knowledge::resolve_narrative_context(world, task, plan) {
+    let (guidance, error) = match super::writing_inputs::guidance(world, plan, task) {
         Ok(guidance) => {
             let error = if task == TextPromptTask::Passage {
                 validate_cast(world, context, plan, settings, &guidance)
@@ -157,8 +159,14 @@ pub(super) fn project_records(
     plan: &PassagePlan,
     input: &mut Value,
     planning: bool,
+    excluded: &BTreeSet<String>,
+    compact: bool,
 ) {
-    crate::knowledge::project_records(context, input, planning);
+    crate::knowledge::project_records(context, input, planning, excluded);
+    if compact {
+        super::starting_state::project_narrative_positions(input);
+        crate::projection::share_story_field_guidance(input);
+    }
     let inventory = inventory_ids(context, plan);
     if let Some(records) = input["records"].as_array_mut() {
         for record in records {

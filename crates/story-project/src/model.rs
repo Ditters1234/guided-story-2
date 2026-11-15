@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use specta::Type;
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
@@ -46,7 +47,6 @@ pub struct WorldNode {
     pub type_id: String,
     pub name: String,
     pub description: String,
-    pub visual_description: String,
     pub components: BTreeMap<String, BTreeMap<String, PropertyValue>>,
 }
 
@@ -88,6 +88,7 @@ pub enum FieldKind {
 pub enum FieldUse {
     Story,
     Visual,
+    ImageGuidance,
     Planning,
 }
 
@@ -135,6 +136,12 @@ impl FieldDefinition {
             _ => usage == FieldUse::Story,
         }
     }
+
+    pub(crate) fn image_only(&self) -> bool {
+        (self.used_for(FieldUse::Visual) || self.used_for(FieldUse::ImageGuidance))
+            && !self.used_for(FieldUse::Story)
+            && !self.used_for(FieldUse::Planning)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -144,6 +151,12 @@ pub struct ComponentDefinition {
     pub name: String,
     pub description: String,
     pub fields: Vec<FieldDefinition>,
+}
+
+impl ComponentDefinition {
+    pub(crate) fn image_only(&self) -> bool {
+        !self.fields.is_empty() && self.fields.iter().all(FieldDefinition::image_only)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
@@ -307,10 +320,13 @@ pub(crate) fn field_matches(
 
 impl World {
     pub fn bundled() -> Result<Self, String> {
-        parse_bundled_world(
+        let mut world = parse_bundled_world(
             "world-presets.json",
             include_str!("../../../schema/world-presets.json"),
-        )
+        )?;
+        crate::story::install_bundled_writing_fields(&mut world, Some("detail.brief"))?;
+        world.validate()?;
+        Ok(world)
     }
 
     fn upgrade_legacy_wearing(&mut self) -> Result<(), String> {
@@ -338,6 +354,7 @@ impl World {
         self.validate_connections(false)
             .map_err(|e| format!("Invalid legacy wearing links: {e}"))?;
         let mut redundant = BTreeSet::new();
+        let mut wear_fields = self.relation_types[index].fields.clone();
         for i in 0..self.edges.len() {
             if self.edges[i].type_id != "core.worn-by" {
                 continue;
@@ -372,15 +389,41 @@ impl World {
             if notes.chars().count() > 16000 {
                 return Err("Legacy wearing notes exceed one connection's limit; merge the notes before upgrading. Original files are preserved.".into());
             }
+            let placement = self.relation_types.iter().find(|r| r.id == held.type_id)
+                .ok_or("Legacy placement needs its original relationship definition.")?;
+            let mut properties = BTreeMap::new();
+            for field in &placement.fields {
+                let Some(value) = held.properties.get(&field.key) else { continue };
+                let identity = serde_json::to_vec(&(&placement.id, &field.key)).map_err(|e| e.to_string())?;
+                let key = format!("previous-placement-{:x}", Sha256::digest(identity));
+                let mut carried = field.clone();
+                carried.key = key.clone();
+                carried.label = format!("Previous {} · {}", placement.label, field.label).chars().take(200).collect();
+                carried.required = false;
+                carried.default_value = PropertyValue::Null;
+                match wear_fields.iter().find(|f| f.key == key) {
+                    Some(existing) if existing == &carried => (),
+                    Some(_) => return Err("A legacy placement field conflicts with a wearing field. Original files are preserved.".into()),
+                    None if wear_fields.len() < 100 => wear_fields.push(carried),
+                    None => return Err("Legacy placement details exceed the wearing field limit. Original files are preserved.".into()),
+                }
+                if wear.properties.contains_key(&key) {
+                    return Err("Legacy placement and wearing both supply the same field. Original files are preserved.".into());
+                }
+                properties.insert(key, value.clone());
+            }
             redundant.insert(held.id.clone());
             self.edges[i].description = notes;
+            self.edges[i].properties.extend(properties);
         }
         self.edges.retain(|e| !redundant.contains(&e.id));
         self.relation_types[index].physical_placement = true;
+        self.relation_types[index].fields = wear_fields;
         Ok(())
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        crate::story::validate_writing_relationships(self)?;
         crate::knowledge::validate_knowledge(self)?;
         crate::ai_context::validate_ai_context(self)?;
         crate::sources::validate_annotation_shapes(self)?;
@@ -547,9 +590,7 @@ impl World {
             if !types.contains(node.type_id.as_str()) {
                 return Err("A node type has no saved definition.".into());
             }
-            if node.description.chars().count() > 16000
-                || node.visual_description.chars().count() > 16000
-            {
+            if node.description.chars().count() > 16000 {
                 return Err("A node description is too long.".into());
             }
         }

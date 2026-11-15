@@ -1,27 +1,20 @@
 import {describe, expect, it, vi} from 'vitest';
-import templates from '../../schema/location-templates.json';
-import type {PropertyValue} from './bindings';
 import {emptyWorld, makeNode} from './model';
 import {reviewStarterContext, selectedStarterContext, starterContextDraft} from './starter-context';
 
-function fixture(index = 0) {
-  const world = emptyWorld();
-  world.nodes = templates[index].nodes.map(seed => {
-    const node = {...makeNode(world, seed.typeId, seed.name), description: seed.description, visualDescription: seed.visualDescription};
-    for (const [capability, values] of Object.entries(seed.components ?? {})) {
-      node.components[capability] = {...node.components[capability], ...values} as Record<string, PropertyValue>;
-    }
-    return node;
-  });
+function fixture() {
+  const world=emptyWorld();
+  world.nodes=['core.narration-style','core.note','core.time','core.rule','core.lore','core.brief','core.environment'].map(typeId=>({...makeNode(world,typeId,typeId),description:'Fictional context guidance.'}));
+  world.nodes[1].components['detail.visual-style']={palette:'Fictional palette'};
   return world;
 }
 
 describe('reviewed starter context', () => {
-  it('offers every bundled starter six capability-based choices, all initially off', () => {
-    for (let index = 0; index < templates.length; index++) {
-      const world = fixture(index), original = structuredClone(world), draft = starterContextDraft(world);
+  it('offers unconfigured context capabilities as choices, all initially off', () => {
+    {
+      const world = fixture(), original = structuredClone(world), draft = starterContextDraft(world);
       expect(draft.aiContext).toHaveLength(6);
-      expect(draft.aiContext?.every(binding => !binding.enabled && !binding.fields.includes('visualDescription'))).toBe(true);
+      expect(draft.aiContext?.every(binding => !binding.enabled)).toBe(true);
       const bindingFor = (capability: string) => draft.aiContext!.find(b => draft.nodes.find(n => n.id === b.nodeId)?.components[capability]);
       expect(bindingFor('core.narration-style')).toMatchObject({role: 'instructions', tasks: ['passage', 'wording']});
       expect(bindingFor('detail.visual-style')).toMatchObject({role: 'instructions', tasks: ['imagePrompt'], imagePreparation: true});

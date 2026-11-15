@@ -83,7 +83,7 @@ export function nearbySceneCast(world:World,focusId:string|null|undefined):World
   const focus=world.nodes.find(n=>n.id===focusId&&n.components['core.place']);
   if(!focus)return [];
   const places=placementResolver(world),characters=world.nodes.filter(n=>n.components['core.character']);
-  const direct=characters.filter(n=>places(n.id)[0]?.id===focus.id).slice(0,13);
+  const direct=characters.filter(n=>places(n.id)[0]?.id===focus.id).slice(0,12);
   if(direct.length)return direct;
   const boundary=places(focus.id)[0]?.id??focus.id;
   const nodes=new Map(world.nodes.map(n=>[n.id,n]));
@@ -105,13 +105,13 @@ export function nearbySceneCast(world:World,focusId:string|null|undefined):World
       distance.set(next,depth+1);queue.push(next);
     }
   }
-  return characters.filter(n=>distance.has(n.id)&&places(n.id).length).sort((a,b)=>distance.get(a.id)!-distance.get(b.id)!).slice(0,13);
+  return characters.filter(n=>distance.has(n.id)&&places(n.id).length).sort((a,b)=>distance.get(a.id)!-distance.get(b.id)!).slice(0,12);
 }
 
 /** Explicitly selects suggested identities without changing scene intent or facts. */
 export function withNearbySceneCast(world:World,plan:PassagePlan):PassagePlan {
   const next=structuredClone(plan),cast=nearbySceneCast(world,plan.locationId);
-  if(cast.length){next.viewpointId=cast[0].id;next.participantIds=cast.slice(1).map(n=>n.id);}
+  if(cast.length)next.participantIds=cast.map(n=>n.id);
   return next;
 }
 
@@ -123,15 +123,16 @@ export function scenePlan(world:World,base:PassagePlan,selectedId:string|null,pr
   const place=(id:string|null|undefined)=>world.nodes.find(n=>n.id===id&&n.components['core.place']);
   const physicalPlaces=placementResolver(world);
   const selectedCharacter=selected?.components['core.character']?selected:undefined;
-  plan.viewpointId=(selectedCharacter??character(previous?.viewpointId))?.id??null;
+  const previousViewpoint=character(previous?.viewpointId);
+  plan.viewpointId=null;
   const selectedPlace=selected?.components['core.place']?selected:physicalPlaces(selected?.id)[0];
-  plan.locationId=(selectedPlace??physicalPlaces(plan.viewpointId)[0]??place(previous?.locationId)??(!previous?world.nodes.find(n=>n.components['core.place']):undefined))?.id??null;
+  plan.locationId=(selectedPlace??physicalPlaces(previousViewpoint?.id)[0]??place(previous?.locationId)??(!previous?world.nodes.find(n=>n.components['core.place']):undefined))?.id??null;
   const directCast=world.nodes.filter(n=>n.components['core.character']&&physicalPlaces(n.id)[0]?.id===plan.locationId);
   const cast=!previous&&!selectedCharacter?nearbySceneCast(world,plan.locationId):directCast;
-  if(!previous&&!plan.viewpointId)plan.viewpointId=cast[0]?.id??null;
-  plan.participantIds=(previous?previous.participantIds.filter(id=>character(id)):cast.map(n=>n.id)).filter(id=>id!==plan.viewpointId).slice(0,12);
+  const inherited=previous?[...previous.participantIds,previous.narrationNodeId?null:previousViewpoint?.id]:cast.map(n=>n.id);
+  plan.participantIds=[...new Set([selectedCharacter?.id,...inherited].filter((id):id is string=>!!character(id)))].slice(0,12);
   const references=new Set(previous?.referenceIds.filter(id=>world.nodes.some(n=>n.id===id)));
   if(selected&&!selectedCharacter&&!selected.components['core.place']&&!selected.components['core.claim'])references.add(selected.id);
-  plan.referenceIds=[...references].filter(id=>id!==plan.locationId&&id!==plan.viewpointId&&!plan.participantIds.includes(id)).slice(0,12);
+  plan.referenceIds=[...references].filter(id=>id!==plan.locationId&&!plan.participantIds.includes(id)).slice(0,12);
   return plan;
 }

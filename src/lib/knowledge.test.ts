@@ -13,7 +13,7 @@ describe('claim toolkit',()=>{
   });
   it('does not mistake a claim for a character or place when staging a scene',()=>{
     const world=emptyWorld(),claim=makeNode(world,'core.claim','Hidden valve'),person=makeNode(world,'core.character','Mara'),place=makeNode(world,'core.place','Workshop');world.nodes=[claim,person,place];
-    const base:PassagePlan={chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],targetWords:450,knowledgePerspective:'author'};
+    const base:PassagePlan={chapterTitle:'Chapter 1',chapterPlan:'',title:'Passage 1',direction:'',viewpointId:null,locationId:null,participantIds:[],referenceIds:[],knowledgePerspective:'author'};
     const plan=scenePlan(world,base,claim.id);expect(plan.viewpointId).toBeNull();expect(plan.locationId).toBe(place.id);expect(plan.knowledgePerspective).toBe('author');expect(plan.referenceIds).toEqual([]);
   });
 });

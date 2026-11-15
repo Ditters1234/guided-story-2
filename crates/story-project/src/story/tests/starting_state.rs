@@ -19,12 +19,33 @@ fn homestead() -> (tempfile::TempDir, Project, PassagePlan) {
     }
     make("core.character", "silas", "Silas Thorne");
     make("core.character", "elara", "Elara Vane");
+    for (key, objective) in [
+        ("silas", "Check the Barn for a leak."),
+        ("elara", "Find Silas before the storm."),
+    ] {
+        w.nodes
+            .iter_mut()
+            .find(|node| node.id == key)
+            .unwrap()
+            .components
+            .get_mut("detail.intent")
+            .unwrap()
+            .insert("objective".into(), PropertyValue::Text(objective.into()));
+    }
+    w.nodes
+        .last_mut()
+        .unwrap()
+        .components
+        .get_mut("detail.profile")
+        .unwrap()
+        .insert("occupation".into(), PropertyValue::Text("Carpenter".into()));
     for (kind, source, target) in [
         ("core.inside", "house", "homestead"),
         ("core.inside", "yard", "homestead"),
         ("core.inside", "barn", "homestead"),
         ("core.present-at", "silas", "house"),
         ("core.present-at", "elara", "yard"),
+        ("story.route-to", "yard", "barn"),
     ] {
         w.edges.push(WorldEdge {
             id: format!("{source}-placement"),
@@ -56,7 +77,6 @@ fn homestead() -> (tempfile::TempDir, Project, PassagePlan) {
         viewpoint_id: Some(mapping["silas"].clone()),
         participant_ids: vec![mapping["elara"].clone()],
         location_id: Some(mapping["barn"].clone()),
-        target_words: 140,
         ..p.next_passage_plan().unwrap()
     };
     (dir, p, plan)
@@ -108,29 +128,35 @@ fn separated_people_keep_named_actual_starts_in_narration_and_extraction() {
     );
     let state = &request["startingState"];
     assert!(request["plan"].get("locationId").is_none());
-    assert_eq!(
-        request["plan"]["intendedLocationId"],
-        state["intendedSceneFocus"]["id"]
-    );
-    assert_eq!(state["openingViewpoint"]["place"]["name"], "Main House");
-    assert!(state["openingFacts"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("Elara Vane starts in Yard.")));
-    assert_eq!(state["intendedSceneFocus"]["name"], "Barn");
+    assert!(state.get("openingViewpoint").is_none());
+    assert!(state.get("openingFacts").is_none());
+    assert!(state.get("intendedSceneFocus").is_none());
+    assert!(state.get("physicalLinks").is_none());
     for (who, place) in [("Silas Thorne", "Main House"), ("Elara Vane", "Yard")] {
         assert_eq!(person(state, who)["currentPlace"]["name"], place);
-        assert_eq!(person(state, who)["relativeToFocus"], "elsewhere");
     }
     assert!(!generated.user.contains("Unselected Mill"));
-    let elara = request["records"]
+    let records = request["records"].as_array().unwrap();
+    let barn = records.iter().find(|n| n["name"] == "Barn").unwrap();
+    assert_eq!(request["plan"]["intendedLocationId"], barn["id"]);
+    assert!(records.iter().all(|n| n.get("startingPosition").is_none()));
+    let links = request["links"].as_array().unwrap();
+    assert!(links.iter().all(|link| link["typeId"] != "core.present-at"));
+    assert!(links.iter().any(|link| link["typeId"] == "core.inside"));
+    assert!(links.iter().any(|link| link["typeId"] == "story.route-to"));
+    let elara = records.iter().find(|n| n["name"] == "Elara Vane").unwrap();
+    let fields: Vec<_> = elara["details"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|n| n["name"] == "Elara Vane")
-        .unwrap();
-    assert_eq!(elara["startingPosition"]["currentPlace"]["name"], "Yard");
-    assert_eq!(state["physicalLinks"].as_array().unwrap().len(), 4);
+        .flat_map(|s| s["fields"].as_array().unwrap())
+        .collect();
+    assert!(fields.contains(&&json!({"key":"objective","value":"Find Silas before the storm."})));
+    let occupation = fields.iter().find(|f| f["key"] == "occupation").unwrap();
+    assert!(occupation.get("help").is_some());
+    let objective = &request["fieldGuidance"]["detail.intent"]["objective"];
+    assert!(objective.get("help").is_some());
+    assert_eq!(objective["stability"], "state");
     assert_eq!(p.view().unwrap().world, before.world);
     let prose="Silas left the Main House, crossed the Yard and entered the Barn. Elara followed him from the Yard into the Barn.";
     p.finish_passage(&key, false, Ok(prose.into()), false, false, &settings())
@@ -140,7 +166,22 @@ fn separated_people_keep_named_actual_starts_in_narration_and_extraction() {
         .start_passage(&key, view.version, 0, true, &settings())
         .unwrap();
     let extracted: Value = serde_json::from_str(&check.user).unwrap();
-    assert_eq!(extracted["startingState"], *state);
+    for edge in before
+        .world
+        .edges
+        .iter()
+        .filter(|e| e.type_id == "core.present-at")
+    {
+        assert!(extracted["links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|link| link["id"] == edge.id && link["typeId"] == edge.type_id));
+    }
+    assert_eq!(
+        person(&extracted["startingState"], "Elara Vane")["currentPlace"]["name"],
+        "Yard"
+    );
     assert_eq!(p.view().unwrap().world, before.world);
 }
 
@@ -362,22 +403,14 @@ fn empty_cast_named_by_guidance_blocks_before_job_start_and_explicit_references_
         input["startingState"]["people"].as_array().unwrap().len(),
         2
     );
-    assert_eq!(
-        input["startingState"]["openingFacts"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
-    );
     assert!(input["records"]
         .as_array()
         .unwrap()
         .iter()
         .any(|n| n["name"] == "Canvas jacket"));
-    assert_eq!(
-        person(&input["startingState"], "Silas Thorne")["selectedAs"],
-        "reference"
-    );
+    assert!(input["records"].as_array().unwrap().iter().any(|record| {
+        record["name"] == "Silas Thorne" && record["sceneRole"] == "reference"
+    }));
     assert_eq!(
         person(&input["startingState"], "Silas Thorne")["currentPlace"]["name"],
         "Main House"

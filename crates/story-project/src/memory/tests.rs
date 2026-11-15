@@ -156,7 +156,6 @@ fn fixture() -> (tempfile::TempDir, Project) {
             type_id: kind.into(),
             name: name.into(),
             description: format!("{name}: Private profile detail not part of chapter text."),
-            visual_description: String::new(),
             components,
         });
     }

@@ -3,14 +3,16 @@
   import SourcesDialog from './lib/SourcesDialog.svelte';
   import BackupDialog from './lib/BackupDialog.svelte';
   import AiContextDialog from './lib/AiContextDialog.svelte';
-  import {setContextBinding,addNarrationStyle,addVisualStyle} from './lib/ai-context';
+  import {setContextBinding,addNarrationStyle} from './lib/ai-context';
   import {starterContextDraft,selectedStarterContext,reviewStarterContext} from './lib/starter-context';
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount, tick, type Snippet } from 'svelte';
+  import {passageNodeChoice,withWritingFields,type DraftWorldContext} from './lib/writing-inputs';
   import { open } from '@tauri-apps/plugin-dialog';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { PaneGroup, Pane, PaneResizer } from 'paneforge';
   import { SvelteFlowProvider } from '@xyflow/svelte';
   import Sidebar from './lib/Sidebar.svelte';
+  import NodeContextToggle from './lib/NodeContextToggle.svelte';
   import WorldMap from './lib/WorldMap.svelte';
   import Inspector from './lib/Inspector.svelte';
   import NodeDefinitionDialog from './lib/NodeDefinitionDialog.svelte';
@@ -20,11 +22,11 @@
   import AiAuthoringDialog from './lib/AiAuthoringDialog.svelte';
   import StoryWorkspace from './lib/StoryWorkspace.svelte';
   import ImageDialog from './lib/ImageDialog.svelte';
-  import type {MediaTarget,PassageReading_Serialize,TextPromptTask} from './lib/bindings';
+  import type {MediaTarget,PassageReading_Serialize,TextPromptTask,PassagePlan} from './lib/bindings';
   import { newAuthoringRequest,newLinkAuthoringRequest,newSelectionAuthoringRequest } from './lib/authoring-ui';
   import { AppearanceSettings } from './lib/appearance.svelte';
   import { applyAppearance, resolveTheme } from './lib/appearance';
-  import { exampleWorld, emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
+  import { emptyWorld, makeNode, availableNodeTypes, withBuiltinNodeType, type ProjectView, type Workspace, type World } from './lib/model';
   import { worldRecords, visibleRecords, orderedRecords, revealRecord, recordDepth, editRecord, type WorldNode } from './lib/graph';
   import { commands, desktop, unwrap, RejectedChange } from './lib/native';
   import locationTemplates from '../schema/location-templates.json';
@@ -61,9 +63,15 @@
   let settingsDialog=$state<{flushSettings:()=>Promise<void>}>();
   let showAi=$state(false),aiRunning=$state(false),aiRunId=$state<string|null>(null),aiRequest=$state<AuthoringRequest|null>(null);
   let aiDialog=$state<{flushDraft:()=>Promise<void>}>();
-  let storyPanel=$state<{flushDraft:()=>Promise<void>}>();
-  let storyContents=$state<Snippet>(),storyDetails=$state<Snippet>();
-  function registerStoryPanels(contents?:Snippet,details?:Snippet){storyContents=contents;storyDetails=details;}
+  let storyPanel=$state<{flushDraft:()=>Promise<void>;toggleReference:(id:string)=>void;useNarration:(id:string)=>void}>();
+  let storyContents=$state<Snippet>(),storyDetails=$state<Snippet>(),storyInputs=$state<Snippet>();
+  let draftContext=$state<DraftWorldContext|null>(null);
+  function registerStoryPanels(contents?:Snippet,details?:Snippet,inputs?:Snippet){storyContents=contents;storyDetails=details;storyInputs=inputs;}
+  async function openWorldInputs(id?:string){
+    try{await storyPanel?.flushDraft();await flush();historyWorld=null;historyLabel='';surface='world';if(id&&world.nodes.some(n=>n.id===id))select(id);await tick();document.querySelector('.world-passage-inputs')?.scrollIntoView({block:'start'});}
+    catch(caught){error=describe(caught);}
+  }
+  function upgradeWritingNode(id:string){if(project&&!busy&&!historyWorld){world=withWritingFields(world,id);scheduleSave();select(id);}}
   let surface=$state<'world'|'story'>('world'),storyOpened=$state(false),passageRunning=$state(false);
   let historyWorld=$state<World|null>(null),historyLabel=$state('');
   let historyWorkspace=$state<Workspace>({version:0,expandedIds:[],selectedId:null,positions:{}});
@@ -79,8 +87,8 @@
   let newTitle = $state('Untitled story');
   let starterId = $state('empty');
   let createError = $state('');
-  let preparedStarter = $state<{id:string;world:World}|null>(null);
-  let starterReview = $state<{id:string;source:World;world:World}|null>(null);
+  let preparedStarter = $state<{id:string;world:World;initialPlan:PassagePlan|null}|null>(null);
+  let starterReview = $state<{id:string;source:World;world:World;initialPlan:PassagePlan|null}|null>(null);
   let starterLoading = $state(false), starterReviewToken=0;
   const starter = $derived(locationTemplates.find(t=>t.id===starterId));
   let recoveryPath = $state<string | null>(null);
@@ -90,9 +98,10 @@
     if(!desktop||busy||starterLoading||!starter)return;
     const id=starterId,token=++starterReviewToken;starterLoading=true;createError='';
     try{
-      const source=preparedStarter?.id===id?$state.snapshot(preparedStarter.world):unwrap(await commands.locationTemplateWorld(id));
+      const seed=preparedStarter?.id===id?$state.snapshot(preparedStarter):unwrap(await commands.storyTemplate(id));
+      const source=seed.world;
       if(token!==starterReviewToken||!showCreate||starterId!==id)return;
-      starterReview={id,source,world:starterContextDraft(source)};
+      starterReview={id,source,world:starterContextDraft(source),initialPlan:seed.initialPlan};
     }catch(caught){if(token===starterReviewToken&&showCreate&&starterId===id)createError=describe(caught);}
     finally{if(token===starterReviewToken)starterLoading=false;}
   }
@@ -103,7 +112,7 @@
     await reviewStarterContext(selected,async world=>unwrap(await commands.validateWorld(world)),
       async(world,task)=>unwrap(await commands.previewAiContext(world,task)),async world=>unwrap(await commands.previewImageContext(world)));
     if(starterReview!==review||!showCreate||starterId!==review.id||signature!==JSON.stringify($state.snapshot(review.world)))throw Error('The starter selection changed. Review its bindings again.');
-    preparedStarter={id:review.id,world:selected};starterReview=null;
+    preparedStarter={id:review.id,world:selected,initialPlan:review.initialPlan};starterReview=null;
   }
   let editVersion = 0, savedVersion = 0, persistedDraftVersion = 0;
   let timer: ReturnType<typeof setTimeout>;
@@ -236,7 +245,7 @@
     workspace = { ...workspace, positions: { ...workspace.positions, ...Object.fromEntries(nodes.map((n) => [n.id, n.position])) } };
     persistLayout();
   }
-  function edit(field: 'name' | 'description' | 'visualDescription', value: string) {
+  function edit(field: 'name' | 'description', value: string) {
     if (!project || !selected || historyWorld) return;
     world = editRecord(world, selected.id, field, value);
     scheduleSave();
@@ -307,10 +316,11 @@
     try {
       if (!await prepareSwitch()) throw new Error(error);
       const title = newTitle.trim();
-      const initial = preparedStarter?.id===starterId ? $state.snapshot(preparedStarter.world) : starterId==='empty' ? emptyWorld() : starterId==='brasswater' ? exampleWorld() : unwrap(await commands.locationTemplateWorld(starterId));
+      const initial = preparedStarter?.id===starterId ? $state.snapshot(preparedStarter) : starterId==='empty' ? {world:emptyWorld(),initialPlan:null} : unwrap(await commands.storyTemplate(starterId));
       const parent = await open({ directory: true, multiple: false, title: 'Choose where to create the new story folder' });
       if (typeof parent !== 'string') return;
-      await adopt(unwrap(await commands.createProject(parent, title, initial, crypto.randomUUID())));
+      await adopt(unwrap(await commands.createProject(parent, title, initial.world, crypto.randomUUID(),initial.initialPlan)));
+      if(initial.initialPlan)storyOpened=true;
       showCreate = false;
       resetStarterContext();
     } catch (caught) { createError = describe(caught); }
@@ -325,8 +335,8 @@
   }
   function addRecord(typeId: string) {
     if (!project || busy || historyWorld) return;
-    if(typeId==='core.narration-style'||typeId==='core.visual-style'){
-      const added=typeId==='core.visual-style'?addVisualStyle(world):addNarrationStyle(world);world=added.world;workspace={...workspace,selectedId:added.node.id};scheduleSave();persistLayout();return;
+    if(typeId==='core.narration-style'){
+      const added=addNarrationStyle(world);world=added.world;workspace={...workspace,selectedId:added.node.id};scheduleSave();persistLayout();return;
     }
     world=withBuiltinNodeType(world,typeId);
     const preset = world.nodeTypes.find((d) => d.id === typeId);
@@ -342,7 +352,7 @@
       target = holder?.id; if (target) relation = 'core.stored-in';
     } else if (selectedNode) { target = selectedNode.id; relation = 'core.related'; }
     const edge = target && relation ? [{id:crypto.randomUUID(),typeId:relation,sourceId:node.id,targetId:target,description:''}] : [];
-    world = {...world,nodes:[...world.nodes,node],edges:[...world.edges,...edge]};
+    world = withWritingFields({...world,nodes:[...world.nodes,node],edges:[...world.edges,...edge]},node.id);
     workspace = {...workspace,selectedId:node.id,expandedIds:[...new Set([...workspace.expandedIds,...(target?[target]:[])])]};
     scheduleSave(); persistLayout();
   }
@@ -359,11 +369,17 @@
     const link = world.edges.find((e) => e.id === id);
     if (link) structuralEdit = {kind:'putLink', link:structuredClone($state.snapshot(link))};
   }
+  function narrationLink(source:string,typeId:string){
+    if(!project||busy||historyWorld)return;
+    const saved=world.edges.find(e=>e.sourceId===source&&e.typeId===typeId);
+    structuralEdit={kind:'putLink',link:saved?structuredClone($state.snapshot(saved)):{id:crypto.randomUUID(),typeId,sourceId:source,targetId:'',description:''}};
+  }
   function connect(source: string, target = '') {
     if (!project || busy || historyWorld) return;
     const node = world.nodes.find((n) => n.id === source);
     const destination = world.nodes.find((n) => n.id === target);
-    const typeId = node?.components['core.item'] && (destination?.components['core.holder'] || destination?.components['core.container']) ? 'core.stored-in'
+    const narrationRole=node?.components['core.narration-style']?(destination?.components['core.character']?'core.narration-pov':destination?.components['core.place']?'core.narration-focus':null):null;
+    const typeId = narrationRole&&world.relationTypes.some(r=>r.id===narrationRole)?narrationRole:node?.components['core.item'] && (destination?.components['core.holder'] || destination?.components['core.container']) ? 'core.stored-in'
       : node?.components['core.character'] && destination?.components['core.place'] ? 'core.present-at'
       : node?.components['core.place'] && destination?.components['core.place'] ? 'core.inside' : 'core.related';
     structuralEdit = {kind:'putLink',link:{id:crypto.randomUUID(),typeId,sourceId:source,targetId:target,description:''}};
@@ -447,15 +463,19 @@
         <Sidebar label="World structure">
           <div class="world-heading"><h1>World</h1><span aria-label={`${records.length} nodes`}>{records.length}</span></div>
           <div class="search-box"><span aria-hidden="true">⌕</span><input aria-label="Search world records" placeholder="Find in your world…" bind:value={search} /></div>
+          {#if !historyWorld}<p class="field-help passage-context-heading">Passage context · {#if draftContext}<button class="text-action" onclick={()=>{void openWorldInputs();}}>{draftContext.title||'Untitled passage'}</button>{:else}<button class="text-action" onclick={()=>{void switchSurface('story');}}>Open a draft</button>{/if}</p>{/if}
           <nav class="world-tree" aria-label="World records">
             {#each treeRows as record (record.id)}
               {@const count = records.filter((r) => r.parentId === record.id).length}
+              {@const contextChoice=passageNodeChoice(draftContext,record.id,displayWorld)}
               <div class="tree-row" class:active={displayWorkspace.selectedId === record.id} style={`--depth: ${recordDepth(record, records)}`}>
+                {#if !historyWorld}<NodeContextToggle choice={contextChoice} name={record.name} compact disabled={busy} onToggle={()=>storyPanel?.toggleReference(record.id)}/>{/if}
                 <button class="tree-expander" disabled={!count} aria-label={`${displayWorkspace.expandedIds.includes(record.id) ? 'Collapse' : 'Expand'} ${record.name}`} aria-expanded={count ? displayWorkspace.expandedIds.includes(record.id) : undefined} onclick={() => toggle(record.id)}>{count ? displayWorkspace.expandedIds.includes(record.id) ? '⌄' : '›' : '·'}</button>
                 <button class="tree-select" aria-current={displayWorkspace.selectedId === record.id ? 'true' : undefined} onclick={() => select(record.id)}><span class="tree-dot {record.kind}"></span><span>{record.name || 'Unnamed record'}</span></button>
               </div>
             {:else}<p class="empty-tree">{search ? 'No matching records.' : 'Your world is ready for its first place.'}</p>{/each}
           </nav>
+          {#if !historyWorld&&storyInputs}{@render storyInputs()}{/if}
         </Sidebar>
         {/if}
       </Pane>
@@ -464,15 +484,16 @@
         <section class="map-panel" aria-label={surface==='story'?'Story authoring workspace':'World authoring workspace'}>
           <div class="map-toolbar">{#if project}<div class="workspace-tabs" aria-label="Workspace"><button aria-pressed={surface==='world'} onclick={()=>{void switchSurface('world');}}>World</button><button aria-pressed={surface==='story'} onclick={()=>{void switchSurface('story');}}>Story{passageRunning?' · working…':''}</button></div>{/if}<div class="map-tools">
             {#if project&&surface==='world'}<details class="add-menu"><summary>＋ Add node</summary><div>
-              {#each availableNodeTypes(world) as type}<button disabled={busy||!!historyWorld||(['core.narration-style','core.visual-style'].includes(type.id)&&(world.aiContext?.length??0)>=32)} title={['core.narration-style','core.visual-style'].includes(type.id)&&(world.aiContext?.length??0)>=32?'Remove an AI context inclusion before adding another.':undefined} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
+              {#each availableNodeTypes(world) as type}<button disabled={busy||!!historyWorld||(type.id==='core.narration-style'&&(world.aiContext?.length??0)>=32)} title={type.id==='core.narration-style'&&(world.aiContext?.length??0)>=32?'Remove an AI context inclusion before adding another.':undefined} onclick={(event) => { addRecord(type.id); event.currentTarget.closest('details')!.open = false; }}>{type.name}</button>{/each}
               <button disabled={busy||!!historyWorld} class="custom-type-action" onclick={(event) => { showType = true; event.currentTarget.closest('details')!.open = false; }}>Define a custom node type…</button>
               <button disabled={busy||!!historyWorld} onclick={(event) => { showRelationshipType = true; event.currentTarget.closest('details')!.open = false; }}>Define a relationship…</button>
             </div></details>{/if}
             {#if project&&surface==='world'}<button class="secondary-button" disabled={busy||!!historyWorld||passageRunning||imagePromptRunning||imagePromptRetained} onclick={()=>openAi()}>{aiRunning?'AI · generating…':'AI world tools'}</button>{/if}
             {#if project&&surface==='world'}<button class="text-action" disabled={busy||!!historyWorld} onclick={()=>{void openContext();}}>AI context</button>{/if}
+            {#if project&&surface==='world'}<button class="text-action" disabled={busy||!!historyWorld} onclick={()=>{if(draftContext)void openWorldInputs();else void switchSurface('story');}}>{draftContext?'Passage setup':'Open passage draft'}</button>{/if}
           </div></div>
-          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.folderPath}:${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} aiEditable={!!project&&!busy&&!historyWorld&&!aiRunning&&!passageRunning&&!imagePromptRunning&&!imagePromptRetained} onAiSelection={reviseSelection} onEdit={reviewEdit} onExpand={(ids,expanded)=>{const current=historyWorld?historyWorkspace:workspace;const next={...current,expandedIds:expanded?[...new Set([...current.expandedIds,...ids])]:current.expandedIds.filter(id=>!ids.includes(id))};if(historyWorld)historyWorkspace=next;else{workspace=next;persistLayout();}}} /></SvelteFlowProvider></div>
-          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onContext={()=>{void openContext();}} onPanels={registerStoryPanels} onSettings={(section='llm',task='passage')=>{void storyPanel?.flushDraft().then(()=>{promptTask=task;settingsSection=section;showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
+          <div class="workspace-surface" hidden={surface!=='world'}><SvelteFlowProvider><WorldMap {draftContext} contextVisible={!historyWorld} contextDisabled={busy} onContextToggle={id=>storyPanel?.toggleReference(id)} storyId={project?.storyId??null} revision={project?.revision??0} world={displayWorld} workspace={displayWorkspace} {search} {colorMode} active={surface==='world'} projectId={project?`${project.folderPath}:${project.storyId}:${historyWorld?historyLabel:'current'}`:null} editable={!!project&&!busy&&!historyWorld} onSelect={select} onToggle={toggle} onPositions={moved} onLink={editLink} onConnect={connect} aiEditable={!!project&&!busy&&!historyWorld&&!aiRunning&&!passageRunning&&!imagePromptRunning&&!imagePromptRetained} onAiSelection={reviseSelection} onEdit={reviewEdit} onExpand={(ids,expanded)=>{const current=historyWorld?historyWorkspace:workspace;const next={...current,expandedIds:expanded?[...new Set([...current.expandedIds,...ids])]:current.expandedIds.filter(id=>!ids.includes(id))};if(historyWorld)historyWorkspace=next;else{workspace=next;persistLayout();}}} /></SvelteFlowProvider></div>
+          {#if project&&storyOpened}{#key project.storyId}<div class="workspace-surface" hidden={surface!=='story'}><StoryWorkspace bind:this={storyPanel} {project} {world} selectedId={workspace.selectedId} worldPending={status!=='All changes saved'} promptPreviewActive={surface==='story'&&!showSettings} otherBusy={aiRunning||imagePromptRunning||imagePromptRetained||busy} onBeforeAction={beforeAiAction} onAccept={acceptedPassage} onMemoryApply={appliedMemory} onImage={passageImage} onHistory={showHistory} onRun={(running)=>{passageRunning=running;}} onFork={forkPassage} onContext={()=>{void openContext();}} onPanels={registerStoryPanels} onWorldNode={id=>{void openWorldInputs(id);}} onUpgradeWriting={upgradeWritingNode} onDraftContext={context=>{draftContext=context;}} onSettings={(section='llm',task='passage')=>{void storyPanel?.flushDraft().then(()=>{promptTask=task;settingsSection=section;showSettings=true;}).catch((caught)=>{error=describe(caught);});}} /></div>{/key}{/if}
         </section>
       </Pane>
       <PaneResizer class="pane-resizer" />
@@ -480,7 +501,7 @@
         {#if surface==='story'}{#if storyDetails}{@render storyDetails()}{/if}{:else}
         <Inspector record={selected} {records} world={displayWorld} editable={!!project && !busy&&!historyWorld} historical={!!historyWorld} onEdit={edit} onSelect={select} onProperty={property} onAddCapability={addCapability} onDefineCapability={()=>{showExtension=true;}} onRetype={id=>{const n=world.nodes.find(n=>n.id===id);if(n)reviewEdit({kind:'retypeNode',id,typeId:n.typeId});}}
           onAi={openAi} onAiLink={openAiLink} onSources={id=>{void openSources(id);}} imageStoryId={project?.storyId??null} revision={project?.revision??0} onImage={nodeImage}
-          onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
+          {draftContext} onUseNarration={id=>storyPanel?.useNarration(id)} onNarrationLink={narrationLink} onUpgradeWriting={upgradeWritingNode} onContext={binding=>changeContextWorld(setContextBinding(world,binding))} onContextOpen={()=>{void openContext();}} onLink={editLink} onNewLink={connect} onRemoveNode={(id) => reviewEdit({kind:'removeNode',id})}
           onRemoveLink={(id) => reviewEdit({kind:'removeLink',id})} onRemoveCapability={(id,capability) => reviewEdit({kind:'removeCapability',id,capability})} />
         {/if}
       </Pane>
@@ -505,16 +526,15 @@
     <form onsubmit={createProject}>
       <div class="new-project-body">
         <h2 id="new-project-title">New story</h2>
-        <p>Choose a starting location, then a folder for your story.</p>
+        <p>Choose a starting world and a folder for your story.</p>
         <label class="field">Story title<input bind:value={newTitle} disabled={busy} required maxlength={200} /></label>
         <label class="field">Starting world
           <select bind:value={starterId} disabled={busy} onchange={resetStarterContext} aria-describedby="starter-description">
             <option value="empty">Empty world</option>
             {#each locationTemplates as template}<option value={template.id}>{template.name}</option>{/each}
-            <option value="brasswater">Brasswater example</option>
           </select>
         </label>
-        <p id="starter-description" class="starter-description">{starter?.description??(starterId==='brasswater'?'A country house, glasshouse and map room, with Mara, her belongings and a story thread.':'Start with a blank map and add your own world.')}</p>
+        <p id="starter-description" class="starter-description">{starter?.description??'Start with a blank map and add your own world.'}</p>
         {#if starter}
           {#key starter.id}<details class="starter-preview">
             <summary>Included world nodes ({starter.nodes.length})</summary>
@@ -525,8 +545,8 @@
           {#if preparedStarter?.id===starterId&&preparedStarter.world.aiContext?.length}
             <p class="field-help">{preparedStarter.world.aiContext.length} selected {preparedStarter.world.aiContext.length===1?'binding':'bindings'} will be saved with this story.</p>
             <ul class="field-help">{#each preparedStarter.world.aiContext as binding}<li>{preparedStarter.world.nodes.find(n=>n.id===binding.nodeId)?.name} · {binding.role==='instructions'?'Instructions':'Reference facts'}</li>{/each}</ul>
-            <button type="button" class="text-action" disabled={busy||starterLoading} onclick={resetStarterContext}>Clear starter bindings</button>
-          {:else}<p class="field-help">No starter AI context selected. Inclusion is optional.</p>{/if}
+            <button type="button" class="text-action" disabled={busy||starterLoading} onclick={resetStarterContext}>Reset demo setup</button>
+          {:else}<p class="field-help">The demo includes its narration instructions and selected first-draft sources. Review story-wide bindings above, or edit the setup after creation.</p>{/if}
         {/if}
         {#if createError}<p class="new-project-error" role="alert">{createError}</p>{/if}
       </div>

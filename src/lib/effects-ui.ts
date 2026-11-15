@@ -23,7 +23,6 @@ export function addReviewProposal(world:World,effects:PassageEffects,scopeIds:re
   if(kind==='node'){
     const saved=world.nodes.find(n=>n.id===id&&scope.has(n.id));
     if(!saved||!proseEditableNode(world,saved))throw Error('Choose an editable node supplied to this scene.');
-    if(effects.changes.some(e=>e.kind==='putNode'&&e.node.id===id))throw Error('Edit the existing proposal for this node.');
     const copy={...saved,components:Object.fromEntries(Object.entries(saved.components).map(([key,values])=>[key,Object.fromEntries(Object.entries(values).map(([key,value])=>[key,Array.isArray(value)?[...value]:value]))]))};
     change={kind:'putNode',node:copy,evidence:''};
   }else if(id){
@@ -47,7 +46,7 @@ export function addReviewProposal(world:World,effects:PassageEffects,scopeIds:re
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const property=(v:unknown)=>v===null||['string','number','boolean'].includes(typeof v)||(Array.isArray(v)&&v.every(x=>typeof x==='string'));
 const evidenceShape=(v:unknown)=>typeof v==='string'||(Array.isArray(v)&&v.length<=8&&v.every(q=>typeof q==='string'));
-const node=(v:unknown):v is WorldNode=>record(v)&&['id','typeId','name','description','visualDescription'].every(k=>typeof v[k]==='string')&&record(v.components)&&Object.values(v.components).every(c=>record(c)&&Object.values(c).every(property));
+const node=(v:unknown):v is WorldNode=>record(v)&&['id','typeId','name','description'].every(k=>typeof v[k]==='string')&&record(v.components)&&Object.values(v.components).every(c=>record(c)&&Object.values(c).every(property));
 const link=(v:unknown):v is WorldEdge=>record(v)&&['id','typeId','sourceId','targetId','description'].every(k=>typeof v[k]==='string')&&(v.properties===undefined||(record(v.properties)&&Object.values(v.properties).every(property)));
 export function parseEffects(text:string):PassageEffects|null {
   try {
@@ -91,8 +90,34 @@ export function passageQuotes(prose:string):string[] {
   return result;
 }
 export function proposedNodes(world:World,effects:PassageEffects):WorldNode[]{
-  const nodes=new Map(world.nodes.map(n=>[n.id,n]));
-  for(const effect of effects.changes)if(effect.kind==='putNode')nodes.set(effect.node.id,effect.node);
+  const saved=new Map(world.nodes.map(n=>[n.id,n]));
+  const nodes=new Map(saved);
+  for(const effect of effects.changes){
+    if(effect.kind!=='putNode')continue;
+    const next=effect.node;
+    const baseline=saved.get(next.id);
+    const current=nodes.get(next.id);
+    if(!baseline||!current||current===baseline){
+      nodes.set(next.id,next);
+      continue;
+    }
+    const components={...current.components};
+    for(const [id,values] of Object.entries(next.components)){
+      const before=baseline.components[id]??{};
+      const fields={...components[id]};
+      for(const [key,value] of Object.entries(values)){
+        if(JSON.stringify(value)!==JSON.stringify(before[key]))fields[key]=value;
+      }
+      for(const key of Object.keys(before))if(!Object.hasOwn(values,key))delete fields[key];
+      components[id]=fields;
+    }
+    nodes.set(next.id,{
+      ...current,
+      name:next.name===baseline.name?current.name:next.name,
+      description:next.description===baseline.description?current.description:next.description,
+      components,
+    });
+  }
   return [...nodes.values()];
 }
 export const nodeName=(nodes:WorldNode[],id:string)=>nodes.find(n=>n.id===id)?.name||'Missing node';
@@ -143,7 +168,7 @@ export function valueLabel(value:PropertyValue|undefined,nodes:WorldNode[],kind?
 export function nodeDiff(world:World,nodes:WorldNode[],next:WorldNode):{label:string;before:string;after:string}[]{
   const old=world.nodes.find(n=>n.id===next.id);if(!old)return [];
   const rows:{label:string;before:string;after:string}[]=[];
-  for(const [key,label] of [['name','Name'],['description','Story notes'],['visualDescription','Visible description']] as const)if(old[key]!==next[key])rows.push({label,before:old[key]||'Unspecified',after:next[key]||'Unspecified'});
+  for(const [key,label] of [['name','Name'],['description','Story notes']] as const)if(old[key]!==next[key])rows.push({label,before:old[key]||'Unspecified',after:next[key]||'Unspecified'});
   for(const id of new Set([...Object.keys(old.components),...Object.keys(next.components)])){
     const definition=world.componentTypes.find(c=>c.id===id);
     for(const key of new Set([...Object.keys(old.components[id]??{}),...Object.keys(next.components[id]??{})])){

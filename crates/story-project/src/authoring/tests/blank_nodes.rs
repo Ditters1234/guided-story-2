@@ -8,7 +8,6 @@ fn blank_node(world: &World, type_id: &str, name: &str) -> WorldNode {
         type_id: type_id.into(),
         name: name.into(),
         description: String::new(),
-        visual_description: String::new(),
         components: preset
             .components
             .iter()
@@ -259,7 +258,7 @@ fn blank_nodes_and_custom_fields_generate_without_directions_and_stay_unapplied_
         let after = project.view().unwrap().world;
         assert!(!after.nodes[0].description.is_empty());
         assert_eq!(after.nodes[0].name, node.name);
-        assert_eq!(after.nodes[0].visual_description, "");
+        assert!(!after.nodes[0].components.contains_key("detail.image"));
         assert_eq!(after.ai_context, world.ai_context);
         assert_eq!(after.nodes[1], world.nodes[1]);
         if kind == "core.narration-style" {

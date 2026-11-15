@@ -324,7 +324,7 @@ fn node_revision_schema_locks_all_unchecked_values_without_collapsing_unspecifie
     let reference = proposed_node(&world, "core.place", &id(), "Workshop");
     let mut node = proposed_node(&world, "custom.record", &id(), "Brass lantern notes");
     node.description = "Keep these author notes.".into();
-    node.visual_description = "Blackened brass.".into();
+    crate::projection::set_image_notes(&mut node, "Blackened brass.");
     node.components
         .insert("custom.editor".into(), values(&reference.id));
     world.nodes = vec![reference.clone(), node.clone()];
@@ -337,10 +337,10 @@ fn node_revision_schema_locks_all_unchecked_values_without_collapsing_unspecifie
         ("id", &node.id),
         ("name", &node.name),
         ("description", &node.description),
-        ("visualDescription", &node.visual_description),
     ] {
         assert_eq!(schema["properties"][key]["const"], json!(expected));
     }
+    assert_eq!(schema["properties"]["components"]["properties"]["detail.image"]["properties"]["visibleNotes"]["const"], "Blackened brass.");
     assert_protection(
         &schema["properties"]["components"]["properties"]["custom.editor"],
         &reference.id,

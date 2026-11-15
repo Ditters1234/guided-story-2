@@ -198,6 +198,7 @@ fn unspecified(value: &Value) -> bool {
 
 pub(crate) fn reference_node(world: &World, node: &WorldNode) -> Value {
     let mut value = json!(node);
+    crate::projection::strip_image_components(world, &mut value);
     for definition in &world.component_types {
         if let Some(fields) = value["components"]
             .get_mut(&definition.id)
@@ -213,10 +214,8 @@ pub(crate) fn reference_node(world: &World, node: &WorldNode) -> Value {
         }
     }
     if let Some(object) = value.as_object_mut() {
-        for key in ["description", "visualDescription"] {
-            if object.get(key).is_some_and(unspecified) {
-                object.remove(key);
-            }
+        if object.get("description").is_some_and(unspecified) {
+            object.remove("description");
         }
     }
     value

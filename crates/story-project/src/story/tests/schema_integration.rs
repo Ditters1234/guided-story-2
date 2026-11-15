@@ -51,7 +51,7 @@ fn actual_prose_planning_and_wording_prompts_exclude_extra_visual_notes_but_imag
     let current = p.view().unwrap();
     let mut w = current.world;
     let sentinel = "IMAGE_ONLY_SUPPLEMENT_7231";
-    w.nodes[1].visual_description = sentinel.into();
+    crate::projection::set_image_notes(&mut w.nodes[1], sentinel);
     assert!(visual_summary(&w, &w.nodes[1], &[]).contains(sentinel));
     p.commit(current.revision, id(), current.title, w.clone())
         .unwrap();
@@ -73,6 +73,12 @@ fn actual_prose_planning_and_wording_prompts_exclude_extra_visual_notes_but_imag
         &settings(),
     )
     .unwrap();
+    let version = p.passage_view(&draft, &settings()).unwrap().version;
+    let extraction = p
+        .preview_passage_prompt(&draft, version, 1, PassagePromptAction::CheckChanges, &settings())
+        .unwrap();
+    assert!(!extraction.user.contains(sentinel));
+    assert!(!extraction.user.contains("visibleNotes"));
 
     let prose = "Mara waited beside the window.";
     let mut changed = w.nodes[1].clone();
@@ -122,10 +128,15 @@ fn actual_prose_planning_and_wording_prompts_exclude_extra_visual_notes_but_imag
 }
 
 #[test]
-fn image_only_binding_selection_blocks_narrative_explicitly_without_changing_saved_bindings() {
+fn image_guidance_bindings_filter_content_by_task() {
     let mut world = World::default();
     let mut n = node(&world, "core.note", "Image reference");
-    n.visual_description = "IMAGE_ONLY_BINDING_982".into();
+    n.description = "Shared author reference.".into();
+    crate::projection::set_image_notes(&mut n, "IMAGE_SUBJECT_ONLY");
+    n.components.insert(
+        "detail.visual-style".into(),
+        BTreeMap::from([("palette".into(), PropertyValue::Text("IMAGE_STYLE_ONLY".into()))]),
+    );
     world.ai_context.push(AiContextBinding {
         node_id: n.id.clone(),
         enabled: true,
@@ -136,7 +147,7 @@ fn image_only_binding_selection_blocks_narrative_explicitly_without_changing_sav
             TextPromptTask::Planning,
             TextPromptTask::ImagePrompt,
         ],
-        fields: vec![AiContextField::VisualDescription],
+        fields: vec![AiContextField::Description, AiContextField::Components],
         order: 0,
         image_preparation: true,
     });
@@ -147,22 +158,21 @@ fn image_only_binding_selection_blocks_narrative_explicitly_without_changing_sav
         TextPromptTask::Wording,
         TextPromptTask::Planning,
     ] {
-        assert!(resolve_ai_context(&world, task)
-            .unwrap_err()
-            .contains("image-only visualDescription"));
+        let included = resolve_ai_context(&world, task).unwrap();
+        assert_eq!(included[0].content, "Shared author reference.");
     }
-    assert!(
-        resolve_ai_context(&world, TextPromptTask::ImagePrompt).unwrap()[0]
-            .content
-            .contains("IMAGE_ONLY_BINDING_982")
-    );
+    let image = resolve_ai_context(&world, TextPromptTask::ImagePrompt).unwrap();
+    assert!(image[0].content.contains("IMAGE_STYLE_ONLY"));
+    assert!(!image[0].content.contains("IMAGE_SUBJECT_ONLY"));
     assert_eq!(world, original);
 }
 
 #[test]
 fn starters_keep_supporting_nodes_unbound_and_explicit_references_use_existing_scope() {
-    for template in ["school", "homestead", "spaceship"] {
-        let world = location_template_world(template).unwrap();
+    for template in ["lantern-demo"] {
+        let mut world = location_template_world(template).unwrap();
+        world.nodes.push(node(&world,"core.environment","Local conditions"));
+        world.nodes.push(node(&world,"core.time","Evening"));
         let place = world
             .nodes
             .iter()
@@ -184,7 +194,8 @@ fn starters_keep_supporting_nodes_unbound_and_explicit_references_use_existing_s
             .unwrap()
             .id
             .clone();
-        assert!(world.ai_context.is_empty());
+        assert!(!world.ai_context.iter().any(|b|b.node_id==environment||b.node_id==time));
+        world.edges.push(WorldEdge{id:id(),type_id:"story.conditions-at".into(),source_id:environment.clone(),target_id:place.clone(),description:String::new(),properties:Default::default()});
         let mut plan = PassagePlan {
             location_id: Some(place.clone()),
             ..Default::default()
@@ -241,7 +252,7 @@ fn narrative_relationship_guidance_is_scoped_directional_and_does_not_acquire_kn
     }
     let original = world.clone();
     let mut input = json!({});
-    crate::knowledge::project_records(&world, &mut input, false);
+    crate::knowledge::project_records(&world, &mut input, false, &BTreeSet::new());
     let guidance = input["relationshipGuidance"].as_array().unwrap();
     assert!(guidance
         .iter()

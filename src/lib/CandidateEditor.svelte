@@ -5,6 +5,7 @@
   import type { AuthoringRequest,NodeCandidate,PropertyValue,ExistingNodeSummary } from './bindings';
   import type { World } from './model';
   import NodeFields from './NodeFields.svelte';
+  import {imageOnlyExtension} from './node-fields';
   import { addCandidateNode,editCandidateNode,addCandidateCapability,addCandidateWornItem,wornItemType,candidateNodeTypes,unsupportedCandidateFields,removeUnsupportedCandidateField,candidatePlacementConflicts,repairCandidatePlacement,unplacedCandidateGarments,garmentPlacementTargets,placeCandidateGarment } from './authoring-ui';
   let {candidate,schema,request,existingNodes=[],onChange}:{candidate:NodeCandidate;schema:World;request:AuthoringRequest;existingNodes?:ExistingNodeSummary[];onChange:(value:NodeCandidate)=>void}=$props();
   let selected=$state('');
@@ -23,7 +24,7 @@
   const unplacedGarments=$derived(unplacedCandidateGarments(schema,candidate).filter(n=>isNew(n.id)));
   const nameOf=(id:string)=>references.find(node=>node.id===id)?.name||id;
   const allowed=(id:string,componentId:string|null,key:string)=>isNew(id)||request.fields.some((f)=>f.nodeId===id&&f.componentId===componentId&&f.key===key);
-  function edit(key:'name'|'description'|'visualDescription',value:string){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,[key]:value})));}
+  function edit(key:'name'|'description',value:string){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,[key]:value})));}
   function property(componentId:string,key:string,value:PropertyValue){if(node)onChange(editCandidateNode(candidate,node.id,(n)=>({...n,components:{...n.components,[componentId]:{...n.components[componentId],[key]:value}}})));}
   function edge(index:number,key:'typeId'|'sourceId'|'targetId'|'description',value:string){onChange({...candidate,edges:candidate.edges.map((e,i)=>i===index?(key==='typeId'?changeLinkType(schema,e,value):{...e,[key]:value}):e)});}
 </script>
@@ -54,13 +55,12 @@
 <nav class="candidate-node-tabs" aria-label="Proposed nodes">{#each candidate.nodes as entry}<button class:active={node?.id===entry.id} onclick={()=>{selected=entry.id;}}>{entry.name||'Unnamed node'}</button>{/each}</nav>
 {#if node}
   <div class="candidate-type">{schema.nodeTypes.find((d)=>d.id===node.typeId)?.name??node.typeId}</div>
-  {#if isNew(node.id)&&unsupported.length}<details class="capability" open><summary>Unsupported fields ({unsupported.length})</summary><p class="field-help">These keys are not in this project's schema. Move useful text into a declared field, then remove the unsupported field.</p>{#each unsupported as field}<div><strong>{field.label}</strong><pre class="unsupported-value">{field.value}</pre><button class="text-action danger-text" onclick={()=>onChange(removeUnsupportedCandidateField(schema,candidate,node!.id,field.componentId,field.key))}>Remove {field.label}</button></div>{/each}</details>{/if}
+  {#if isNew(node.id)&&unsupported.length}<details class="capability" open><summary>Unsupported fields ({unsupported.length})</summary><p class="field-help">Move useful story text into a declared field. Add optional image extensions through Manage extensions after applying the node.</p>{#each unsupported as field}<div><strong>{field.label}</strong><pre class="unsupported-value">{field.value}</pre><button class="text-action danger-text" onclick={()=>onChange(removeUnsupportedCandidateField(schema,candidate,node!.id,field.componentId,field.key))}>Remove {field.label}</button></div>{/each}</details>{/if}
   <label class="field">Name<input value={node.name} maxlength={200} disabled={!allowed(node.id,null,'name')} oninput={(event)=>edit('name',event.currentTarget.value)} /></label>
   <label class="field">Story notes<textarea value={node.description} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'description')} oninput={(event)=>edit('description',event.currentTarget.value)}></textarea></label>
-  <label class="field">Visible description<textarea value={node.visualDescription} rows={3} maxlength={16000} disabled={!allowed(node.id,null,'visualDescription')} oninput={(event)=>edit('visualDescription',event.currentTarget.value)}></textarea></label>
   {#if node.components['core.character']}<section class="capability"><strong>Worn items</strong>{#each candidate.edges.filter(e=>e.typeId==='core.worn-by'&&e.targetId===node!.id) as link}{@const garment=candidate.nodes.find(n=>n.id===link.sourceId)}{#if garment}<button class="text-action" onclick={()=>{selected=garment.id;}}>{garment.name} ↗</button>{/if}{:else}<p class="field-help">No worn items proposed.</p>{/each}{#if request.bundle}<button class="secondary-button" disabled={!canAddGarment||!canAddNode||!canAddLink} onclick={()=>{const next=addCandidateWornItem(schema,candidate,node!.id,garmentTypes);selected=next.nodes.at(-1)!.id;onChange(next);}}>＋ Add worn item</button>{/if}</section>{/if}
   <NodeFields world={schema} {node} nodes={references} canEdit={(componentId,key)=>allowed(node!.id,componentId,key)} onChange={property}/>
-  {#if isNew(node.id)}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
+  {#if isNew(node.id)}<select aria-label="Add capability to proposed node" value="" onchange={event=>{if(event.currentTarget.value){onChange(addCandidateCapability(schema,candidate,node!.id,event.currentTarget.value));event.currentTarget.value='';}}}><option value="">＋ Add capability…</option>{#each schema.componentTypes.filter(d=>!node!.components[d.id]&&!imageOnlyExtension(d)) as capability}<option value={capability.id}>{capability.name}</option>{/each}</select>{/if}
 {/if}
 <style>.unsupported-value{white-space:pre-wrap;overflow-wrap:anywhere;max-height:10rem;overflow:auto;font-size:.85rem;}</style>
 {#if request.bundle}
